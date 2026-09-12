@@ -16,13 +16,13 @@
   --color-secondary-foreground: var(--secondary-foreground); --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground); --color-destructive: var(--destructive);
   --color-border: var(--border); --color-input: var(--input); --color-ring: var(--ring);
-  --font-sans: "DM Sans", "DM Sans Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fraunces", "Fraunces Fallback", Georgia, serif;
+  --font-sans: "Aptos", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --radius-sm: calc(var(--radius) * .75); --radius-md: calc(var(--radius) * .875); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) * 1.5);
 }
 * { box-sizing: border-box; }
 html { overflow-x: hidden; scroll-behavior: smooth; background: var(--background); }
-body { margin: 0; overflow-x: hidden; background: var(--background); color: var(--foreground); font-family: var(--font-interface), ui-sans-serif, system-ui, sans-serif; }
+body { margin: 0; overflow-x: hidden; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
 button, a, input, select { transition: background-color .2s ease, border-color .2s ease, color .2s ease, transform .2s ease, box-shadow .2s ease; }
 ::selection { background: #e0bd71; color: #17362d; }
 .serif { font-family: var(--font-display), Georgia, serif; }

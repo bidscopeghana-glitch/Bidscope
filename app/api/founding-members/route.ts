@@ -1,7 +1,10 @@
-import { getDb } from "../../../db";
-import { foundingMembers } from "../../../db/schema";
-
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const registrationUnavailable = () =>
+  Response.json(
+    { error: "Registration storage is being prepared. Please try again shortly." },
+    { status: 503 },
+  );
 
 export async function POST(request: Request) {
   try {
@@ -18,17 +21,35 @@ export async function POST(request: Request) {
     }
     if (!consent) return Response.json({ error: "Consent is required to join the programme." }, { status: 400 });
 
-    const db = getDb();
-    await db.insert(foundingMembers).values({ businessName, contactName, email, phone, sector, consent }).onConflictDoUpdate({
-      target: foundingMembers.email,
-      set: { businessName, contactName, phone, sector, consent },
+    const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
+    const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
+
+    if (!supabaseUrl || !supabaseSecretKey) return registrationUnavailable();
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/upsert_founding_member`, {
+      method: "POST",
+      headers: {
+        apikey: supabaseSecretKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        p_business_name: businessName,
+        p_contact_name: contactName,
+        p_email: email,
+        p_phone: phone,
+        p_sector: sector,
+        p_consent: consent,
+      }),
     });
+
+    if (!response.ok) {
+      console.error("Supabase registration failed", response.status, await response.text());
+      return registrationUnavailable();
+    }
+
     return Response.json({ message: "Your business is on the list. We will contact you before the Ghana launch." }, { status: 201 });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : "Unexpected error";
-    if (detail.includes("no such table") || detail.includes("D1 binding")) {
-      return Response.json({ error: "Registration storage is being prepared. Please try again shortly." }, { status: 503 });
-    }
+    console.error("Founding member registration failed", error);
     return Response.json({ error: "We could not save your registration. Please try again." }, { status: 500 });
   }
 }
