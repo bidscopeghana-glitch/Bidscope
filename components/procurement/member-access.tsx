@@ -14,7 +14,7 @@ export function MemberAccess({ children, title, description }: { children: React
       <p className="mt-6 text-xs font-bold uppercase tracking-[.16em] text-[#527065]">Member access</p>
       <h1 className="serif mt-3 text-4xl font-medium tracking-[-.035em] text-[#17362d] sm:text-5xl">{title}</h1>
       <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[#61736a]">{description}</p>
-      <a href="#bidscope-sign-in" className="mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-[#116149] px-6 text-sm font-bold text-white shadow-[0_12px_28px_rgba(17,97,73,.2)] hover:-translate-y-0.5 hover:bg-[#0d523e]">Sign in / Sign up <ArrowRight size={16}/></a>
+      <a href="/sign-in" className="mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-[#116149] px-6 text-sm font-bold text-white shadow-[0_12px_28px_rgba(17,97,73,.2)] hover:-translate-y-0.5 hover:bg-[#0d523e]">Sign in / Sign up <ArrowRight size={16}/></a>
       <p className="mt-5 flex items-center justify-center gap-2 text-xs text-[#718079]"><ShieldCheck size={15} className="text-[#116149]"/>Your Google account securely confirms your identity.</p>
     </div>
   </section>;
