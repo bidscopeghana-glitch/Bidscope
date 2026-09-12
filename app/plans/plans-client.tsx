@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Check, Crown, Users } from "lucide-react";
 
 const plans=[
-  {name:"Free",description:"Explore current opportunities and verify every notice at its official source.",features:["Live open opportunities","Official source links","Basic search and filters"],cta:"Create free account",href:"/api/auth/google",featured:false},
+  {name:"Free",description:"Explore current opportunities and verify every notice at its official source.",features:["Live open opportunities","Official source links","Basic search and filters"],cta:"Create free account",href:"/sign-in",featured:false},
   {name:"Pro",description:"For Ghanaian businesses that want faster shortlisting and better-informed bid decisions.",features:["Everything in Free","Saved opportunities and bid workspace","Business-fit matching","Priority opportunity alerts","Buyer and award intelligence"],cta:"Upgrade to Pro",href:"mailto:bidscopeghana@gmail.com?subject=BidScope%20Pro%20upgrade",featured:true},
   {name:"Business",description:"For teams managing several sectors, opportunities and bidding responsibilities.",features:["Everything in Pro","Multiple team members","Shared opportunity pipeline","Team alerts and oversight","Priority onboarding"],cta:"Discuss Business",href:"mailto:bidscopeghana@gmail.com?subject=BidScope%20Business%20plan",featured:false},
 ];
