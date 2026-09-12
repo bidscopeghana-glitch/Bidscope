@@ -1,4 +1,20 @@
-# vinext-starter
+# BidScope Ghana
+
+BidScope is a Ghana-focused public-procurement discovery and research platform. The application uses Next.js on Vercel and Supabase for Postgres, authentication and row-level security.
+
+Backend architecture, API routes, environment variables and the deployment sequence are documented in [`docs/backend.md`](docs/backend.md).
+
+The canonical multi-source procurement model, connector classifications, submission semantics and operating runbook are documented in [`docs/procurement-integration.md`](docs/procurement-integration.md).
+
+Quick verification:
+
+```sh
+npm run test:backend
+npm run lint
+npm run build
+```
+
+## Original starter notes
 
 A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
 

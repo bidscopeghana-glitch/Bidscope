@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+/.npm-cache-task/
+/.responsive-checks/
 /.pnp
 .pnp.*
 .yarn/*
