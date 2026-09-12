@@ -26,25 +26,49 @@ export async function POST(request: Request) {
 
     if (!supabaseUrl || !supabaseSecretKey) return registrationUnavailable();
 
-    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/upsert_founding_member`, {
-      method: "POST",
-      headers: {
-        apikey: supabaseSecretKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        p_business_name: businessName,
-        p_contact_name: contactName,
-        p_email: email,
-        p_phone: phone,
-        p_sector: sector,
-        p_consent: consent,
-      }),
-    });
+    const headers = {
+      apikey: supabaseSecretKey,
+      "Content-Type": "application/json",
+    };
+    const member = {
+      business_name: businessName,
+      contact_name: contactName,
+      phone,
+      sector,
+      consent,
+      updated_at: new Date().toISOString(),
+    };
 
+    const updateExisting = () => fetch(
+      `${supabaseUrl}/rest/v1/founding_members?email=eq.${encodeURIComponent(email)}`,
+      {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=representation" },
+        body: JSON.stringify(member),
+        cache: "no-store",
+      },
+    );
+
+    let response = await updateExisting();
     if (!response.ok) {
-      console.error("Supabase registration failed", response.status, await response.text());
+      console.error("Supabase registration update failed", response.status, await response.text());
       return registrationUnavailable();
+    }
+
+    const updated = (await response.json()) as unknown[];
+    if (updated.length === 0) {
+      response = await fetch(`${supabaseUrl}/rest/v1/founding_members`, {
+        method: "POST",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify({ ...member, email }),
+        cache: "no-store",
+      });
+
+      if (response.status === 409) response = await updateExisting();
+      if (!response.ok) {
+        console.error("Supabase registration insert failed", response.status, await response.text());
+        return registrationUnavailable();
+      }
     }
 
     return Response.json({ message: "Your business is on the list. We will contact you before the Ghana launch." }, { status: 201 });
