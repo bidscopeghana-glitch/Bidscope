@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, LogIn, LogOut, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, LogIn, LogOut, ShieldCheck, UserRound, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand/brand-logo";
@@ -26,7 +26,7 @@ export function AuthNav() {
     router.refresh();
   }
 
-  if (signedIn) return <button type="button" onClick={signOut} className="inline-flex items-center gap-1.5 rounded-full border border-[#17362d]/15 px-3 py-2 text-[#27493f] transition hover:bg-[#e9f1e8]"><LogOut size={14}/><span className="hidden sm:inline">Sign out</span></button>;
+  if (signedIn) return <div className="flex items-center gap-1"><Link href="/profile" className="inline-flex items-center gap-1.5 rounded-full bg-[#116149] px-3 py-2 text-white transition hover:bg-[#0d523e]"><UserRound size={14}/><span className="hidden sm:inline">Profile</span></Link><button type="button" onClick={signOut} aria-label="Sign out" className="inline-flex items-center gap-1.5 rounded-full border border-[#17362d]/15 px-2.5 py-2 text-[#27493f] transition hover:bg-[#e9f1e8]"><LogOut size={14}/></button></div>;
   return <>
     <a href="#bidscope-sign-in" className="inline-flex items-center gap-1.5 rounded-full bg-[#116149] px-3 py-2 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0d523e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#116149]/35 focus-visible:ring-offset-2">
       <LogIn size={14}/><span className="hidden sm:inline">Sign in / Sign up</span><span className="sm:hidden">Sign in</span>
