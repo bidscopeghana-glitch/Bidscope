@@ -28,7 +28,28 @@ export async function GET(request: Request) {
         if (opportunityResult.runId) await supabaseRest(`source_sync_runs?id=eq.${opportunityResult.runId}`, { method: "PATCH", body: JSON.stringify({ ghana_opportunity_count: normalized.length, project_count: projects.length, award_count: awards.length }) });
         results.push({ source: source.slug, ...opportunityResult, ...projectResult, ...awardResult, ghanaOpportunities: normalized.length });
       } catch (error) {
-        results.push({ source: source.slug, status: "FAILED", reason: error instanceof Error ? error.message : "Unknown sync error" });
+        const reason = error instanceof Error ? error.message : "Unknown sync error";
+        const completedAt = new Date().toISOString();
+        await Promise.allSettled([
+          supabaseRest("source_sync_runs", {
+            method: "POST",
+            body: JSON.stringify({
+              source_id: source.id,
+              status: "FAILED",
+              triggered_by: "schedule",
+              started_at: completedAt,
+              completed_at: completedAt,
+              failed_count: 1,
+              error_summary: reason,
+              error_details: [{ stage: "source_sync", message: reason }],
+            }),
+          }),
+          supabaseRest(`procurement_sources?id=eq.${source.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ last_sync_at: completedAt, last_error: reason }),
+          }),
+        ]);
+        results.push({ source: source.slug, status: "FAILED", reason });
       }
     }
     return Response.json({ results });
