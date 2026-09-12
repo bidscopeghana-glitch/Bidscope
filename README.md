@@ -4,6 +4,8 @@ BidScope is a Ghana-focused public-procurement discovery and research platform. 
 
 Backend architecture, API routes, environment variables and the deployment sequence are documented in [`docs/backend.md`](docs/backend.md).
 
+The canonical multi-source procurement model, connector classifications, submission semantics and operating runbook are documented in [`docs/procurement-integration.md`](docs/procurement-integration.md).
+
 Quick verification:
 
 ```sh

@@ -5,9 +5,9 @@ import { matchesAlert, type AlertOpportunityRecord, type AlertRuleRecord } from 
 const opportunity: AlertOpportunityRecord = {
   id: "opportunity-1", slug: "solar-streetlights", title: "Supply and installation of solar streetlights",
   summary: "Works for a municipal assembly", description: "Installation across Tamale",
-  category: "works", sectors: ["energy", "construction"], region: "Northern",
-  buyer_id: "buyer-1", estimated_value: 500000, deadline: "2026-10-01T12:00:00+00:00",
-  source_url: "https://example.gov.gh/tenders/solar-streetlights",
+  category: "works", sector: "energy, construction", region: "Northern",
+  buyer_normalized_id: "buyer-1", estimated_value: 500000, deadline_at: "2026-10-01T12:00:00+00:00",
+  official_source_url: "https://example.gov.gh/tenders/solar-streetlights",
 };
 
 const rule: AlertRuleRecord = {

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     if (!organizationId) throw new ApiError(400, "organizationId is required.", "validation_error");
     await requireOrganizationMember(user.id, organizationId);
     const query = new URLSearchParams({
-      select: "notes,pipeline_stage,created_at,updated_at,opportunity:opportunities(*,buyer:procuring_entities(id,name,slug))",
+      select: "notes,pipeline_stage,created_at,updated_at,opportunity:procurement_opportunities(*,buyer:procuring_entities(id,name,slug))",
       organization_id: `eq.${organizationId}`,
       order: "updated_at.desc",
     });
@@ -54,4 +54,3 @@ export async function DELETE(request: Request) {
     return apiErrorResponse(error);
   }
 }
-

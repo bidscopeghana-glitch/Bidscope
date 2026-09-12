@@ -391,6 +391,26 @@ alter table public.subscriptions enable row level security;
 alter table public.webhook_events enable row level security;
 alter table public.audit_log enable row level security;
 
+drop policy if exists "profiles_read_self" on public.profiles;
+drop policy if exists "profiles_update_self" on public.profiles;
+drop policy if exists "organizations_read_member" on public.organizations;
+drop policy if exists "organizations_update_admin" on public.organizations;
+drop policy if exists "organization_members_read_member" on public.organization_members;
+drop policy if exists "organization_members_manage_admin" on public.organization_members;
+drop policy if exists "buyers_public_read" on public.procuring_entities;
+drop policy if exists "opportunities_public_read" on public.opportunities;
+drop policy if exists "opportunity_documents_public_read" on public.opportunity_documents;
+drop policy if exists "awards_public_read" on public.awards;
+drop policy if exists "award_suppliers_public_read" on public.award_suppliers;
+drop policy if exists "saved_opportunities_member_access" on public.saved_opportunities;
+drop policy if exists "alert_rules_member_read" on public.alert_rules;
+drop policy if exists "alert_rules_member_insert" on public.alert_rules;
+drop policy if exists "alert_rules_owner_update" on public.alert_rules;
+drop policy if exists "alert_rules_owner_delete" on public.alert_rules;
+drop policy if exists "alert_deliveries_member_read" on public.alert_deliveries;
+drop policy if exists "subscriptions_member_read" on public.subscriptions;
+drop policy if exists "audit_log_admin_read" on public.audit_log;
+
 create policy "profiles_read_self" on public.profiles for select using (id = auth.uid());
 create policy "profiles_update_self" on public.profiles for update using (id = auth.uid()) with check (id = auth.uid());
 create policy "organizations_read_member" on public.organizations for select using (public.is_organization_member(id));

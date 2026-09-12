@@ -34,6 +34,14 @@ export async function requireOrganizationMember(userId: string, organizationId: 
   return data[0];
 }
 
+export async function requireSuperAdmin(request: Request) {
+  const authenticated = await requireUser(request);
+  const query = new URLSearchParams({ select: "is_super_admin", id: `eq.${authenticated.user.id}`, limit: "1" });
+  const { data } = await supabaseRest<Array<{ is_super_admin: boolean }>>(`profiles?${query}`);
+  if (!data[0]?.is_super_admin) throw new ApiError(403, "Super Admin access is required.", "admin_access_denied");
+  return authenticated;
+}
+
 export function requireInternalSecret(request: Request) {
   const expected = process.env.BIDSCOPE_INTERNAL_SECRET;
   const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
@@ -41,4 +49,12 @@ export function requireInternalSecret(request: Request) {
   if (!valid) {
     throw new ApiError(401, "A valid internal service credential is required.", "invalid_internal_credential");
   }
+}
+
+export function requireCronOrInternalSecret(request: Request) {
+  const authorization = request.headers.get("authorization") || "";
+  const supplied = authorization.replace(/^Bearer\s+/i, "");
+  const candidates = [process.env.BIDSCOPE_INTERNAL_SECRET, process.env.CRON_SECRET].filter((value): value is string => Boolean(value));
+  const valid = candidates.some((expected) => expected.length === supplied.length && timingSafeEqual(Buffer.from(expected), Buffer.from(supplied)));
+  if (!valid) throw new ApiError(401, "A valid scheduler credential is required.", "invalid_scheduler_credential");
 }

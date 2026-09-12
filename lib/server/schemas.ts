@@ -2,6 +2,17 @@ import { z } from "zod";
 
 const uuid = z.string().uuid();
 const shortText = (max: number) => z.string().trim().min(1).max(max);
+const sourceConfigurationSchema = z.record(z.string(), z.unknown()).superRefine((value, context) => {
+  const forbidden = /(api.?key|client.?secret|password|access.?token|credential)/i;
+  const inspect = (candidate: unknown, path: string[] = []) => {
+    if (!candidate || typeof candidate !== "object") return;
+    for (const [key, nested] of Object.entries(candidate as Record<string, unknown>)) {
+      if (forbidden.test(key)) context.addIssue({ code: z.ZodIssueCode.custom, message: "Secrets must be stored in server environment variables, not source configuration.", path: [...path, key] });
+      inspect(nested, [...path, key]);
+    }
+  };
+  inspect(value);
+});
 
 export const organizationSchema = z.object({
   name: shortText(160),
@@ -122,5 +133,76 @@ export const sourceSchema = z.object({
   baseUrl: z.string().url().max(2000).nullable().optional(),
   enabled: z.boolean().default(true),
   schedule: z.string().trim().max(120).nullable().optional(),
+  configuration: sourceConfigurationSchema.default({}),
+});
+
+export const canonicalOpportunitySchema = z.object({
+  sourceSlug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100),
+  externalOpportunityId: z.string().trim().max(240).nullable().optional(),
+  externalReference: z.string().trim().max(200).nullable().optional(),
+  sourceResourceId: z.string().trim().max(240).nullable().optional(),
+  title: shortText(500),
+  summary: z.string().trim().max(3000).default(""),
+  description: z.string().trim().max(50000).default(""),
+  buyerName: z.string().trim().max(300).default(""),
+  buyerType: z.string().trim().max(120).nullable().optional(),
+  country: z.string().trim().max(120).default("Ghana"),
+  countryCode: z.string().length(2).toUpperCase().default("GH"),
+  region: z.string().trim().max(120).nullable().optional(),
+  sector: z.string().trim().max(160).nullable().optional(),
+  category: z.enum(["goods", "works", "services", "consulting", "other"]).default("other"),
+  subcategory: z.string().trim().max(160).nullable().optional(),
+  procurementMethod: z.string().trim().max(180).nullable().optional(),
+  contractType: z.string().trim().max(180).nullable().optional(),
+  currency: z.string().trim().toUpperCase().length(3).nullable().optional(),
+  estimatedValue: z.number().nonnegative().nullable().optional(),
+  minimumValue: z.number().nonnegative().nullable().optional(),
+  maximumValue: z.number().nonnegative().nullable().optional(),
+  publishedAt: z.string().datetime({ offset: true }).nullable().optional(),
+  deadlineAt: z.string().datetime({ offset: true }).nullable().optional(),
+  status: z.enum(["DRAFT", "OPEN", "CLOSED", "CANCELLED", "AWARDED", "ARCHIVED"]).default("OPEN"),
+  officialSourceUrl: z.string().url().max(2000),
+  officialTenderUrl: z.string().url().max(2000).nullable().optional(),
+  officialSubmissionUrl: z.string().url().max(2000).nullable().optional(),
+  submissionPlatform: z.string().trim().max(160).nullable().optional(),
+  submissionMethod: z.string().trim().max(300).nullable().optional(),
+  requiresRegistration: z.boolean().default(false),
+  registrationUrl: z.string().url().max(2000).nullable().optional(),
+  fundingSource: z.string().trim().max(160).default("Other"),
+  fundingAgency: z.string().trim().max(200).nullable().optional(),
+  eligibilityText: z.string().trim().max(10000).nullable().optional(),
+  eligibilityCountry: z.string().trim().max(120).nullable().optional(),
+  documentsUrl: z.string().url().max(2000).nullable().optional(),
+  contactName: z.string().trim().max(300).nullable().optional(),
+  contactEmail: z.string().email().max(320).nullable().optional(),
+  contactPhone: z.string().trim().max(80).nullable().optional(),
+  rawPayload: z.record(z.string(), z.unknown()).default({}),
+}).refine((value) => value.minimumValue == null || value.maximumValue == null || value.minimumValue <= value.maximumValue, {
+  message: "Minimum value cannot exceed maximum value.", path: ["minimumValue"],
+});
+
+export const canonicalOpportunityBatchSchema = z.object({ records: z.array(canonicalOpportunitySchema).min(1).max(250) });
+
+export const bidTrackingSchema = z.object({
+  opportunityId: uuid,
+  organizationId: uuid.nullable().optional(),
+  status: z.enum(["SAVED", "REVIEWING", "PREPARING", "READY_TO_SUBMIT", "OFFICIAL_SUBMISSION_OPENED", "SUBMITTED", "AWARDED", "UNSUCCESSFUL", "WITHDRAWN"]),
+  submissionReference: z.string().trim().max(300).nullable().optional(),
+  outcome: z.string().trim().max(500).nullable().optional(),
+  notes: z.string().trim().max(5000).default(""),
+});
+
+export const procurementSourceAdminSchema = z.object({
+  name: shortText(160), organisation: shortText(200),
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100),
+  baseUrl: z.string().url().max(2000), countryCode: z.string().length(2).toUpperCase().default("GH"),
+  integrationType: z.enum(["API", "OPEN_API", "OPEN_DATA", "RSS", "STRUCTURED_WEB", "MANUAL", "DISABLED"]),
+  implementationStatus: z.enum(["LIVE", "READY_API_REQUIRED", "READY_MANUAL_CONFIGURATION_REQUIRED", "UNSUPPORTED", "NEEDS_REVIEW"]),
+  endpointUrl: z.string().url().max(2000).nullable().optional(),
+  environmentKeyName: z.string().regex(/^[A-Z][A-Z0-9_]*$/).max(120).nullable().optional(),
+  apiKeyRequired: z.boolean().default(false), syncEnabled: z.boolean().default(false),
+  syncFrequency: z.string().trim().max(80).default("daily"),
+  status: z.enum(["ACTIVE", "PAUSED", "ERROR"]).default("PAUSED"),
+  trustLevel: z.enum(["VERIFIED_OFFICIAL", "OFFICIAL", "PUBLIC", "NEEDS_REVIEW"]).default("NEEDS_REVIEW"),
   configuration: z.record(z.string(), z.unknown()).default({}),
 });

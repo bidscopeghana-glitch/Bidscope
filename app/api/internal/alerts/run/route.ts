@@ -17,7 +17,7 @@ async function sendEmail(delivery: Delivery, opportunity: AlertOpportunityRecord
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       from, to: [delivery.recipient], subject: `BidScope opportunity: ${opportunity.title}`,
-      html: `<div style="font-family:Arial,sans-serif;color:#1d1d1d"><h2>${escapeHtml(opportunity.title)}</h2><p>${escapeHtml(opportunity.summary)}</p><p><a href="${escapeHtml(opportunity.source_url)}">Review at the official source</a></p><p>Always verify details at the official source before bidding.</p></div>`,
+      html: `<div style="font-family:Arial,sans-serif;color:#1d1d1d"><h2>${escapeHtml(opportunity.title)}</h2><p>${escapeHtml(opportunity.summary)}</p><p><a href="${escapeHtml(opportunity.official_source_url)}">Review at the official source</a></p><p>Always verify details at the official source before bidding.</p></div>`,
     }),
   });
   const result = (await response.json()) as { id?: string; message?: string };
@@ -36,12 +36,12 @@ export async function POST(request: Request) {
     const since = new Date(Date.now() - 8 * 86_400_000).toISOString();
     const rulesQuery = new URLSearchParams({ select: "*", enabled: "eq.true", limit: "500" });
     const opportunitiesQuery = new URLSearchParams({
-      select: "id,title,summary,description,category,sectors,region,buyer_id,estimated_value,deadline,slug,source_url",
-      status: "eq.open", published_at: "not.is.null", updated_at: `gte.${since}`, limit: "500",
+      select: "id,title,summary,description,category,sector,region,buyer_normalized_id,estimated_value,deadline_at,slug,official_source_url",
+      status: "eq.OPEN", published_at: "not.is.null", updated_at: `gte.${since}`, limit: "500",
     });
     const [{ data: rules }, { data: opportunities }] = await Promise.all([
       supabaseRest<AlertRuleRecord[]>(`alert_rules?${rulesQuery}`),
-      supabaseRest<AlertOpportunityRecord[]>(`opportunities?${opportunitiesQuery}`),
+      supabaseRest<AlertOpportunityRecord[]>(`procurement_opportunities?${opportunitiesQuery}`),
     ]);
     const opportunityById = new Map(opportunities.map((item) => [item.id, item]));
     const candidates = rules.flatMap((rule) => opportunities.filter((item) => matchesAlert(rule, item)).flatMap((item) => rule.email_recipients.map((recipient) => ({ alert_rule_id: rule.id, opportunity_id: item.id, recipient, channel: "email" }))));

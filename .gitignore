@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+/.npm-cache-task/
+/.responsive-checks/
 /.pnp
 .pnp.*
 .yarn/*
@@ -46,3 +48,7 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+/AGENTS.md
+/CLAUDE.md
+
+.vercel
