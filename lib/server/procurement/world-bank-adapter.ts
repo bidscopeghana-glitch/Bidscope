@@ -114,18 +114,22 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
 
   async fetchAwards(): Promise<NormalizedAward[]> {
     const top = Math.max(1, Math.min(Number(process.env.WORLD_BANK_AWARDS_PAGE_SIZE || 25), 250)); const maxPages = Math.max(1, Math.min(Number(process.env.WORLD_BANK_AWARDS_MAX_PAGES || 1), 50)); const output: NormalizedAward[] = [];
+    const firstUrl = new URL(this.awardsEndpoint); firstUrl.searchParams.set("top", String(top)); firstUrl.searchParams.set("skip", "0"); firstUrl.searchParams.set("filter", "borrower_country='Ghana'");
+    const firstResponse = await fetchWithRetry(firstUrl.toString(), { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } });
+    const firstEnvelope = AwardEnvelope.parse(await firstResponse.json());
+    const total = Number(firstEnvelope.count || firstEnvelope.data.length); const start = Math.max(0, total - (top * maxPages));
     for (let page = 0; page < maxPages; page += 1) {
       enforceSourceRateLimit(`${this.slug}-awards`, 60);
-      const url = new URL(this.awardsEndpoint); url.searchParams.set("top", String(top)); url.searchParams.set("skip", String(page * top)); url.searchParams.set("borrower_country", "Ghana");
-      const response = await fetchWithRetry(url.toString(), { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } });
-      const envelope = AwardEnvelope.parse(await response.json()); const data = envelope.data.map((item) => UnknownRecord.parse(item));
+      const skip = start + (page * top);
+      const envelope = skip === 0 ? firstEnvelope : await (async()=>{const url = new URL(this.awardsEndpoint); url.searchParams.set("top", String(top)); url.searchParams.set("skip", String(skip)); url.searchParams.set("filter", "borrower_country='Ghana'"); const response = await fetchWithRetry(url.toString(), { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } }); return AwardEnvelope.parse(await response.json());})();
+      const data = envelope.data.map((item) => UnknownRecord.parse(item));
       for (const raw of data) {
         if (!isGhana(stringValue(raw, "borrower_country"))) continue;
         const awardId = stringValue(raw, "wb_contract_number", "borrower_contract_reference_number"); if (!awardId) continue;
         const projectId = stringValue(raw, "project_id");
         output.push({ external_award_id: awardId, project_external_id: projectId, opportunity_external_id: null, buyer_name: null, title: stringValue(raw, "contract_description") || "World Bank-financed contract award", reference_number: stringValue(raw, "borrower_contract_reference_number", "wb_contract_number"), award_date: parseDate(stringValue(raw, "contract_signing_date")), currency: "USD", value: Number(stringValue(raw, "supplier_contract_amount_usd")) || null, procurement_method: stringValue(raw, "procurement_method"), source_url: projectId ? projectUrl(projectId) : "https://financesone.worldbank.org/d/DS00005", supplier_name: stringValue(raw, "supplier"), supplier_country: stringValue(raw, "supplier_country", "supplier_country_code"), raw_payload: raw });
       }
-      if (data.length < top) break;
+      if (data.length < top || skip + data.length >= total) break;
     }
     return output;
   }
