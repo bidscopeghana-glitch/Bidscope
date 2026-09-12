@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { AuthNav } from "@/components/procurement/auth-nav";
 
 type Opportunity = { id: string; title: string; buyer: string; category: "Goods" | "Works" | "Services"; region: string; deadline: string; days: number; fit: number; procedure: string };
 type Intelligence = { active: number; closingThisWeek: number; addedRecently: number; sources: number };
@@ -71,8 +72,8 @@ export function OpportunityDashboard() {
 
   return <main className="paper-noise min-h-screen bg-[var(--bidscope-cream)] text-[var(--bidscope-charcoal)]">
     <header className="sticky top-0 z-40 border-b border-[#084D33]/10 bg-[color:rgba(253,251,244,.92)] backdrop-blur-xl"><div className="mx-auto flex h-[72px] max-w-7xl items-center px-5 lg:px-8"><Brand />
-      <nav className="ml-auto hidden items-center gap-2 md:flex"><Button asChild variant="ghost" className="rounded-full text-[#35554a]"><a href="/opportunities">Opportunities</a></Button><Button asChild variant="ghost" className="rounded-full text-[#35554a]"><a href="#why">Why BidScope</a></Button><Button onClick={() => setTrialOpen(true)} className="ml-2 h-11 rounded-full bg-[#116149] px-5 shadow-[0_8px_24px_rgba(17,97,73,.2)] hover:-translate-y-0.5 hover:bg-[#0c523d]">Get 3 months free <ArrowRight /></Button></nav>
-      <Button variant="ghost" size="icon" className="ml-auto md:hidden" onClick={() => setMobileMenu((value) => !value)} aria-label="Open navigation">{mobileMenu ? <X /> : <Menu />}</Button></div>
+      <nav className="ml-auto hidden items-center gap-2 md:flex"><Button asChild variant="ghost" className="rounded-full text-[#35554a]"><a href="/opportunities">Opportunities</a></Button><Button asChild variant="ghost" className="rounded-full text-[#35554a]"><a href="#why">Why BidScope</a></Button><AuthNav/><Button onClick={() => setTrialOpen(true)} className="ml-2 h-11 rounded-full bg-[#116149] px-5 shadow-[0_8px_24px_rgba(17,97,73,.2)] hover:-translate-y-0.5 hover:bg-[#0c523d]">Get 3 months free <ArrowRight /></Button></nav>
+      <div className="ml-auto flex items-center gap-1 md:hidden"><AuthNav/><Button variant="ghost" size="icon" onClick={() => setMobileMenu((value) => !value)} aria-label="Open navigation">{mobileMenu ? <X /> : <Menu />}</Button></div></div>
       {mobileMenu && <nav className="border-t border-[#17362d]/10 bg-[#fbf7ed] px-4 py-2 md:hidden"><div className="grid grid-cols-2 gap-1.5"><a href="/opportunities" onClick={() => setMobileMenu(false)} className="rounded-lg px-2 py-2 text-center text-xs font-medium hover:bg-[#eee8d9]">Opportunities</a><a href="#why" onClick={() => setMobileMenu(false)} className="rounded-lg px-2 py-2 text-center text-xs font-medium hover:bg-[#eee8d9]">Why BidScope</a><Button onClick={() => { setTrialOpen(true); setMobileMenu(false); }} className="col-span-2 h-9 rounded-full text-xs">Get 3 months free</Button></div></nav>}
     </header>
 
