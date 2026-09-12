@@ -7,7 +7,7 @@ test("World Bank notice fetch keeps Ghana opportunities and excludes contract aw
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
-    assert.equal(url.origin + url.pathname, "https://search.worldbank.org/api/procnotices");
+    assert.equal(url.origin + url.pathname, "https://search.worldbank.org/api/v2/procnotices");
     assert.equal(url.searchParams.get("project_ctry_name"), "Ghana");
     return new Response(JSON.stringify({ total: 2, procnotices: [
     { id:"OP1", project_ctry_name:"Ghana", bid_description:"Supply equipment", notice_type:"Invitation for Bids" },
