@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const query = new URLSearchParams({
       select: "id,bidscope_reference,slug,title,summary,buyer_name,buyer_type,country,region,sector,category,subcategory,procurement_method,contract_type,currency,estimated_value,minimum_value,maximum_value,published_at,deadline_at,status,source_id,source_name,source_type,external_reference,official_source_url,official_tender_url,official_submission_url,submission_platform,requires_registration,funding_source,funding_agency,eligibility_country,last_verified_at,data_confidence,verification_status,sources:opportunity_sources(id,official_url,submission_url,is_preferred,last_verified_at,source:procurement_sources(id,name,slug,organisation,integration_type,trust_level))",
       published_at: "not.is.null",
-      status: `eq.${incoming.get("status")?.toUpperCase() === "CLOSED" ? "CLOSED" : "OPEN"}`,
+      status: "eq.OPEN",
       country_code: `eq.${(incoming.get("country") || "GH").slice(0, 2).toUpperCase()}`,
       order: incoming.get("sort") === "newest" ? "published_at.desc.nullslast" : "deadline_at.asc.nullslast",
       limit: String(pageSize), offset: String(offset),
