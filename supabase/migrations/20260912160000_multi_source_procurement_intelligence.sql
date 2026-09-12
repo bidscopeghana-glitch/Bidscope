@@ -316,6 +316,20 @@ alter table public.user_bid_tracking enable row level security;
 alter table public.submission_clicks enable row level security;
 alter table public.analytics_events enable row level security;
 
+drop policy if exists procurement_sources_public_read on public.procurement_sources;
+drop policy if exists procurement_sources_admin_manage on public.procurement_sources;
+drop policy if exists procurement_opportunities_public_read on public.procurement_opportunities;
+drop policy if exists opportunity_sources_public_read on public.opportunity_sources;
+drop policy if exists source_sync_runs_admin_read on public.source_sync_runs;
+drop policy if exists user_bid_tracking_self_read on public.user_bid_tracking;
+drop policy if exists user_bid_tracking_self_insert on public.user_bid_tracking;
+drop policy if exists user_bid_tracking_self_update on public.user_bid_tracking;
+drop policy if exists user_bid_tracking_self_delete on public.user_bid_tracking;
+drop policy if exists submission_clicks_self_read on public.submission_clicks;
+drop policy if exists submission_clicks_self_insert on public.submission_clicks;
+drop policy if exists analytics_events_admin_read on public.analytics_events;
+drop policy if exists analytics_events_self_insert on public.analytics_events;
+
 create policy procurement_sources_public_read on public.procurement_sources for select to anon, authenticated using (true);
 create policy procurement_sources_admin_manage on public.procurement_sources for all to authenticated using ((select public.is_super_admin())) with check ((select public.is_super_admin()));
 create policy procurement_opportunities_public_read on public.procurement_opportunities for select to anon, authenticated using (published_at is not null and status <> 'DRAFT');

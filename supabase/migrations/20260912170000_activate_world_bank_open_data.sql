@@ -38,6 +38,7 @@ drop trigger if exists procurement_projects_set_updated_at on public.procurement
 create trigger procurement_projects_set_updated_at before update on public.procurement_projects for each row execute function public.set_updated_at();
 
 alter table public.procurement_projects enable row level security;
+drop policy if exists procurement_projects_public_read on public.procurement_projects;
 create policy procurement_projects_public_read on public.procurement_projects for select to anon, authenticated using (true);
 grant select on public.procurement_projects to anon, authenticated;
 grant all on public.procurement_projects to service_role;
