@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { AuthModal, AuthNav, MemberNavLinks } from "@/components/procurement/auth-nav";
+import { AuthNav, MemberNavLinks } from "@/components/procurement/auth-nav";
 
 type Opportunity = { id: string; title: string; buyer: string; category: "Goods" | "Works" | "Services"; region: string; deadline: string; days: number; fit: number; procedure: string };
 type Intelligence = { active: number; closingThisWeek: number; addedRecently: number; sources: number };
@@ -76,8 +76,6 @@ export function OpportunityDashboard() {
       <div className="ml-auto flex items-center gap-1 md:hidden"><AuthNav/><Button variant="ghost" size="icon" onClick={() => setMobileMenu((value) => !value)} aria-label="Open navigation">{mobileMenu ? <X /> : <Menu />}</Button></div></div>
       {mobileMenu && <nav className="border-t border-[#17362d]/10 bg-[#fbf7ed] px-4 py-2 md:hidden"><div className="grid grid-cols-2 gap-1.5"><MemberNavLinks mode="mobile" onNavigate={()=>setMobileMenu(false)}/><a href="/plans" onClick={() => setMobileMenu(false)} className="rounded-lg px-2 py-2 text-center text-xs font-medium hover:bg-[#eee8d9]">Plans</a><a href="#why" onClick={() => setMobileMenu(false)} className="rounded-lg px-2 py-2 text-center text-xs font-medium hover:bg-[#eee8d9]">Why BidScope</a><Button onClick={() => { setTrialOpen(true); setMobileMenu(false); }} className="col-span-2 h-9 rounded-full text-xs">Get 1 month free</Button></div></nav>}
     </header>
-    <AuthModal/>
-
     <section className="mx-auto max-w-[1440px] px-0 sm:px-5 sm:pt-5 lg:px-8"><div className="relative min-h-[460px] overflow-hidden bg-[#103f32] sm:min-h-[380px] sm:rounded-[30px] lg:min-h-[320px]">
       <Image src="/images/bidscope-hero.webp" alt="Ghanaian business owners reviewing an opportunity together" fill priority sizes="100vw" className="object-cover object-[67%_center]" />
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,40,32,.97)_0%,rgba(8,40,32,.9)_100%)] sm:bg-[linear-gradient(90deg,rgba(10,48,38,.99)_0%,rgba(10,48,38,.91)_38%,rgba(10,48,38,.25)_73%,rgba(10,48,38,.1)_100%)]"/><div className="absolute -left-24 bottom-[-130px] size-[340px] rounded-full bg-[#a97d2f]/30 blur-3xl"/>
