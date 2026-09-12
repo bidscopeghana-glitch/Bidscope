@@ -56,6 +56,8 @@ test("World Bank awards use the official IPF dataset and retain verified values"
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
     assert.match(String(input), /datasetId=DS00005/);
+    const url = new URL(String(input));
+    assert.equal(url.searchParams.get("filter"), "borrower_country='Ghana'");
     return new Response(JSON.stringify({ count:1, data:[{ borrower_country:"Ghana", wb_contract_number:"WB-1", project_id:"P123", contract_description:"Network equipment", contract_signing_date:"01-Sep-2026", supplier:"Example Supplier", supplier_country:"Ghana", supplier_contract_amount_usd:250000, procurement_method:"Request for Bids" }] }), { status:200 });
   };
   try { const rows = await new WorldBankAdapter().fetchAwards?.(); assert.equal(rows?.length, 1); assert.equal(rows?.[0].value, 250000); assert.equal(rows?.[0].supplier_name, "Example Supplier"); }
