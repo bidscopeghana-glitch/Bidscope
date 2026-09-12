@@ -42,14 +42,16 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
     const pageSize = Math.max(1, Math.min(Number(process.env.WORLD_BANK_PAGE_SIZE || 25), 100));
     const maxPages = Math.max(1, Math.min(Number(process.env.WORLD_BANK_MAX_PAGES || 1), 100));
     const found = new Map<string, WorldBankRaw>();
+    const firstPage = await this.fetchNoticePage(0, pageSize);
     for (let page = 0; page < maxPages; page += 1) {
-      const { data, total } = await this.fetchNoticePage(page * pageSize, pageSize);
+      const offset = firstPage.total > pageSize ? Math.max(0, firstPage.total - ((page + 1) * pageSize)) : page * pageSize;
+      const { data, total } = offset === 0 ? firstPage : await this.fetchNoticePage(offset, pageSize);
       for (const record of data) {
         const country = stringValue(record, "project_ctry_name", "country_name", "country");
         const beneficiary = stringValue(record, "beneficiary_countries", "eligibility");
         if ((isGhana(country) || isGhana(beneficiary)) && !isAwardNotice(record)) { const id = stringValue(record, "id", "notice_id"); if (id) found.set(id, record); }
       }
-      if (!data.length || data.length < pageSize || (total > 0 && (page + 1) * pageSize >= total)) break;
+      if (!data.length || offset === 0 || (total > 0 && offset <= 0)) break;
     }
     return [...found.values()];
   }
