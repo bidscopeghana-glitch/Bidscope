@@ -5,12 +5,44 @@ import { WorldBankAdapter } from "../../lib/server/procurement/world-bank-adapte
 
 test("World Bank notice fetch keeps Ghana opportunities and excludes contract awards", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({ total: 2, procnotices: [
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    assert.equal(url.origin + url.pathname, "https://search.worldbank.org/api/procnotices");
+    assert.equal(url.searchParams.get("project_ctry_name"), "Ghana");
+    return new Response(JSON.stringify({ total: 2, procnotices: [
     { id:"OP1", project_ctry_name:"Ghana", bid_description:"Supply equipment", notice_type:"Invitation for Bids" },
     { id:"OP2", project_ctry_name:"Ghana", bid_description:"Award", notice_type:"Contract Award" },
-  ] }), { status:200, headers:{ "content-type":"application/json" } });
+    ] }), { status:200, headers:{ "content-type":"application/json" } });
+  };
   try { const rows = await new WorldBankAdapter().fetchOpportunities(); assert.equal(rows.length, 1); assert.equal(rows[0].id, "OP1"); }
   finally { globalThis.fetch = originalFetch; }
+});
+
+test("World Bank notice fetch starts with the newest page instead of the oldest offset", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalPageSize = process.env.WORLD_BANK_PAGE_SIZE;
+  const originalMaxPages = process.env.WORLD_BANK_MAX_PAGES;
+  const offsets: string[] = [];
+  process.env.WORLD_BANK_PAGE_SIZE = "2";
+  process.env.WORLD_BANK_MAX_PAGES = "2";
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    const offset = url.searchParams.get("os") || "0";
+    offsets.push(offset);
+    const records = offset === "0"
+      ? [{ id:"NEW-1", project_ctry_name:"Ghana", notice_type:"Invitation for Bids" }, { id:"NEW-2", project_ctry_name:"Ghana", notice_type:"Request for Expressions of Interest" }]
+      : [{ id:"NEXT-1", project_ctry_name:"Ghana", notice_type:"Invitation for Bids" }, { id:"NEXT-2", project_ctry_name:"Ghana", notice_type:"Invitation for Bids" }];
+    return new Response(JSON.stringify({ total: 100, procnotices: records }), { status:200 });
+  };
+  try {
+    const rows = await new WorldBankAdapter().fetchOpportunities();
+    assert.deepEqual(offsets, ["0", "2"]);
+    assert.deepEqual(rows.map((row) => row.id), ["NEW-1", "NEW-2", "NEXT-1", "NEXT-2"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalPageSize === undefined) delete process.env.WORLD_BANK_PAGE_SIZE; else process.env.WORLD_BANK_PAGE_SIZE = originalPageSize;
+    if (originalMaxPages === undefined) delete process.env.WORLD_BANK_MAX_PAGES; else process.env.WORLD_BANK_MAX_PAGES = originalMaxPages;
+  }
 });
 
 test("World Bank project metadata is normalised and deduplicated", async () => {
