@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BookmarkCheck, BriefcaseBusiness, Check, LockKeyhole, SearchCheck, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BookmarkCheck, BriefcaseBusiness, LockKeyhole, SearchCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { AuthPanel } from "./auth-panel";
 
 export const metadata: Metadata = {
   title: "Sign in or create an account | BidScope",
@@ -17,7 +18,9 @@ const benefits = [
 
 export default function SignInPage() {
   return (
-    <main className="min-h-svh bg-[#f6f3e9] text-[#17362d] lg:grid lg:grid-cols-[minmax(390px,46%)_1fr]">
+    <main className="relative min-h-svh overflow-hidden bg-[#0b3c2f] text-[#17362d] lg:grid lg:grid-cols-[minmax(390px,46%)_1fr] lg:bg-[#f6f3e9]">
+      <Image src="/images/bidscope-hero.webp" alt="" fill priority sizes="100vw" className="object-cover object-[63%_center] lg:hidden" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,39,29,.64),rgba(5,39,29,.82))] lg:hidden" />
       <section className="relative hidden min-h-svh overflow-hidden bg-[#0b3c2f] text-white lg:flex">
         <Image
           src="/images/bidscope-hero.webp"
@@ -63,56 +66,26 @@ export default function SignInPage() {
         </div>
       </section>
 
-      <section className="relative flex min-h-svh flex-col bg-[radial-gradient(circle_at_88%_4%,rgba(201,157,72,.13),transparent_27%),#f6f3e9] px-5 py-5 sm:px-8 lg:px-[clamp(2.5rem,6vw,7rem)] lg:py-8">
+      <section className="relative z-10 flex min-h-svh flex-col px-4 py-5 sm:px-8 lg:bg-[radial-gradient(circle_at_88%_4%,rgba(201,157,72,.13),transparent_27%),#f6f3e9] lg:px-[clamp(2.5rem,6vw,7rem)] lg:py-8">
         <div className="flex items-center justify-between">
           <Link href="/" className="lg:hidden" aria-label="BidScope home">
-            <BrandLogo priority className="h-auto w-[148px]" />
+            <BrandLogo reversed priority className="h-auto w-[148px]" />
           </Link>
-          <Link href="/" className="ml-auto inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-[#456258] hover:bg-white/65">
+          <Link href="/" className="ml-auto inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-white hover:bg-white/10 lg:text-[#456258] lg:hover:bg-white/65">
             <ArrowLeft size={16} /> <span className="hidden sm:inline">Back to BidScope</span><span className="sm:hidden">Back</span>
           </Link>
         </div>
 
-        <div className="my-auto mx-auto w-full max-w-[520px] py-10 sm:py-14">
-          <div className="mb-7 flex size-12 items-center justify-center rounded-2xl bg-[#dfece4] text-[#116149] shadow-[inset_0_0_0_1px_rgba(17,97,73,.08)]">
+        <div className="my-auto mx-auto w-full max-w-[540px] py-7 sm:py-12">
+          <div className="mb-5 flex size-11 items-center justify-center rounded-2xl bg-white/15 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.15)] backdrop-blur lg:bg-[#dfece4] lg:text-[#116149]">
             <LockKeyhole size={21} />
           </div>
-          <p className="text-xs font-bold uppercase tracking-[.17em] text-[#16805e]">Secure member access</p>
-          <h2 className="serif mt-3 text-[clamp(2.25rem,5vw,3.45rem)] font-medium leading-[1.02] tracking-[-.045em]">Welcome to BidScope.</h2>
-          <p className="mt-4 max-w-md text-base leading-7 text-[#64776f]">
-            Sign in or create your free account to access live opportunities, past awards and your BidScope workspace.
+          <p className="text-xs font-bold uppercase tracking-[.17em] text-[#9de2c4] lg:text-[#16805e]">Secure member access</p>
+          <h2 className="serif mt-3 text-[clamp(2rem,5vw,3.35rem)] font-medium leading-[1.02] tracking-[-.045em] text-white lg:text-[#17362d]">Welcome to BidScope.</h2>
+          <p className="mt-3 max-w-md text-[15px] leading-6 text-white/75 lg:text-base lg:leading-7 lg:text-[#64776f]">
+            Sign in to continue, or create a free account in a few moments.
           </p>
-
-          <div className="mt-9 rounded-[26px] border border-[#17362d]/10 bg-[#fffdf8] p-5 shadow-[0_24px_70px_rgba(19,62,49,.11)] sm:p-7">
-            <a
-              href="/api/auth/google"
-              className="group flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl border border-[#17362d]/15 bg-white px-4 text-sm font-bold text-[#17362d] shadow-sm transition hover:-translate-y-0.5 hover:border-[#116149]/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#116149]/30"
-            >
-              <span aria-hidden="true" className="grid size-7 place-items-center rounded-full border border-[#17362d]/10 bg-white font-extrabold text-[#4285f4] shadow-sm">G</span>
-              Continue with Google
-              <ArrowRight className="ml-auto transition group-hover:translate-x-0.5" size={17} />
-            </a>
-
-            <p className="mt-4 text-center text-xs leading-5 text-[#718079]">
-              One secure step for both sign in and account creation.
-            </p>
-
-            <div className="mt-6 border-t border-[#17362d]/10 pt-5">
-              <p className="flex items-start gap-3 text-xs leading-5 text-[#526a61]">
-                <ShieldCheck className="mt-0.5 shrink-0 text-[#116149]" size={17} />
-                Google confirms your identity securely. BidScope never receives or stores your Google password.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-3 text-sm text-[#526a61] sm:grid-cols-2">
-            <p className="flex items-center gap-2"><span className="grid size-5 place-items-center rounded-full bg-[#dfece4] text-[#116149]"><Check size={12} /></span>No card required</p>
-            <p className="flex items-center gap-2"><span className="grid size-5 place-items-center rounded-full bg-[#dfece4] text-[#116149]"><Check size={12} /></span>Free account available</p>
-          </div>
-
-          <p className="mt-8 text-xs leading-5 text-[#78857f]">
-            By continuing, you agree to our <Link className="font-semibold text-[#315b4e] underline-offset-2 hover:underline" href="/terms">Terms</Link> and acknowledge our <Link className="font-semibold text-[#315b4e] underline-offset-2 hover:underline" href="/privacy">Privacy Policy</Link>.
-          </p>
+          <div className="mt-6"><AuthPanel /></div>
         </div>
       </section>
     </main>
