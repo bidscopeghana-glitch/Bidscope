@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { AuthNav } from "@/components/procurement/auth-nav";
+import { AuthModal, AuthNav } from "@/components/procurement/auth-nav";
 
 type Opportunity = { id: string; title: string; buyer: string; category: "Goods" | "Works" | "Services"; region: string; deadline: string; days: number; fit: number; procedure: string };
 type Intelligence = { active: number; closingThisWeek: number; addedRecently: number; sources: number };
@@ -76,6 +76,7 @@ export function OpportunityDashboard() {
       <div className="ml-auto flex items-center gap-1 md:hidden"><AuthNav/><Button variant="ghost" size="icon" onClick={() => setMobileMenu((value) => !value)} aria-label="Open navigation">{mobileMenu ? <X /> : <Menu />}</Button></div></div>
       {mobileMenu && <nav className="border-t border-[#17362d]/10 bg-[#fbf7ed] px-4 py-2 md:hidden"><div className="grid grid-cols-2 gap-1.5"><a href="/opportunities" onClick={() => setMobileMenu(false)} className="rounded-lg px-2 py-2 text-center text-xs font-medium hover:bg-[#eee8d9]">Opportunities</a><a href="#why" onClick={() => setMobileMenu(false)} className="rounded-lg px-2 py-2 text-center text-xs font-medium hover:bg-[#eee8d9]">Why BidScope</a><Button onClick={() => { setTrialOpen(true); setMobileMenu(false); }} className="col-span-2 h-9 rounded-full text-xs">Get 1 month free</Button></div></nav>}
     </header>
+    <AuthModal/>
 
     <section className="mx-auto max-w-[1440px] px-0 sm:px-5 sm:pt-5 lg:px-8"><div className="relative min-h-[630px] overflow-hidden bg-[#103f32] sm:rounded-[36px] lg:min-h-[680px]">
       <Image src="/images/bidscope-hero.webp" alt="Ghanaian business owners reviewing an opportunity together" fill priority sizes="100vw" className="object-cover object-[67%_center]" />

@@ -33,6 +33,7 @@ button, a, input, select { transition: background-color .2s ease, border-color .
 .ghana-weave { background-image: linear-gradient(45deg, rgba(255,255,255,.035) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.035) 75%), linear-gradient(45deg, rgba(255,255,255,.035) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.035) 75%); background-position: 0 0, 12px 12px; background-size: 24px 24px; }
 .marquee-track { animation: marquee 28s linear infinite; }
 .float-soft { animation: float-soft 5s ease-in-out infinite; }
+#bidscope-sign-in:target { display: grid; }
 @keyframes marquee { to { transform: translateX(-50%); } }
 @keyframes float-soft { 50% { transform: translateY(-7px) rotate(.4deg); } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .marquee-track,.float-soft { animation: none; } * { transition: none !important; } }
