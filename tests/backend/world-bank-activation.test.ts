@@ -5,10 +5,15 @@ import { WorldBankAdapter } from "../../lib/server/procurement/world-bank-adapte
 
 test("World Bank notice fetch keeps Ghana opportunities and excludes contract awards", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({ total: 2, procnotices: [
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    assert.equal(url.origin + url.pathname, "https://search.worldbank.org/api/procnotices");
+    assert.equal(url.searchParams.get("project_ctry_name"), "Ghana");
+    return new Response(JSON.stringify({ total: 2, procnotices: [
     { id:"OP1", project_ctry_name:"Ghana", bid_description:"Supply equipment", notice_type:"Invitation for Bids" },
     { id:"OP2", project_ctry_name:"Ghana", bid_description:"Award", notice_type:"Contract Award" },
-  ] }), { status:200, headers:{ "content-type":"application/json" } });
+    ] }), { status:200, headers:{ "content-type":"application/json" } });
+  };
   try { const rows = await new WorldBankAdapter().fetchOpportunities(); assert.equal(rows.length, 1); assert.equal(rows[0].id, "OP1"); }
   finally { globalThis.fetch = originalFetch; }
 });
