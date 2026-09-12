@@ -6,22 +6,49 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 
-export function AuthNav() {
-  const [signedIn, setSignedIn] = useState(false);
-  const router = useRouter();
+const sessionEvent = "bidscope-session-change";
 
+function hasActiveSession() {
+  try {
+    const token = window.localStorage.getItem("bidscope_access_token");
+    const expiresAt = Number(window.localStorage.getItem("bidscope_token_expires_at") || 0);
+    return Boolean(token && (!expiresAt || expiresAt > Date.now()));
+  } catch {
+    return false;
+  }
+}
+
+export function useBidScopeSession() {
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   useEffect(() => {
-    const update = window.setTimeout(() => {
-      setSignedIn(Boolean(localStorage.getItem("bidscope_access_token")));
-    }, 0);
-    return () => window.clearTimeout(update);
+    const update = () => setSignedIn(hasActiveSession());
+    const timer = window.setTimeout(update, 0);
+    window.addEventListener("storage", update);
+    window.addEventListener(sessionEvent, update);
+    return () => { window.clearTimeout(timer); window.removeEventListener("storage", update); window.removeEventListener(sessionEvent, update); };
   }, []);
+  return signedIn;
+}
+
+export function MemberNavLinks({ mode = "header", onNavigate }: { mode?: "header" | "landing" | "mobile"; onNavigate?: () => void }) {
+  const signedIn = useBidScopeSession();
+  if (!signedIn) return null;
+  const links = [["/live-opportunities", "Live"], ["/awarded-opportunities", "Awards"], ["/workspace", "Workspace"]] as const;
+  if (mode === "mobile") return <>{links.map(([href,label])=><Link key={href} href={href} onClick={onNavigate} className="rounded-lg px-2 py-2 text-center text-xs font-medium hover:bg-[#eee8d9]">{label}</Link>)}</>;
+  const className = mode === "landing" ? "inline-flex items-center rounded-full px-3 py-2 text-sm font-semibold text-[#35554a] hover:bg-[#e9f1e8]" : "hidden rounded-full px-3 py-2 hover:bg-[#e9f1e8] md:inline-flex";
+  return <>{links.map(([href,label])=><Link key={href} href={href} className={className}>{label === "Live" && <span className="mr-1.5 size-2 rounded-full bg-[#16a36f] shadow-[0_0_0_3px_rgba(22,163,111,.14)]"/>}{label}</Link>)}</>;
+}
+
+export function AuthNav() {
+  const session = useBidScopeSession();
+  const signedIn = session === true;
+  const router = useRouter();
 
   function signOut() {
     localStorage.removeItem("bidscope_access_token");
     localStorage.removeItem("bidscope_refresh_token");
     localStorage.removeItem("bidscope_token_expires_at");
-    setSignedIn(false);
+    window.dispatchEvent(new Event(sessionEvent));
     router.push("/");
     router.refresh();
   }
