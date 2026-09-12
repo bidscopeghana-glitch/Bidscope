@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     const search = safeSearchTerm(incoming.get("q"));
     if (search) query.set("or", `(title.ilike.*${search}*,summary.ilike.*${search}*,buyer_name.ilike.*${search}*,external_reference.ilike.*${search}*,source_resource_id.ilike.*${search}*,sector.ilike.*${search}*,funding_agency.ilike.*${search}*)`);
 
-    const { data, response } = await supabaseRest<unknown[]>(`procurement_opportunities?${query}`, { count: "exact" });
+    const { data, response } = await supabaseRest<unknown[]>(`procurement_opportunities?${query}`, { count: "exact", serviceRole: false });
     return Response.json({ data, pagination: { page, pageSize, total: totalFromContentRange(response.headers.get("content-range")) } });
   } catch (error) { return apiErrorResponse(error); }
 }
