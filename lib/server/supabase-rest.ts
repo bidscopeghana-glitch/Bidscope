@@ -7,16 +7,16 @@ type SupabaseOptions = RequestInit & {
 };
 
 export function supabaseConfiguration() {
-  const url = process.env.SUPABASE_URL?.replace(/\/$/, "");
+  const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.replace(/\/$/, "");
   const serviceKey = process.env.SUPABASE_SECRET_KEY;
-  const publicKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const publicKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url) throw new ApiError(503, "Database service is not configured.", "database_unavailable");
   return { url, serviceKey, publicKey };
 }
 
 export async function supabaseRest<T>(path: string, options: SupabaseOptions = {}) {
   const { url, serviceKey, publicKey } = supabaseConfiguration();
-  const key = options.serviceRole === false ? publicKey : serviceKey;
+  const key = options.serviceRole === false ? (publicKey || serviceKey) : serviceKey;
   if (!key) throw new ApiError(503, "Database credentials are not configured.", "database_unavailable");
   const headers = new Headers(options.headers);
   headers.set("apikey", key);
