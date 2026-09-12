@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { DM_Sans, IBM_Plex_Mono } from "next/font/google";
+import { DM_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
 
 const sans = DM_Sans({ subsets: ["latin"], variable: "--font-interface" });
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-mono" });
+const display = Fraunces({ subsets: ["latin"], variable: "--font-display" });
 
 export const metadata: Metadata = {
-  title: "BidScope Ghana | Procurement intelligence",
-  description: "Procurement opportunity intelligence for Ghanaian suppliers, contractors and advisers.",
+  title: "BidScope Ghana | See opportunity sooner",
+  description: "Public opportunity discovery for ambitious Ghanaian businesses.",
   other: { "codex-preview": "development" },
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className={`${sans.variable} ${mono.variable}`}><body>{children}</body></html>;
+  return <html lang="en" className={`${sans.variable} ${display.variable}`}><body>{children}</body></html>;
 }
