@@ -1,0 +1,25 @@
+name: Publish approved BidScope brand
+on:
+  push:
+    paths:
+      - .github/workflows/publish-brand.yml
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply approved brand system
+        shell: bash
+        run: |
+          cat .github/brand-payload-*.txt | base64 -d > /tmp/bidscope-brand.zip
+          unzip -o /tmp/bidscope-brand.zip -d .
+          rm -f public/favicon.svg
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app components/brand public/brand public/manifest.webmanifest public/favicon.svg scripts/generate-brand-assets.cjs
+          git commit -m "Implement approved BidScope brand system"
+          git rm .github/brand-payload-*.txt .github/workflows/publish-brand.yml
+          git commit -m "Remove temporary brand publisher"
+          git push
