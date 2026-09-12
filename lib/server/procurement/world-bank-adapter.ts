@@ -30,7 +30,7 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
   private readonly awardsEndpoint = process.env.WORLD_BANK_AWARDS_API_URL || "https://datacatalogapi.worldbank.org/dexapps/fone/api/apiservice?datasetId=DS00005&resourceId=RS00005&type=json";
 
   private async fetchNoticePage(offset: number, pageSize: number) {
-    enforceSourceRateLimit(this.slug, 8);
+    enforceSourceRateLimit(this.slug, 110);
     const url = new URL(this.noticeEndpoint);
     url.searchParams.set("format", "json"); url.searchParams.set("apilang", "en"); url.searchParams.set("rows", String(pageSize)); url.searchParams.set("os", String(offset)); url.searchParams.set("project_ctry_name", "Ghana");
     const response = await fetchWithRetry(url.toString(), { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } });
@@ -39,8 +39,8 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
   }
 
   async fetchOpportunities() {
-    const pageSize = 100;
-    const maxPages = Math.max(1, Math.min(Number(process.env.WORLD_BANK_MAX_PAGES || 25), 100));
+    const pageSize = Math.max(1, Math.min(Number(process.env.WORLD_BANK_PAGE_SIZE || 25), 100));
+    const maxPages = Math.max(1, Math.min(Number(process.env.WORLD_BANK_MAX_PAGES || 1), 100));
     const found = new Map<string, WorldBankRaw>();
     for (let page = 0; page < maxPages; page += 1) {
       const { data, total } = await this.fetchNoticePage(page * pageSize, pageSize);
@@ -55,7 +55,7 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
   }
 
   async fetchOpportunityById(id: string) {
-    enforceSourceRateLimit(this.slug, 8);
+    enforceSourceRateLimit(this.slug, 110);
     const url = new URL(this.noticeEndpoint);
     url.searchParams.set("format", "json"); url.searchParams.set("apilang", "en"); url.searchParams.set("fl", "*"); url.searchParams.set("id", id);
     const response = await fetchWithRetry(url.toString(), { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } });
@@ -92,11 +92,12 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
   }
 
   async fetchProjects(notices: WorldBankRaw[]): Promise<NormalizedProject[]> {
-    const ids = [...new Set(notices.map((record) => stringValue(record, "project_id", "projectid")).filter((id): id is string => Boolean(id)))];
+    const projectLimit = Math.max(1, Math.min(Number(process.env.WORLD_BANK_PROJECT_LIMIT || 8), 50));
+    const ids = [...new Set(notices.map((record) => stringValue(record, "project_id", "projectid")).filter((id): id is string => Boolean(id)))].slice(0, projectLimit);
     const output: NormalizedProject[] = [];
     for (let index = 0; index < ids.length; index += 4) {
       const results = await Promise.allSettled(ids.slice(index, index + 4).map(async (id) => {
-        enforceSourceRateLimit(`${this.slug}-projects`, 12);
+        enforceSourceRateLimit(`${this.slug}-projects`, 60);
         const url = new URL(this.projectsEndpoint); url.searchParams.set("format", "json"); url.searchParams.set("fl", "*"); url.searchParams.set("id", id); url.searchParams.set("apilang", "en");
         const response = await fetchWithRetry(url.toString(), { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } });
         const envelope = ProjectEnvelope.parse(await response.json()); const raw = records(envelope.projects)[0]; if (!raw) throw new Error(`Project ${id} was not returned.`);
@@ -108,9 +109,9 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
   }
 
   async fetchAwards(): Promise<NormalizedAward[]> {
-    const top = 1000; const maxPages = Math.max(1, Math.min(Number(process.env.WORLD_BANK_AWARDS_MAX_PAGES || 10), 50)); const output: NormalizedAward[] = [];
+    const top = Math.max(1, Math.min(Number(process.env.WORLD_BANK_AWARDS_PAGE_SIZE || 25), 250)); const maxPages = Math.max(1, Math.min(Number(process.env.WORLD_BANK_AWARDS_MAX_PAGES || 1), 50)); const output: NormalizedAward[] = [];
     for (let page = 0; page < maxPages; page += 1) {
-      enforceSourceRateLimit(`${this.slug}-awards`, 8);
+      enforceSourceRateLimit(`${this.slug}-awards`, 60);
       const url = new URL(this.awardsEndpoint); url.searchParams.set("top", String(top)); url.searchParams.set("skip", String(page * top)); url.searchParams.set("borrower_country", "Ghana");
       const response = await fetchWithRetry(url.toString(), { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } });
       const envelope = AwardEnvelope.parse(await response.json()); const data = envelope.data.map((item) => UnknownRecord.parse(item));
