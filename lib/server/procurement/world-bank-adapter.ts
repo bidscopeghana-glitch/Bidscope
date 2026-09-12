@@ -25,7 +25,7 @@ function projectUrl(id: string) { return `https://projects.worldbank.org/en/proj
 
 export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> {
   readonly slug = "world-bank";
-  private readonly noticeEndpoint = process.env.WORLD_BANK_PROCUREMENT_API_URL || "https://search.worldbank.org/api/v2/procnotices";
+  private readonly noticeEndpoint = process.env.WORLD_BANK_PROCUREMENT_API_URL || "https://search.worldbank.org/api/procnotices";
   private readonly projectsEndpoint = process.env.WORLD_BANK_PROJECTS_API_URL || "https://search.worldbank.org/api/v2/projects";
   private readonly awardsEndpoint = process.env.WORLD_BANK_AWARDS_API_URL || "https://datacatalogapi.worldbank.org/dexapps/fone/api/apiservice?datasetId=DS00005&resourceId=RS00005&type=json";
 
