@@ -5,6 +5,7 @@ import { stableHash } from "./safety";
 import type { NormalizedAward, NormalizedOpportunity, NormalizedProject, ProcurementSource } from "./types";
 
 type IngestionTotals = { fetched: number; inserted: number; updated: number; duplicates: number; failed: number; errors: string[] };
+const amendmentFields = ["title","deadline_at","eligibility_text","documents_url","procurement_method","contact_email","contact_phone","official_submission_url","submission_method","status","summary","description"] as const;
 
 function safe(value: string) { return encodeURIComponent(value.replace(/[(),*]/g, " ")); }
 
@@ -37,6 +38,8 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
       const existingId = sameSourceId || await findExisting(record);
       const opportunityId = existingId || randomUUID();
       const body = { ...record, id: opportunityId, source_id: source.id, bidscope_reference: record.bidscope_reference || `BS-${randomUUID().slice(0, 10).toUpperCase()}` };
+      let previous:Record<string,unknown>|null=null;
+      if(sameSourceId){const{data}=await supabaseRest<Record<string,unknown>[]>(`procurement_opportunities?select=${amendmentFields.join(",")},raw_source_hash&id=eq.${opportunityId}&limit=1`);previous=data[0]||null;}
       if (!existingId || sameSourceId) {
         await supabaseRest(`procurement_opportunities?on_conflict=id`, {
           method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(body),
@@ -49,6 +52,9 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
       if (sameSourceId) totals.updated += 1;
       else if (existingId) totals.duplicates += 1;
       else totals.inserted += 1;
+      const eventBase={entity_type:"opportunity",entity_id:opportunityId};
+      if(!existingId){await supabaseRest("procurement_events?on_conflict=dedupe_key",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({...eventBase,event_type:"OPPORTUNITY_CREATED",payload:{source_id:source.id},dedupe_key:`opportunity-created:${opportunityId}`})});}
+      if(previous){const changes=amendmentFields.flatMap(field=>{const before=previous?.[field]??null;const after=(record as unknown as Record<string,unknown>)[field]??null;return JSON.stringify(before)===JSON.stringify(after)?[]:[{field,previous:before,current:after}];});if(changes.length){await supabaseRest("opportunity_revisions?on_conflict=opportunity_id,source_hash",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({opportunity_id:opportunityId,source_id:source.id,source_hash:record.raw_source_hash,snapshot:body,changed_fields:changes,verified_at:record.last_verified_at})});await supabaseRest("procurement_events?on_conflict=dedupe_key",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({...eventBase,event_type:"OPPORTUNITY_AMENDED",payload:{changes,source_id:source.id},dedupe_key:`opportunity-amended:${opportunityId}:${record.raw_source_hash}`})});}}
     } catch (error) {
       totals.failed += 1;
       totals.errors.push(error instanceof Error ? error.message.slice(0, 300) : "Unknown record error");
@@ -85,6 +91,7 @@ export async function ingestAwards(source: ProcurementSource, awards: Normalized
       body: JSON.stringify({ source_key: `world-bank:${award.external_award_id}`, procurement_source_id: source.id, project_id: projects[0]?.id || null, opportunity_id: opportunities[0]?.id || null, country_code: "GH", title: award.title, reference_number: award.reference_number, award_date: award.award_date?.slice(0, 10) || null, currency: award.currency, award_value: award.value, procurement_method: award.procurement_method, source_url: award.source_url, raw_payload: award.raw_payload, published_at: new Date().toISOString() }),
     });
     const awardId = rows[0]?.id;
+    if(awardId)await supabaseRest("procurement_events?on_conflict=dedupe_key",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({event_type:"AWARD_CREATED",entity_type:"award",entity_id:awardId,payload:{opportunity_id:opportunities[0]?.id||null,supplier_name:award.supplier_name,buyer_name:award.buyer_name},dedupe_key:`award-created:${awardId}`})});
     if (awardId && award.supplier_name) {
       await supabaseRest(`award_suppliers?award_id=eq.${awardId}`, { method: "DELETE" });
       await supabaseRest("award_suppliers", { method: "POST", body: JSON.stringify({ award_id: awardId, supplier_name: award.supplier_name, country_code: award.supplier_country?.length === 2 ? award.supplier_country.toUpperCase() : null, awarded_value: award.value, metadata: { supplier_country: award.supplier_country, source: "World Bank Group" } }) });

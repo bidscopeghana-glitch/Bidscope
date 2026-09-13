@@ -1,27 +1,23 @@
 import { apiErrorResponse } from "@/lib/server/api-error";
-import { pagination, safeSearchTerm, totalFromContentRange } from "@/lib/server/query";
-import { supabaseRest } from "@/lib/server/supabase-rest";
+import { pagination } from "@/lib/server/query";
+import { requireUser } from "@/lib/server/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    await requireUser(request);
     const incoming = new URL(request.url).searchParams;
     const { page, pageSize, offset } = pagination(incoming);
-    const search = safeSearchTerm(incoming.get("q"));
-    const query = new URLSearchParams({
-      select: "id,title,reference_number,award_date,currency,award_value,procurement_method,source_url,buyer:procuring_entities(id,name,slug),suppliers:award_suppliers(id,supplier_name,supplier_registration_number,country_code,awarded_value,is_joint_venture)",
-      country_code: `eq.${(incoming.get("country") || "GH").slice(0, 2).toUpperCase()}`,
-      published_at: "not.is.null",
-      order: "award_date.desc.nullslast",
-      limit: String(pageSize),
-      offset: String(offset),
-    });
-    if (search) query.set("or", `(title.ilike.*${search}*,reference_number.ilike.*${search}*)`);
-    const buyer = incoming.get("buyer");
-    if (buyer) query.set("buyer_id", `eq.${buyer}`);
-    const { data, response } = await supabaseRest<unknown[]>(`awards?${query}`, { count: "exact" });
-    return Response.json({ data, pagination: { page, pageSize, total: totalFromContentRange(response.headers.get("content-range")) } });
+    const endpoint = new URL(process.env.WORLD_BANK_AWARDS_API_URL || "https://datacatalogapi.worldbank.org/dexapps/fone/api/apiservice?datasetId=DS00005&resourceId=RS00005&type=json");
+    endpoint.searchParams.set("top", String(pageSize)); endpoint.searchParams.set("skip", String(offset)); endpoint.searchParams.set("filter", "borrower_country='Ghana'");
+    const response = await fetch(endpoint, { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" }, cache: "no-store", signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error(`World Bank awards source returned HTTP ${response.status}`);
+    const body = await response.json() as { count?:number|string; data?:Array<Record<string,unknown>> };
+    const text=(record:Record<string,unknown>,key:string)=>typeof record[key]==="string"?String(record[key]).trim():record[key]==null?null:String(record[key]);
+    const number=(record:Record<string,unknown>,key:string)=>{const value=Number(record[key]);return Number.isFinite(value)?value:null;};
+    const data=(body.data||[]).map(record=>{const projectId=text(record,"project_id");const contract=text(record,"wb_contract_number")||text(record,"borrower_contract_reference_number")||crypto.randomUUID();const supplier=text(record,"supplier");return {id:`world-bank:${contract}`,title:text(record,"contract_description")||"World Bank-financed contract award",reference_number:text(record,"borrower_contract_reference_number")||contract,award_date:text(record,"contract_signing_date"),currency:"USD",award_value:number(record,"supplier_contract_amount_usd"),procurement_method:text(record,"procurement_method"),source_url:projectId?`https://projects.worldbank.org/en/projects-operations/project-detail/${encodeURIComponent(projectId)}`:"https://financesone.worldbank.org/contract-awards-in-investment-project-financing/DS00005",buyer:{id:projectId||contract,name:text(record,"project_name")||"World Bank-financed Ghana project",slug:projectId||contract},suppliers:supplier?[{id:`${contract}:supplier`,supplier_name:supplier,supplier_registration_number:text(record,"supplier_id"),country_code:text(record,"supplier_country_code"),awarded_value:number(record,"supplier_contract_amount_usd"),is_joint_venture:false}]:[]};});
+    return Response.json({ data, pagination: { page, pageSize, total: Number(body.count || data.length) } }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return apiErrorResponse(error);
   }

@@ -1,0 +1,5 @@
+.vercel
+.sites-runtime
+backend-migration.txt
+public/backend-migration.txt
+public/migration-view.html

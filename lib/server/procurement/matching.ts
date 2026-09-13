@@ -10,6 +10,6 @@ export function calculateOpportunityMatch(profile:MatchProfile, opportunity:Matc
   const regions=words(profile.preferred_regions.length?profile.preferred_regions:[profile.region||""]);
   if(regions.length&&opportunity.region){possible+=20;if(regions.includes(opportunity.region.toLowerCase())){earned+=20;reasons.push("Region matches your preferred coverage");}}
   if((profile.preferred_minimum_value!=null||profile.preferred_maximum_value!=null)&&opportunity.estimated_value!=null){possible+=30;const above=profile.preferred_minimum_value==null||opportunity.estimated_value>=profile.preferred_minimum_value;const below=profile.preferred_maximum_value==null||opportunity.estimated_value<=profile.preferred_maximum_value;if(above&&below){earned+=30;reasons.push("Estimated value matches your preferred range");}}
+  if(profile.certifications.length&&opportunity.eligibility_text){possible+=15;const eligibility=opportunity.eligibility_text.toLowerCase();if(profile.certifications.some(item=>eligibility.includes(item.toLowerCase()))){earned+=15;reasons.push("A listed certification appears in the eligibility information");}}
   return possible ? { percentage:Math.round(earned/possible*100), reasons, evidenceAvailable:true } : { percentage:null, reasons:["Complete your company profile to calculate a verified match."], evidenceAvailable:false };
 }
-

@@ -206,3 +206,52 @@ export const procurementSourceAdminSchema = z.object({
   trustLevel: z.enum(["VERIFIED_OFFICIAL", "OFFICIAL", "PUBLIC", "NEEDS_REVIEW"]).default("NEEDS_REVIEW"),
   configuration: z.record(z.string(), z.unknown()).default({}),
 });
+
+export const alertTypeSchema = z.enum(["opportunity_match", "tender_amendment", "deadline", "buyer_activity", "award", "supplier_activity", "document_expiry", "workspace_reminder", "system"]);
+
+export const alertPreferenceUpdateSchema = z.object({
+  alertType: alertTypeSchema,
+  inAppEnabled: z.boolean(),
+  emailEnabled: z.boolean(),
+  frequency: z.enum(["instant", "daily", "weekly"]),
+  urgentOverride: z.boolean().default(false),
+  reminderDays: z.array(z.number().int().min(1).max(365)).max(8).default([]),
+});
+
+export const notificationUpdateSchema = z.object({
+  read: z.boolean().optional(),
+  dismissed: z.boolean().optional(),
+}).refine((value) => value.read !== undefined || value.dismissed !== undefined, "No notification change supplied.");
+
+export const watchedEntitySchema = z.object({
+  organizationId: uuid.nullable().optional(),
+  entityType: z.enum(["buyer", "supplier", "opportunity"]),
+  entityId: uuid.nullable().optional(),
+  entityName: z.string().trim().max(300).nullable().optional(),
+}).refine((value) => Boolean(value.entityId || value.entityName), "An entity ID or name is required.");
+
+export const procurementAiSchema = z.object({
+  opportunityId: uuid,
+  organizationId: uuid.nullable().optional(),
+  threadId: uuid.nullable().optional(),
+  action: z.enum(["summary", "mandatory_documents", "disqualification_risks", "key_dates", "passport_comparison", "missing_items", "evaluation_criteria", "latest_amendment", "eligibility", "clarifications", "question"]).default("question"),
+  question: z.string().trim().max(2000).default(""),
+  allowSupplierPassport: z.boolean().default(false),
+});
+
+export const documentIndexSchema = z.object({
+  documentId: uuid,
+  opportunityId: uuid,
+  url: z.string().url().max(2000),
+  mimeType: z.string().trim().max(120).nullable().optional(),
+  extractedText: z.string().max(5_000_000).nullable().optional(),
+});
+
+export const supplierDocumentSchema = z.object({
+  organizationId: uuid,
+  documentType: shortText(120),
+  title: shortText(240),
+  sourceUrl: z.string().url().max(2000).nullable().optional(),
+  issuedAt: z.string().date().nullable().optional(),
+  expiresAt: z.string().date().nullable().optional(),
+});

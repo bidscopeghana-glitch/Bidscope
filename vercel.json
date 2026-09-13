@@ -4,6 +4,10 @@
     {
       "path": "/api/internal/procurement/sync",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/internal/notifications/process",
+      "schedule": "15 6 * * *"
     }
   ]
 }
