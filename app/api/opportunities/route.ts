@@ -20,6 +20,7 @@ export async function GET(request: Request) {
     const scope = incoming.get("scope") || "ghana";
     if (scope === "ghana") query.set("country_code", "eq.GH");
     else if (scope === "international") query.set("country_code", "neq.GH");
+    else if (scope === "africa") query.set("or", "(source_name.in.(African Union,ECOWAS,African Development Bank),country_code.in.(DZ,AO,BJ,BW,BF,BI,CV,CM,CF,TD,KM,CD,CG,CI,DJ,EG,GQ,ER,SZ,ET,GA,GM,GH,GN,GW,KE,LS,LR,LY,MG,MW,ML,MR,MU,MA,MZ,NA,NE,NG,RW,ST,SN,SC,SL,SO,ZA,SS,SD,TZ,TG,TN,UG,ZM,ZW))");
     else if (incoming.get("country")) query.set("country_code", `eq.${incoming.get("country")!.slice(0, 2).toUpperCase()}`);
     const directFilters: Record<string, string> = {
       category: "category", region: "region", sector: "sector", buyer: "buyer_name", source: "source_name",

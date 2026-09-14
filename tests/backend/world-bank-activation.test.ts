@@ -3,18 +3,20 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { WorldBankAdapter } from "../../lib/server/procurement/world-bank-adapter.ts";
 
-test("World Bank notice fetch keeps Ghana opportunities and excludes contract awards", async () => {
+test("World Bank notice fetch keeps African opportunities and excludes contract awards", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
     assert.equal(url.origin + url.pathname, "https://search.worldbank.org/api/v2/procnotices");
-    assert.equal(url.searchParams.get("project_ctry_name"), "Ghana");
-    return new Response(JSON.stringify({ total: 2, procnotices: [
+    assert.equal(url.searchParams.get("project_ctry_name"), null);
+    return new Response(JSON.stringify({ total: 4, procnotices: [
     { id:"OP1", project_ctry_name:"Ghana", bid_description:"Supply equipment", notice_type:"Invitation for Bids" },
     { id:"OP2", project_ctry_name:"Ghana", bid_description:"Award", notice_type:"Contract Award" },
+    { id:"OP3", project_ctry_name:"Nigeria", bid_description:"Supply solar equipment", notice_type:"Invitation for Bids" },
+    { id:"OP4", project_ctry_name:"Sri Lanka", bid_description:"Road works", notice_type:"Invitation for Bids" },
     ] }), { status:200, headers:{ "content-type":"application/json" } });
   };
-  try { const rows = await new WorldBankAdapter().fetchOpportunities(); assert.equal(rows.length, 1); assert.equal(rows[0].id, "OP1"); }
+  try { const rows = await new WorldBankAdapter().fetchOpportunities(); assert.deepEqual(rows.map((row) => row.id), ["OP1", "OP3"]); }
   finally { globalThis.fetch = originalFetch; }
 });
 

@@ -35,7 +35,7 @@ test("canonical records keep official provenance and deterministic duplicate key
 
 test("regional parsers reject programme noise and preserve official links", () => {
   const ecowas = new EcowasAdapter();
-  const html = `<article class="ev-card ev-ongoing"><a class="ev-link" href="/proc/1" aria-label="Supply of ICT equipment"></a><span class="ev-range">19 Aug – 30 Sep 2026</span><p class="ev-excerpt">Open tender</p></article><article class="ev-card"><a class="ev-link" href="/jobs/1" aria-label="Graduate immersion programme"></a></article>`;
+  const html = `<ul class="nwp-light-list"><li><a href="https://www.ecowas.int/nwp_events/supply-equipment/"><small>Closing date: 30 Sep, 2026</small><h6>Supply of ICT equipment</h6></a></li><li><a href="https://www.ecowas.int/nwp_events/annual-plan/"><h6>Annual Procurement Plan</h6></a></li></ul>`;
   const rows = ecowas.parse(html); assert.equal(rows.length, 1); assert.match(String(rows[0].url), /^https:\/\/www\.ecowas\.int/);
-  const au = new AfricanUnionAdapter(); assert.equal(au.parse(`<table><tr><td class="views-field-title"><a href="/en/bids/1">Supply contract</a></td><td>ET-AUC-123</td><td>30 September 2026</td></tr></table>`).length, 1);
+  const au = new AfricanUnionAdapter(); const auRows = au.parse(`<table><tr><td><time datetime="2026-09-01T00:00:00Z">2026-09-01</time> - <time datetime="2026-09-30T12:00:00Z">2026-09-30</time></td><td class="views-field-title"><a href="/en/bids/20260901/supply-contract">Supply contract</a></td><td>ET-AUC-123</td></tr></table>`); assert.equal(auRows.length, 1); assert.equal(auRows[0].deadline, "2026-09-30T12:00:00Z");
 });

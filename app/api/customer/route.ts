@@ -7,7 +7,7 @@ import { pagination } from "@/lib/server/query";
 export const dynamic = "force-dynamic";
 const uuid = z.string().uuid();
 const filtersSchema = z.object({
-  q:z.string().max(160).optional(), scope:z.enum(["all","ghana","international"]).optional(),
+  q:z.string().max(160).optional(), scope:z.enum(["all","ghana","africa","international"]).optional(),
   stage:z.enum(["upcoming"]).optional(), collection:z.enum(["saved","recent","recommended"]).optional(),
   sort:z.enum(["newest","match","deadline"]).optional(),
   country:z.string().max(100).optional(), sector:z.string().max(160).optional(), buyer:z.string().max(160).optional(),

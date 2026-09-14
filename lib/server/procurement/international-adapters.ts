@@ -11,6 +11,48 @@ function nested(record: Raw, path: string) { return path.split(".").reduce<unkno
 function strings(value: unknown): string[] { if (typeof value === "string") return [value]; if (Array.isArray(value)) return value.flatMap(strings); if (value && typeof value === "object") return Object.values(value as Raw).flatMap(strings); return []; }
 function pick(record: Raw, ...paths: string[]) { for (const path of paths) { const value = strings(nested(record, path)).find(Boolean); if (value) return value; } return null; }
 
+function isWebUrl(value: string | null): value is string {
+  if (!value) return false;
+  try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; }
+}
+
+function linkHref(value: unknown, relation?: string) {
+  if (!Array.isArray(value)) return null;
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const link = item as Raw;
+    if (relation && String(link.rel || "").toLowerCase() !== relation) continue;
+    const href = typeof link.href === "string" ? link.href : typeof link.url === "string" ? link.url : null;
+    if (isWebUrl(href)) return href;
+  }
+  return null;
+}
+
+/** Resolve a browser-facing notice page, never a bulk OCDS search endpoint. */
+export function ocdsNoticeUrl(raw: Raw, config: OcdsConfig) {
+  const tender = raw.tender && typeof raw.tender === "object" ? raw.tender as Raw : {};
+  const documentUrls = Array.isArray(tender.documents)
+    ? tender.documents.flatMap((document) => document && typeof document === "object" ? strings((document as Raw).url) : [])
+    : [];
+  const noticeDocument = documentUrls.find((url) => isWebUrl(url) && /\/(?:notice|notices)\//i.test(url));
+  if (noticeDocument) return noticeDocument;
+
+  if (config.slug === "uk-find-a-tender") {
+    const releaseId = String(raw.id || "");
+    if (/^\d{6}-\d{4}$/.test(releaseId)) return `https://www.find-tender.service.gov.uk/Notice/${encodeURIComponent(releaseId)}`;
+  }
+  const linked = pick(raw, "links.tender", "links.self", "url")
+    || linkHref(raw.links, "tender")
+    || linkHref(raw.links, "canonical");
+  if (isWebUrl(linked) && !/\/(?:api|published)\//i.test(new URL(linked).pathname)) return linked;
+
+  if (config.slug === "uk-contracts-finder") {
+    const releaseId = String(raw.id || "").match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:-|$)/i)?.[1];
+    if (releaseId) return `https://www.contractsfinder.service.gov.uk/Notice/${releaseId}`;
+  }
+  return config.endpoint;
+}
+
 abstract class JsonAdapter implements ProcurementSourceAdapter<Raw> {
   abstract readonly slug: string; abstract fetchOpportunities(): Promise<Raw[]>; abstract normaliseOpportunity(raw: Raw): Promise<NormalizedOpportunity>; abstract getOfficialUrl(raw: Raw): string;
   getSubmissionUrl() { return null; }
@@ -43,8 +85,8 @@ export class OcdsAdapter extends JsonAdapter {
     const packages = Array.isArray(payload.releases) ? payload.releases : Array.isArray(payload.releasePackages) ? payload.releasePackages : [];
     return packages.flatMap((item) => { if (!item || typeof item !== "object") return []; const record = item as Raw; if (Array.isArray(record.releases)) return record.releases.filter((release): release is Raw => Boolean(release && typeof release === "object")); return [record]; });
   }
-  async normaliseOpportunity(raw: Raw) { const tender = (raw.tender && typeof raw.tender === "object" ? raw.tender : {}) as Raw; const id = String(raw.ocid || raw.id || tender.id || "ocds"); const title = text(tender.title || raw.title || "UK public procurement opportunity", 500); const buyer = (raw.buyer && typeof raw.buyer === "object" ? raw.buyer : {}) as Raw; const eligibilityText = `${text(tender.eligibilityCriteria || "")} ${text(tender.description || "")}`.trim(); const official = pick(raw, "links.tender", "links.self", "url") || this.config.endpoint; return normalize({ title, summary: text(tender.description), description: text(tender.description), buyer_name: text(buyer.name || "UK public authority", 400), country: this.config.country, country_code: this.config.countryCode, category: /works/i.test(String(tender.mainProcurementCategory)) ? "works" : /goods/i.test(String(tender.mainProcurementCategory)) ? "goods" : /services/i.test(String(tender.mainProcurementCategory)) ? "services" : "other", procurement_method: text(tender.procurementMethodDetails || tender.procurementMethod) || null, published_at: firstDate(raw.date), deadline_at: firstDate(nested(tender, "tenderPeriod.endDate")), source_name: this.config.name, source_type: "OPEN_API", external_opportunity_id: id, external_reference: String(tender.id || id), official_source_url: official, funding_source: "United Kingdom public procurement", eligibility_text: eligibilityText || "Eligibility must be verified in the official notice.", eligibility_status: "UNCLEAR", eligibility_summary: "No assumption of Ghanaian eligibility; inspect the official participation rules.", raw_payload: raw }); }
-  getOfficialUrl(raw: Raw) { return pick(raw, "links.tender", "links.self", "url") || this.config.endpoint; }
+  async normaliseOpportunity(raw: Raw) { const tender = (raw.tender && typeof raw.tender === "object" ? raw.tender : {}) as Raw; const id = String(raw.ocid || raw.id || tender.id || "ocds"); const title = text(tender.title || raw.title || "UK public procurement opportunity", 500); const buyer = (raw.buyer && typeof raw.buyer === "object" ? raw.buyer : {}) as Raw; const eligibilityText = `${text(tender.eligibilityCriteria || "")} ${text(tender.description || "")}`.trim(); const official = this.getOfficialUrl(raw); return normalize({ title, summary: text(tender.description), description: text(tender.description), buyer_name: text(buyer.name || "UK public authority", 400), country: this.config.country, country_code: this.config.countryCode, category: /works/i.test(String(tender.mainProcurementCategory)) ? "works" : /goods/i.test(String(tender.mainProcurementCategory)) ? "goods" : /services/i.test(String(tender.mainProcurementCategory)) ? "services" : "other", procurement_method: text(tender.procurementMethodDetails || tender.procurementMethod) || null, published_at: firstDate(raw.date), deadline_at: firstDate(nested(tender, "tenderPeriod.endDate")), source_name: this.config.name, source_type: "OPEN_API", external_opportunity_id: id, external_reference: String(tender.id || id), official_source_url: official, official_tender_url: official, documents_url: official, funding_source: "United Kingdom public procurement", eligibility_text: eligibilityText || "Eligibility must be verified in the official notice.", eligibility_status: "UNCLEAR", eligibility_summary: "No assumption of Ghanaian eligibility; inspect the official participation rules.", raw_payload: raw }); }
+  getOfficialUrl(raw: Raw) { return ocdsNoticeUrl(raw, this.config); }
 }
 
 export const contractsFinderAdapter = new OcdsAdapter({ slug: "uk-contracts-finder", name: "UK Contracts Finder", endpoint: "https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search", country: "United Kingdom", countryCode: "GB" });

@@ -20,6 +20,15 @@ function stringValue(record: WorldBankRaw, ...keys: string[]) {
 
 function records(value: unknown[] | Record<string, unknown>) { return (Array.isArray(value) ? value : Object.values(value)).map((item) => UnknownRecord.parse(item)); }
 function isGhana(value: string | null) { return Boolean(value && /(^|[,;|/\s])ghana($|[,;|/\s])/i.test(value)); }
+const africanCountryCodes = new Map(Object.entries({
+  algeria:"DZ",angola:"AO",benin:"BJ",botswana:"BW","burkina faso":"BF",burundi:"BI","cabo verde":"CV",cameroon:"CM","central african republic":"CF",chad:"TD",comoros:"KM","democratic republic of congo":"CD","democratic republic of the congo":"CD","republic of congo":"CG","republic of the congo":"CG","cote d'ivoire":"CI","côte d'ivoire":"CI",djibouti:"DJ",egypt:"EG","equatorial guinea":"GQ",eritrea:"ER",eswatini:"SZ",ethiopia:"ET",gabon:"GA","the gambia":"GM",gambia:"GM",ghana:"GH",guinea:"GN","guinea-bissau":"GW",kenya:"KE",lesotho:"LS",liberia:"LR",libya:"LY",madagascar:"MG",malawi:"MW",mali:"ML",mauritania:"MR",mauritius:"MU",morocco:"MA",mozambique:"MZ",namibia:"NA",niger:"NE",nigeria:"NG",rwanda:"RW","sao tome and principe":"ST","são tomé and príncipe":"ST",senegal:"SN",seychelles:"SC","sierra leone":"SL",somalia:"SO","south africa":"ZA","south sudan":"SS",sudan:"SD",tanzania:"TZ",togo:"TG",tunisia:"TN",uganda:"UG",zambia:"ZM",zimbabwe:"ZW",
+}));
+function africaCode(value: string | null) {
+  const country = (value || "").trim().toLowerCase();
+  for (const [name, code] of africanCountryCodes) if (country.includes(name)) return code;
+  if (/africa|african/.test(country)) return "ZZ";
+  return null;
+}
 function isAwardNotice(record: WorldBankRaw) { return /contract\s+award/i.test(stringValue(record, "notice_type", "notice_type_name") || ""); }
 function projectUrl(id: string) { return `https://projects.worldbank.org/en/projects-operations/project-detail/${encodeURIComponent(id)}`; }
 
@@ -32,14 +41,14 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
   private async fetchNoticePage(offset: number, pageSize: number) {
     enforceSourceRateLimit(this.slug, 110);
     const url = new URL(this.noticeEndpoint);
-    url.searchParams.set("format", "json"); url.searchParams.set("apilang", "en"); url.searchParams.set("rows", String(pageSize)); url.searchParams.set("os", String(offset)); url.searchParams.set("project_ctry_name", "Ghana");
+    url.searchParams.set("format", "json"); url.searchParams.set("apilang", "en"); url.searchParams.set("rows", String(pageSize)); url.searchParams.set("os", String(offset));
     const response = await fetchWithRetry(url.toString(), { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } });
     const envelope = NoticeEnvelope.parse(await response.json());
     return { data: records(envelope.procnotices), total: Number(envelope.total || 0) };
   }
 
   async fetchOpportunities() {
-    const pageSize = Math.max(1, Math.min(Number(process.env.WORLD_BANK_PAGE_SIZE || 25), 100));
+    const pageSize = Math.max(1, Math.min(Number(process.env.WORLD_BANK_PAGE_SIZE || 100), 100));
     const maxPages = Math.max(1, Math.min(Number(process.env.WORLD_BANK_MAX_PAGES || 1), 100));
     const found = new Map<string, WorldBankRaw>();
     const firstPage = await this.fetchNoticePage(0, pageSize);
@@ -51,7 +60,7 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
       for (const record of data) {
         const country = stringValue(record, "project_ctry_name", "country_name", "country");
         const beneficiary = stringValue(record, "beneficiary_countries", "eligibility");
-        if ((isGhana(country) || isGhana(beneficiary)) && !isAwardNotice(record)) { const id = stringValue(record, "id", "notice_id"); if (id) found.set(id, record); }
+        if ((africaCode(country) || africaCode(beneficiary)) && !isAwardNotice(record)) { const id = stringValue(record, "id", "notice_id"); if (id) found.set(id, record); }
       }
       if (!data.length || data.length < pageSize || (total > 0 && offset + data.length >= total)) break;
     }
@@ -76,19 +85,19 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
     const group = stringValue(raw, "procurement_group", "procurement_category", "procurement_group_code");
     const category = group === "CW" || /works/i.test(group || "") ? "works" : group === "GO" || /goods/i.test(group || "") ? "goods" : group === "CS" || /consult/i.test(group || "") ? "consulting" : /service/i.test(group || "") ? "services" : "other";
     const now = new Date().toISOString(); const reference = stringValue(raw, "bid_reference_no", "notice_no", "notice_number") || id;
-    const projectId = stringValue(raw, "project_id", "projectid"); const officialUrl = this.getOfficialUrl(raw);
+    const projectId = stringValue(raw, "project_id", "projectid"); const officialUrl = this.getOfficialUrl(raw); const country = stringValue(raw, "project_ctry_name", "country_name") || "Africa"; const countryCode = africaCode(country) || "ZZ";
     return {
       bidscope_reference: `BS-WB-${id}`.slice(0, 160), slug: `${slugify(title)}-${slugify(id)}`, title,
       summary: stripImportedHtml(stringValue(raw, "project_name") || description, 1000), description,
       buyer_name: stripImportedHtml(stringValue(raw, "contact_organization", "borrower", "implementing_agency") || "World Bank-financed executing agency", 300), buyer_type: "Development partner project",
-      country: stringValue(raw, "project_ctry_name", "country_name") || "Ghana", country_code: "GH", region: stringValue(raw, "region_name", "region"), sector: stringValue(raw, "sector", "sector_name"),
+      country, country_code: countryCode, region: stringValue(raw, "region_name", "region"), sector: stringValue(raw, "sector", "sector_name"),
       category, subcategory: group, procurement_method: stringValue(raw, "procurement_method_name", "procurement_method"), contract_type: noticeType,
       currency: null, estimated_value: null, minimum_value: null, maximum_value: null,
       published_at: parseDate(stringValue(raw, "noticedate", "publication_date", "notice_date")), deadline_at: deadline, status: deadline && new Date(deadline) < new Date() ? "CLOSED" : "OPEN",
       source_name: "World Bank", source_type: "OPEN_API", external_opportunity_id: id, external_reference: reference, source_resource_id: projectId,
       official_source_url: officialUrl, official_tender_url: officialUrl, official_submission_url: null, submission_platform: "World Bank procurement", submission_method: "View official procurement",
       requires_registration: false, registration_url: null, funding_source: "World Bank", funding_agency: "World Bank Group",
-      eligibility_text: stripImportedHtml(stringValue(raw, "eligibility", "eligibility_text") || "", 1000) || null, eligibility_country: "Ghana", documents_url: officialUrl,
+      eligibility_text: stripImportedHtml(stringValue(raw, "eligibility", "eligibility_text") || "", 1000) || null, eligibility_country: country, documents_url: officialUrl,
       contact_name: stripImportedHtml(stringValue(raw, "contact_name") || "", 300) || null, contact_email: stripImportedHtml(stringValue(raw, "contact_email") || "", 320) || null, contact_phone: stripImportedHtml(stringValue(raw, "contact_phone", "contact_tel") || "", 100) || null,
       last_source_update: now, last_verified_at: now, data_confidence: "VERIFIED_OFFICIAL_SOURCE", verification_status: "VERIFIED",
       raw_source_hash: stableHash(raw), document_fingerprint: stableHash([reference, title, deadline]), raw_payload: raw,
