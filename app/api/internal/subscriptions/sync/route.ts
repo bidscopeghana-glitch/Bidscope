@@ -13,7 +13,7 @@ const schema = z.object({
   providerCustomerId: z.string().trim().max(240).nullable().optional(),
   providerSubscriptionId: z.string().trim().max(240).nullable().optional(),
   planCode: z.string().trim().min(1).max(80),
-  status: z.enum(["trialing", "active", "past_due", "paused", "cancelled", "expired"]),
+  status: z.enum(["FREE","PENDING","ACTIVE","PAST_DUE","GRACE_PERIOD","CANCEL_AT_PERIOD_END","CANCELLED","EXPIRED","PAYMENT_FAILED","INCOMPLETE"]),
   trialEndsAt: z.string().datetime({ offset: true }).nullable().optional(),
   currentPeriodStartsAt: z.string().datetime({ offset: true }).nullable().optional(),
   currentPeriodEndsAt: z.string().datetime({ offset: true }).nullable().optional(),
@@ -47,4 +47,3 @@ export async function POST(request: Request) {
     return apiErrorResponse(error);
   }
 }
-

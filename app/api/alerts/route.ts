@@ -2,6 +2,7 @@ import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { requireOrganizationMember, requireUser } from "@/lib/server/auth";
 import { alertRuleSchema } from "@/lib/server/schemas";
 import { supabaseRest } from "@/lib/server/supabase-rest";
+import {requireEntitlement,requireResourceCapacity} from "@/lib/server/entitlements";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,8 @@ export async function POST(request: Request) {
     const { user } = await requireUser(request);
     const input = alertRuleSchema.parse(await request.json());
     await requireOrganizationMember(user.id, input.organizationId);
+    await requireResourceCapacity({organizationId:input.organizationId,limitKey:"tender_watches",table:"alert_rules"});
+    if(input.frequency==="instant")await requireEntitlement(input.organizationId,"smart_alerts");
     const { data } = await supabaseRest<unknown[]>("alert_rules", {
       method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row(input, user.id)),
     });
@@ -43,4 +46,3 @@ export async function POST(request: Request) {
     return apiErrorResponse(error);
   }
 }
-

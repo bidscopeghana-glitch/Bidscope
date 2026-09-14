@@ -235,7 +235,7 @@ export const procurementAiSchema = z.object({
   opportunityId: uuid,
   organizationId: uuid.nullable().optional(),
   threadId: uuid.nullable().optional(),
-  action: z.enum(["summary", "mandatory_documents", "disqualification_risks", "key_dates", "passport_comparison", "missing_items", "evaluation_criteria", "latest_amendment", "eligibility", "clarifications", "question"]).default("question"),
+  action: z.enum(["summary", "mandatory_documents", "disqualification_risks", "key_dates", "passport_comparison", "missing_items", "evaluation_criteria", "latest_amendment", "eligibility", "clarifications", "tender_report", "question"]).default("question"),
   question: z.string().trim().max(2000).default(""),
   allowSupplierPassport: z.boolean().default(false),
 });

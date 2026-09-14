@@ -2,6 +2,7 @@ import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { requireOrganizationMember, requireUser } from "@/lib/server/auth";
 import { savedOpportunitySchema } from "@/lib/server/schemas";
 import { supabaseRest } from "@/lib/server/supabase-rest";
+import {requireResourceCapacity} from "@/lib/server/entitlements";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,8 @@ export async function POST(request: Request) {
     const { user } = await requireUser(request);
     const input = savedOpportunitySchema.parse(await request.json());
     await requireOrganizationMember(user.id, input.organizationId);
+    const {data:existing}=await supabaseRest<unknown[]>(`saved_opportunities?select=organization_id&organization_id=eq.${input.organizationId}&opportunity_id=eq.${input.opportunityId}&limit=1`);
+    if(!existing.length)await requireResourceCapacity({organizationId:input.organizationId,limitKey:"saved_opportunities",table:"saved_opportunities"});
     const { data } = await supabaseRest<unknown[]>("saved_opportunities?on_conflict=organization_id,opportunity_id", {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=representation" },

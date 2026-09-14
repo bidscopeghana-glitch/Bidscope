@@ -3,6 +3,7 @@ import { requireUser, requireOrganizationMember } from "@/lib/server/auth";
 import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { supabaseRest, supabaseRpc } from "@/lib/server/supabase-rest";
 import { pagination } from "@/lib/server/query";
+import {primaryOrganization,requireEntitlement,requireUserResourceCapacity} from "@/lib/server/entitlements";
 
 export const dynamic = "force-dynamic";
 const uuid = z.string().uuid();
@@ -65,6 +66,9 @@ export async function POST(request:Request) {
     if(resource==="recent") {const opportunityId=uuid.parse(body.opportunityId);const viewedAt=new Date().toISOString();await Promise.all([supabaseRest("customer_recent_opportunities?on_conflict=user_id,opportunity_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,opportunity_id:opportunityId,viewed_at:viewedAt})}),supabaseRest("customer_preferences?on_conflict=user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,last_opportunity_seen_at:viewedAt,updated_at:viewedAt})}),supabaseRest("analytics_events",{method:"POST",body:JSON.stringify({user_id:user.id,opportunity_id:opportunityId,event_name:"MATCH_OPENED",metadata:{surface:"customer_opportunity"}})})]);}
     if(resource==="searches") {
       const name=z.string().trim().min(1).max(160).parse(body.name);const filters=filtersSchema.parse(body.filters);const frequency=z.enum(["instant","daily","weekly"]).default("daily").parse(body.frequency);
+      const membership=await primaryOrganization(user.id);if(!membership)throw new ApiError(400,"Create a business profile before saving a Tender Watch.","profile_required");
+      await requireUserResourceCapacity({userId:user.id,organizationId:membership.organization_id,limitKey:"tender_watches",table:"customer_saved_searches"});
+      if(frequency==="instant")await requireEntitlement(membership.organization_id,"smart_alerts");
       await supabaseRest("customer_saved_searches",{method:"POST",body:JSON.stringify({user_id:user.id,name,filters,frequency,alerts_enabled:false})});
     }
     if(resource==="preparation") {
@@ -85,6 +89,7 @@ export async function POST(request:Request) {
 }
 export async function PATCH(request:Request){
   try{const {user}=await requireUser(request);const input=z.object({id:uuid,alertsEnabled:z.boolean(),frequency:z.enum(["instant","daily","weekly"]).optional()}).parse(await request.json());
+    if(input.frequency==="instant"){const membership=await primaryOrganization(user.id);if(!membership)throw new ApiError(400,"Create a business profile before enabling immediate alerts.","profile_required");await requireEntitlement(membership.organization_id,"smart_alerts");}
     const {data}=await supabaseRest<unknown[]>(`customer_saved_searches?id=eq.${input.id}&user_id=eq.${user.id}`,{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({alerts_enabled:input.alertsEnabled,...(input.frequency?{frequency:input.frequency}:{})})});
     if(!data.length)throw new ApiError(404,"Saved search not found.","not_found");return Response.json({data:data[0]});
   }catch(error){return apiErrorResponse(error);}
