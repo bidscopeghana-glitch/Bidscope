@@ -29,6 +29,8 @@ export function slugify(value: string) {
 
 export function parseDate(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
+  const datedOffset = value.trim().match(/^(\d{4}-\d{2}-\d{2})[+-]\d{2}:\d{2}$/);
+  if (datedOffset) return `${datedOffset[1]}T00:00:00.000Z`;
   const european = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
   if (european) {
     const [, day, month, year, hour = "0", minute = "0", second = "0"] = european;

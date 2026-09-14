@@ -17,6 +17,7 @@ test("status engine separates upcoming, closing soon, open and closed", () => {
 test("Ghana day-first deadlines are parsed without US date reversal", () => {
   assert.equal(parseDate("02/10/2026 10:00:00"), "2026-10-02T10:00:00.000Z");
   assert.equal(parseDate("30/09/2026 13:30:00"), "2026-09-30T13:30:00.000Z");
+  assert.equal(parseDate("2026-08-31+02:00"), "2026-08-31T00:00:00.000Z");
 });
 
 test("eligibility never invents international access", () => {
