@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { supabaseRest } from "../supabase-rest";
-import { deduplicationKeys } from "./deduplication";
-import { stableHash } from "./safety";
-import type { NormalizedAward, NormalizedOpportunity, NormalizedProject, ProcurementSource } from "./types";
+import { supabaseRest } from "../supabase-rest.ts";
+import { deduplicationKeys } from "./deduplication.ts";
+import { stableHash } from "./safety.ts";
+import type { NormalizedAward, NormalizedOpportunity, NormalizedProject, ProcurementSource } from "./types.ts";
 
 type IngestionTotals = { fetched: number; inserted: number; updated: number; duplicates: number; failed: number; errors: string[] };
-const amendmentFields = ["title","deadline_at","eligibility_text","documents_url","procurement_method","contact_email","contact_phone","official_submission_url","submission_method","status","summary","description"] as const;
+const amendmentFields = ["title","deadline_at","estimated_value","currency","eligibility_text","eligibility_status","documents_url","procurement_method","contract_type","category","buyer_name","contact_email","contact_phone","official_tender_url","official_submission_url","submission_method","status","summary","description"] as const;
+export function changeSeverity(fields:string[]){if(fields.some(field=>["status","deadline_at","eligibility_status","eligibility_text","official_submission_url"].includes(field)))return "CRITICAL";if(fields.some(field=>["estimated_value","currency","documents_url","procurement_method","buyer_name","contract_type"].includes(field)))return "IMPORTANT";return "INFORMATIONAL";}
 
 function safe(value: string) { return encodeURIComponent(value.replace(/[(),*]/g, " ")); }
 
@@ -62,7 +63,7 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
       else totals.inserted += 1;
       const eventBase={entity_type:"opportunity",entity_id:opportunityId};
       if(!existingId){await supabaseRest("procurement_events?on_conflict=dedupe_key",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({...eventBase,event_type:"OPPORTUNITY_CREATED",payload:{source_id:source.id},dedupe_key:`opportunity-created:${opportunityId}`})});}
-      if(previous){const changes=amendmentFields.flatMap(field=>{const before=previous?.[field]??null;const after=(record as unknown as Record<string,unknown>)[field]??null;return JSON.stringify(before)===JSON.stringify(after)?[]:[{field,previous:before,current:after}];});if(changes.length){await supabaseRest("opportunity_revisions?on_conflict=opportunity_id,source_hash",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({opportunity_id:opportunityId,source_id:source.id,source_hash:record.raw_source_hash,snapshot:body,changed_fields:changes,verified_at:record.last_verified_at})});await supabaseRest("procurement_events?on_conflict=dedupe_key",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({...eventBase,event_type:"OPPORTUNITY_AMENDED",payload:{changes,source_id:source.id},dedupe_key:`opportunity-amended:${opportunityId}:${record.raw_source_hash}`})});}}
+      if(previous){const changes=amendmentFields.flatMap(field=>{const before=previous?.[field]??null;const after=(record as unknown as Record<string,unknown>)[field]??null;return JSON.stringify(before)===JSON.stringify(after)?[]:[{field,previous:before,current:after}];});if(changes.length){const changeTypes=changes.map(change=>change.field);const severity=changeSeverity(changeTypes);await supabaseRest("opportunity_revisions?on_conflict=opportunity_id,source_hash",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({opportunity_id:opportunityId,source_id:source.id,source_hash:record.raw_source_hash,snapshot:body,changed_fields:changes,change_types:changeTypes,severity,verified_at:record.last_verified_at})});await supabaseRest("procurement_events?on_conflict=dedupe_key",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({...eventBase,event_type:"OPPORTUNITY_AMENDED",payload:{changes,change_types:changeTypes,severity,source_id:source.id},dedupe_key:`opportunity-amended:${opportunityId}:${record.raw_source_hash}`})});}}
       } catch (error) {
         totals.failed += 1;
         totals.errors.push(error instanceof Error ? error.message.slice(0, 300) : "Unknown record error");

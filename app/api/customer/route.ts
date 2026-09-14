@@ -41,7 +41,7 @@ export async function GET(request:Request) {
       const {data}=await supabaseRest(`${table}?${q}`);return Response.json({data});
     }
     if(resource==="amendments") {
-      const id=uuid.parse(params.get("id")); const q=new URLSearchParams({select:"id,changed_fields,verified_at",opportunity_id:`eq.${id}`,order:"verified_at.desc",limit:"50"});
+      const id=uuid.parse(params.get("id")); const q=new URLSearchParams({select:"id,changed_fields,change_types,severity,verified_at",opportunity_id:`eq.${id}`,order:"verified_at.desc",limit:"50"});
       const {data}=await supabaseRest(`opportunity_revisions?${q}`);return Response.json({data});
     }
     throw new ApiError(400,"Unknown customer resource.","invalid_resource");
@@ -55,17 +55,17 @@ export async function POST(request:Request) {
       const {data}=await supabaseRest<Array<{last_visit_at:string|null;previous_visit_at:string|null}>>(`customer_preferences?select=last_visit_at,previous_visit_at&user_id=eq.${user.id}`);
       const previous=data[0];const now=new Date();
       // Keep a visit boundary stable across navigation and short reloads.
-      if(!previous?.last_visit_at || now.getTime()-Date.parse(previous.last_visit_at)>30*60*1000) await supabaseRest("customer_preferences?on_conflict=user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,last_visit_at:now.toISOString(),previous_visit_at:previous?.last_visit_at||null})});
+      if(!previous?.last_visit_at || now.getTime()-Date.parse(previous.last_visit_at)>30*60*1000) await supabaseRest("customer_preferences?on_conflict=user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,last_visit_at:now.toISOString(),last_login_at:now.toISOString(),previous_visit_at:previous?.last_visit_at||null})});
       return Response.json({data:{recorded:true}});
     }
     if(resource==="preferences") {
       const preferences=z.object({compact:z.boolean().optional(),collapsed:z.boolean().optional(),hideMarket:z.boolean().optional(),hideInternational:z.boolean().optional(),deadlinesFirst:z.boolean().optional()}).parse(body.preferences);
       await supabaseRest("customer_preferences?on_conflict=user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,preferences,updated_at:new Date().toISOString()})});
     }
-    if(resource==="recent") await supabaseRest("customer_recent_opportunities?on_conflict=user_id,opportunity_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,opportunity_id:uuid.parse(body.opportunityId),viewed_at:new Date().toISOString()})});
+    if(resource==="recent") {const opportunityId=uuid.parse(body.opportunityId);const viewedAt=new Date().toISOString();await Promise.all([supabaseRest("customer_recent_opportunities?on_conflict=user_id,opportunity_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,opportunity_id:opportunityId,viewed_at:viewedAt})}),supabaseRest("customer_preferences?on_conflict=user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,last_opportunity_seen_at:viewedAt,updated_at:viewedAt})}),supabaseRest("analytics_events",{method:"POST",body:JSON.stringify({user_id:user.id,opportunity_id:opportunityId,event_name:"MATCH_OPENED",metadata:{surface:"customer_opportunity"}})})]);}
     if(resource==="searches") {
-      const name=z.string().trim().min(1).max(160).parse(body.name);const filters=filtersSchema.parse(body.filters);
-      await supabaseRest("customer_saved_searches",{method:"POST",body:JSON.stringify({user_id:user.id,name,filters,alerts_enabled:false})});
+      const name=z.string().trim().min(1).max(160).parse(body.name);const filters=filtersSchema.parse(body.filters);const frequency=z.enum(["instant","daily","weekly"]).default("daily").parse(body.frequency);
+      await supabaseRest("customer_saved_searches",{method:"POST",body:JSON.stringify({user_id:user.id,name,filters,frequency,alerts_enabled:false})});
     }
     if(resource==="preparation") {
       const bidId=uuid.parse(body.bidId);const {data}=await supabaseRest<unknown[]>(`user_bid_tracking?select=id&id=eq.${bidId}&user_id=eq.${user.id}&limit=1`);
@@ -77,15 +77,15 @@ export async function POST(request:Request) {
       const id=uuid.parse(body.organizationId); const membership=await requireOrganizationMember(user.id,id);
       if(!["owner","admin"].includes(membership.role))throw new ApiError(403,"Only business owners and administrators can edit this profile.","forbidden");
       const list=z.array(z.string().trim().min(1).max(160)).max(30);
-      const business=z.object({name:z.string().trim().min(2).max(160),region:z.string().max(100).nullable(),sectors:list,services:list,products:list,certifications:list,preferred_regions:list,preferred_minimum_value:z.number().min(0).nullable(),preferred_maximum_value:z.number().min(0).nullable()}).refine(v=>v.preferred_minimum_value===null||v.preferred_maximum_value===null||v.preferred_minimum_value<=v.preferred_maximum_value,"Minimum value must not exceed maximum value").parse(body.business);
+      const business=z.object({name:z.string().trim().min(2).max(160),region:z.string().max(100).nullable(),business_description:z.string().max(3000).nullable().optional(),registration_number:z.string().max(160).nullable().optional(),website:z.string().url().nullable().optional(),phone:z.string().max(80).nullable().optional(),company_size:z.string().max(80).nullable().optional(),annual_turnover_min:z.number().min(0).nullable().optional(),annual_turnover_max:z.number().min(0).nullable().optional(),turnover_currency:z.string().length(3).nullable().optional(),international_willingness:z.boolean().nullable().optional(),local_partnership_willingness:z.boolean().nullable().optional(),sectors:list,services:list,products:list,certifications:list,preferred_regions:list,preferred_countries:list,preferred_buyers:list,excluded_buyers:list,preferred_opportunity_types:list,cpv_codes:list,unspsc_codes:list,preferred_minimum_value:z.number().min(0).nullable(),preferred_maximum_value:z.number().min(0).nullable()}).refine(v=>v.preferred_minimum_value===null||v.preferred_maximum_value===null||v.preferred_minimum_value<=v.preferred_maximum_value,"Minimum value must not exceed maximum value").refine(v=>v.annual_turnover_min==null||v.annual_turnover_max==null||v.annual_turnover_min<=v.annual_turnover_max,"Minimum turnover must not exceed maximum turnover").parse(body.business);
       await supabaseRest(`organizations?id=eq.${id}`,{method:"PATCH",body:JSON.stringify(business)});
     }
     return Response.json({data:{saved:true}});
   }catch(error){return apiErrorResponse(error);}
 }
 export async function PATCH(request:Request){
-  try{const {user}=await requireUser(request);const input=z.object({id:uuid,alertsEnabled:z.boolean()}).parse(await request.json());
-    const {data}=await supabaseRest<unknown[]>(`customer_saved_searches?id=eq.${input.id}&user_id=eq.${user.id}`,{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({alerts_enabled:input.alertsEnabled})});
+  try{const {user}=await requireUser(request);const input=z.object({id:uuid,alertsEnabled:z.boolean(),frequency:z.enum(["instant","daily","weekly"]).optional()}).parse(await request.json());
+    const {data}=await supabaseRest<unknown[]>(`customer_saved_searches?id=eq.${input.id}&user_id=eq.${user.id}`,{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({alerts_enabled:input.alertsEnabled,...(input.frequency?{frequency:input.frequency}:{})})});
     if(!data.length)throw new ApiError(404,"Saved search not found.","not_found");return Response.json({data:data[0]});
   }catch(error){return apiErrorResponse(error);}
 }

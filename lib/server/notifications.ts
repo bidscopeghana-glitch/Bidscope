@@ -4,7 +4,7 @@ import { supabaseRest } from "./supabase-rest";
 
 export type AlertType = "opportunity_match" | "tender_amendment" | "deadline" | "buyer_activity" | "award" | "supplier_activity" | "document_expiry" | "workspace_reminder" | "system";
 export type AlertPreference = { user_id:string; alert_type:AlertType; in_app_enabled:boolean; email_enabled:boolean; whatsapp_enabled:boolean; frequency:"instant"|"daily"|"weekly"; urgent_override:boolean; reminder_days:number[] };
-export type NotificationInput = { userId:string; organizationId?:string|null; type:AlertType; title:string; message:string; relatedEntityType?:string|null; relatedEntityId?:string|null; relatedUrl?:string|null; priority?:"low"|"normal"|"high"|"urgent"; matchScore?:number|null; matchReasons?:string[]; metadata?:Record<string,unknown>; dedupeKey:string };
+export type NotificationInput = { userId:string; organizationId?:string|null; type:AlertType; title:string; message:string; relatedEntityType?:string|null; relatedEntityId?:string|null; relatedUrl?:string|null; priority?:"low"|"normal"|"high"|"urgent"; matchScore?:number|null; matchReasons?:string[]; metadata?:Record<string,unknown>; frequencyOverride?:AlertPreference["frequency"]; dedupeKey:string };
 
 export const WHATSAPP_ENABLED = Boolean(process.env.WHATSAPP_PROVIDER && process.env.WHATSAPP_API_KEY);
 
@@ -42,7 +42,7 @@ export async function createNotification(input:NotificationInput) {
   const notification = data[0];
   if (!notification) return null;
   const urgent = input.priority === "urgent" || input.priority === "high";
-  const scheduledFor = digestDate(urgent && preference.urgent_override ? "instant" : preference.frequency);
+  const scheduledFor = digestDate(urgent && preference.urgent_override ? "instant" : input.frequencyOverride||preference.frequency);
   await supabaseRest("notification_deliveries?on_conflict=notification_id,channel", {
     method:"POST", headers:{ Prefer:"resolution=ignore-duplicates" }, body:JSON.stringify(channels.map((channel) => ({
       notification_id:notification.id, channel, status:channel === "in_app" ? "sent" : "pending", provider:channel === "email" ? (process.env.RESEND_API_KEY ? "resend" : null) : channel === "whatsapp" ? process.env.WHATSAPP_PROVIDER : "bidscope", scheduled_for:scheduledFor, sent_at:channel === "in_app" ? new Date().toISOString() : null,

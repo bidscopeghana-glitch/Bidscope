@@ -1,8 +1,12 @@
 import { ZodError } from "zod";
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public code = "request_failed") {
+  public status: number;
+  public code: string;
+  constructor(status: number, message: string, code = "request_failed") {
     super(message);
+    this.status = status;
+    this.code = code;
   }
 }
 
@@ -19,4 +23,3 @@ export function apiErrorResponse(error: unknown) {
   console.error("Unhandled API error", error);
   return Response.json({ error: "An unexpected error occurred.", code: "internal_error" }, { status: 500 });
 }
-

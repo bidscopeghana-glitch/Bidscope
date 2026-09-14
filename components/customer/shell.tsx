@@ -17,7 +17,7 @@ export const navGroups:ReadonlyArray<{title:string;links:ReadonlyArray<readonly 
  {title:"Bid Workspace",links:[["My Bids","/customer/bids",BriefcaseBusiness],["Bid Pipeline","/customer/pipeline",ChartNoAxesCombined],["Documents","/customer/documents",FileText],["Deadlines","/customer/deadlines",CalendarDays]]},
  {title:"Intelligence",links:[["Buyers","/customer/buyers",Building2],["Market Intelligence","/customer/intelligence",ChartNoAxesCombined],["Awards & History","/customer/awards",History]]},
  {title:"",links:[["BidScope AI","/customer/ai",Sparkles],["Alerts","/customer/alerts",Bell]]},
- {title:"Account",links:[["Business Profile","/customer/profile",Building2],["Notifications","/customer/notifications",Bell],["Help & Support","/customer/help",HelpCircle],["Settings","/customer/settings",Settings]]}
+ {title:"Account",links:[["Business Profile","/customer/profile",Building2],["Tender Readiness","/customer/readiness",ChartNoAxesCombined],["Notifications","/customer/notifications",Bell],["Help & Support","/customer/help",HelpCircle],["Settings","/customer/settings",Settings]]}
 ] as const;
 
 export function CustomerShell({children}:{children:React.ReactNode}){

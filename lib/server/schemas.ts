@@ -228,6 +228,7 @@ export const watchedEntitySchema = z.object({
   entityType: z.enum(["buyer", "supplier", "opportunity"]),
   entityId: uuid.nullable().optional(),
   entityName: z.string().trim().max(300).nullable().optional(),
+  relevantOnly: z.boolean().default(true),
 }).refine((value) => Boolean(value.entityId || value.entityName), "An entity ID or name is required.");
 
 export const procurementAiSchema = z.object({
