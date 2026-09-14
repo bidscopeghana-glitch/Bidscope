@@ -9,9 +9,13 @@ test("live and award data endpoints enforce member authentication", async () => 
   assert.match(awards, /await requireUser\(request\)/);
 });
 
-test("member-only pages use the shared access gate", async () => {
+test("legacy member pages redirect to the authenticated customer shell", async () => {
   const live = await readFile(new URL("../../app/live-opportunities/page.tsx", import.meta.url), "utf8");
   const awards = await readFile(new URL("../../app/awarded-opportunities/page.tsx", import.meta.url), "utf8");
-  assert.match(live, /<MemberAccess/);
-  assert.match(awards, /<MemberAccess/);
+  assert.match(live, /redirect\("\/customer\/discover"\)/);
+  assert.match(awards, /redirect\("\/customer\/awards"\)/);
+  const shell = await readFile(new URL("../../components/customer/shell.tsx", import.meta.url), "utf8");
+  assert.match(shell, /if\(!session\|\|expired\)/);
+  const customer = await readFile(new URL("../../app/api/customer/route.ts", import.meta.url), "utf8");
+  assert.match(customer, /await requireUser\(request\)/);
 });

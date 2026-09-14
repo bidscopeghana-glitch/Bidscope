@@ -1,0 +1,91 @@
+import { z } from "zod";
+import { requireUser, requireOrganizationMember } from "@/lib/server/auth";
+import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
+import { supabaseRest, supabaseRpc } from "@/lib/server/supabase-rest";
+import { pagination } from "@/lib/server/query";
+
+export const dynamic = "force-dynamic";
+const uuid = z.string().uuid();
+const filtersSchema = z.object({
+  q:z.string().max(160).optional(), scope:z.enum(["all","ghana","international"]).optional(),
+  stage:z.enum(["upcoming"]).optional(), collection:z.enum(["saved","recent","recommended"]).optional(),
+  sort:z.enum(["newest","match","deadline"]).optional(),
+  country:z.string().max(100).optional(), sector:z.string().max(160).optional(), buyer:z.string().max(160).optional(),
+  source:z.string().max(100).optional(), region:z.string().max(100).optional(), category:z.string().max(100).optional(),
+  contractType:z.string().max(100).optional(), procurementMethod:z.string().max(100).optional(), funding:z.string().max(160).optional(),
+  currency:z.string().max(3).optional(), eligibility:z.enum(["","GHANA_ELIGIBLE","INTERNATIONAL_ELIGIBLE","RESTRICTED","UNCLEAR"]).optional(),
+  minimumValue:z.coerce.number().min(0).max(1e15).optional(), maximumValue:z.coerce.number().min(0).max(1e15).optional(),
+  match:z.coerce.number().int().min(0).max(100).optional(), days:z.coerce.number().int().min(0).max(365).optional(),
+  deadlineBefore:z.string().date().optional(), publishedAfter:z.string().refine(v=>!Number.isNaN(Date.parse(v))).optional(),
+});
+const preparationSchema = z.object({
+  checklist:z.array(z.object({label:z.string().max(200),done:z.boolean()})).max(50),
+  questions:z.string().max(10000), requirements:z.string().max(10000), team:z.string().max(3000),
+  documents:z.array(z.object({title:z.string().max(200),url:z.string().url().refine(v=>v.startsWith("https://"))})).max(50),
+  deadlines:z.array(z.object({label:z.string().max(200),date:z.string().refine(v=>!Number.isNaN(Date.parse(v)))})).max(50),
+});
+export async function GET(request:Request) {
+  try {
+    const {user}=await requireUser(request); const params=new URL(request.url).searchParams;
+    const resource=params.get("resource")||"pulse";
+    if(resource==="discover") {
+      const {page,pageSize}=pagination(params); const filters=filtersSchema.parse(Object.fromEntries([...params].filter(([,v])=>v!=="")));
+      const {data}=await supabaseRpc("customer_discover",{p_user:user.id,filters,page_number:page,page_size:pageSize});
+      return Response.json(data);
+    }
+    if(resource==="pulse") {const {data}=await supabaseRpc("customer_pulse",{p_user:user.id});return Response.json({data});}
+    if(resource==="preferences" || resource==="searches" || resource==="preparation") {
+      const table={preferences:"customer_preferences",searches:"customer_saved_searches",preparation:"customer_bid_preparation"}[resource];
+      const q=new URLSearchParams({select:"*",user_id:`eq.${user.id}`,limit:resource==="searches"?"100":"1"});
+      if(resource==="preparation")q.set("bid_id",`eq.${uuid.parse(params.get("bidId"))}`);
+      const {data}=await supabaseRest(`${table}?${q}`);return Response.json({data});
+    }
+    if(resource==="amendments") {
+      const id=uuid.parse(params.get("id")); const q=new URLSearchParams({select:"id,changed_fields,verified_at",opportunity_id:`eq.${id}`,order:"verified_at.desc",limit:"50"});
+      const {data}=await supabaseRest(`opportunity_revisions?${q}`);return Response.json({data});
+    }
+    throw new ApiError(400,"Unknown customer resource.","invalid_resource");
+  }catch(error){return apiErrorResponse(error);}
+}
+export async function POST(request:Request) {
+  try {
+    const {user}=await requireUser(request);const body=z.record(z.string(),z.unknown()).parse(await request.json());
+    const resource=z.enum(["visit","preferences","recent","searches","preparation","business"]).parse(body.resource);
+    if(resource==="visit") {
+      const {data}=await supabaseRest<Array<{last_visit_at:string|null;previous_visit_at:string|null}>>(`customer_preferences?select=last_visit_at,previous_visit_at&user_id=eq.${user.id}`);
+      const previous=data[0];const now=new Date();
+      // Keep a visit boundary stable across navigation and short reloads.
+      if(!previous?.last_visit_at || now.getTime()-Date.parse(previous.last_visit_at)>30*60*1000) await supabaseRest("customer_preferences?on_conflict=user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,last_visit_at:now.toISOString(),previous_visit_at:previous?.last_visit_at||null})});
+      return Response.json({data:{recorded:true}});
+    }
+    if(resource==="preferences") {
+      const preferences=z.object({compact:z.boolean().optional(),collapsed:z.boolean().optional(),hideMarket:z.boolean().optional(),hideInternational:z.boolean().optional(),deadlinesFirst:z.boolean().optional()}).parse(body.preferences);
+      await supabaseRest("customer_preferences?on_conflict=user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,preferences,updated_at:new Date().toISOString()})});
+    }
+    if(resource==="recent") await supabaseRest("customer_recent_opportunities?on_conflict=user_id,opportunity_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,opportunity_id:uuid.parse(body.opportunityId),viewed_at:new Date().toISOString()})});
+    if(resource==="searches") {
+      const name=z.string().trim().min(1).max(160).parse(body.name);const filters=filtersSchema.parse(body.filters);
+      await supabaseRest("customer_saved_searches",{method:"POST",body:JSON.stringify({user_id:user.id,name,filters,alerts_enabled:false})});
+    }
+    if(resource==="preparation") {
+      const bidId=uuid.parse(body.bidId);const {data}=await supabaseRest<unknown[]>(`user_bid_tracking?select=id&id=eq.${bidId}&user_id=eq.${user.id}&limit=1`);
+      if(!data.length)throw new ApiError(404,"Bid not found.","not_found");
+      const preparation=preparationSchema.parse(body.preparation);
+      await supabaseRest("customer_bid_preparation?on_conflict=bid_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({bid_id:bidId,user_id:user.id,...preparation,updated_at:new Date().toISOString()})});
+    }
+    if(resource==="business") {
+      const id=uuid.parse(body.organizationId); const membership=await requireOrganizationMember(user.id,id);
+      if(!["owner","admin"].includes(membership.role))throw new ApiError(403,"Only business owners and administrators can edit this profile.","forbidden");
+      const list=z.array(z.string().trim().min(1).max(160)).max(30);
+      const business=z.object({name:z.string().trim().min(2).max(160),region:z.string().max(100).nullable(),sectors:list,services:list,products:list,certifications:list,preferred_regions:list,preferred_minimum_value:z.number().min(0).nullable(),preferred_maximum_value:z.number().min(0).nullable()}).refine(v=>v.preferred_minimum_value===null||v.preferred_maximum_value===null||v.preferred_minimum_value<=v.preferred_maximum_value,"Minimum value must not exceed maximum value").parse(body.business);
+      await supabaseRest(`organizations?id=eq.${id}`,{method:"PATCH",body:JSON.stringify(business)});
+    }
+    return Response.json({data:{saved:true}});
+  }catch(error){return apiErrorResponse(error);}
+}
+export async function PATCH(request:Request){
+  try{const {user}=await requireUser(request);const input=z.object({id:uuid,alertsEnabled:z.boolean()}).parse(await request.json());
+    const {data}=await supabaseRest<unknown[]>(`customer_saved_searches?id=eq.${input.id}&user_id=eq.${user.id}`,{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({alerts_enabled:input.alertsEnabled})});
+    if(!data.length)throw new ApiError(404,"Saved search not found.","not_found");return Response.json({data:data[0]});
+  }catch(error){return apiErrorResponse(error);}
+}

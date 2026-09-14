@@ -57,7 +57,7 @@ export function AuthPanel() {
       localStorage.setItem("bidscope_token_expires_at", String(Date.now() + (result.expiresIn || 3600) * 1000));
       setState("success");
       setMessage(mode === "sign-up" ? "Your account is ready. Opening BidScope…" : "Welcome back. Opening BidScope…");
-      window.setTimeout(() => router.replace("/workspace"), 500);
+      window.setTimeout(() => router.replace("/customer"), 500);
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Please try again.");
