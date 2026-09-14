@@ -12,11 +12,10 @@ export async function GET(request: Request) {
   try {
     requireCronOrInternalSecret(request);
     await supabaseRest("rpc/refresh_procurement_opportunity_statuses", { method: "POST", body: "{}" });
-    const { data: sources } = await supabaseRest<ProcurementSource[]>("procurement_sources?select=*&sync_enabled=eq.true&status=eq.ACTIVE&implementation_status=eq.LIVE");
-    const results = [];
-    for (const source of sources) {
+    const { data: sources } = await supabaseRest<ProcurementSource[]>("procurement_sources?select=*&sync_enabled=eq.true&status=in.(ACTIVE,DEGRADED)&implementation_status=eq.LIVE");
+    const results = await Promise.all(sources.map(async (source) => {
       const adapter = getProcurementAdapter(source.slug);
-      if (!adapter) { results.push({ source: source.slug, status: "SKIPPED", reason: "No registered adapter" }); continue; }
+      if (!adapter) return { source: source.slug, status: "SKIPPED", reason: "No registered adapter" };
       try {
         const raw = await adapter.fetchOpportunities();
         const normalized = (await Promise.allSettled(raw.map((record) => adapter.normaliseOpportunity(record)))).flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
@@ -26,7 +25,7 @@ export async function GET(request: Request) {
         const awards = adapter.fetchAwards ? await adapter.fetchAwards() : [];
         const awardResult = await ingestAwards(source, awards);
         if (opportunityResult.runId) await supabaseRest(`source_sync_runs?id=eq.${opportunityResult.runId}`, { method: "PATCH", body: JSON.stringify({ ghana_opportunity_count: normalized.length, project_count: projects.length, award_count: awards.length }) });
-        results.push({ source: source.slug, ...opportunityResult, ...projectResult, ...awardResult, ghanaOpportunities: normalized.length });
+        return { source: source.slug, ...opportunityResult, ...projectResult, ...awardResult, ghanaOpportunities: normalized.length };
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Unknown sync error";
         const completedAt = new Date().toISOString();
@@ -50,9 +49,9 @@ export async function GET(request: Request) {
           }),
           supabaseRest("procurement_source_alerts", { method: "POST", body: JSON.stringify({ source_id: source.id, severity: "CRITICAL", alert_type: "SOURCE_SYNC_FAILED", message: reason, details: { slug: source.slug, endpoint: source.endpoint_url } }) }),
         ]);
-        results.push({ source: source.slug, status: "FAILED", reason });
+        return { source: source.slug, status: "FAILED", reason };
       }
-    }
+    }));
     return Response.json({ results });
   } catch (error) { return apiErrorResponse(error); }
 }
