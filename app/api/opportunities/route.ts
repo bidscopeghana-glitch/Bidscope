@@ -13,11 +13,14 @@ export async function GET(request: Request) {
     const query = new URLSearchParams({
       select: "id,bidscope_reference,slug,title,summary,description,buyer_name,buyer_type,country,region,sector,category,subcategory,procurement_method,contract_type,currency,estimated_value,minimum_value,maximum_value,published_at,deadline_at,status,source_id,source_name,source_type,external_reference,official_source_url,official_tender_url,official_submission_url,submission_platform,submission_method,requires_registration,registration_url,funding_source,funding_agency,eligibility_text,eligibility_country,documents_url,contact_name,contact_email,contact_phone,last_verified_at,data_confidence,verification_status,sources:opportunity_sources(id,official_url,submission_url,is_preferred,last_verified_at,source:procurement_sources(id,name,slug,organisation,integration_type,trust_level))",
       published_at: "not.is.null",
-      status: "eq.OPEN",
-      country_code: `eq.${(incoming.get("country") || "GH").slice(0, 2).toUpperCase()}`,
+      status: incoming.get("stage") === "upcoming" ? "eq.UPCOMING" : incoming.get("stage") === "awarded" ? "eq.AWARDED" : "in.(OPEN,CLOSING_SOON)",
       order: incoming.get("sort") === "newest" ? "published_at.desc.nullslast" : "deadline_at.asc.nullslast",
       limit: String(pageSize), offset: String(offset),
     });
+    const scope = incoming.get("scope") || "ghana";
+    if (scope === "ghana") query.set("country_code", "eq.GH");
+    else if (scope === "international") query.set("country_code", "neq.GH");
+    else if (incoming.get("country")) query.set("country_code", `eq.${incoming.get("country")!.slice(0, 2).toUpperCase()}`);
     const directFilters: Record<string, string> = {
       category: "category", region: "region", sector: "sector", buyer: "buyer_name", source: "source_name",
       fundingSource: "funding_source", contractType: "contract_type", noticeType: "contract_type", procurementMethod: "procurement_method", eligibility: "eligibility_country", project: "source_resource_id",

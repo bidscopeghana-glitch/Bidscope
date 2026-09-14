@@ -1,0 +1,20 @@
+# BidScope procurement source audit
+
+Last reviewed: 14 September 2026. “Live” means implemented and technically testable; it does not mean that every notice is eligible for a Ghanaian supplier. BidScope preserves the official URL and labels uncertain eligibility.
+
+| Source | Coverage | Access decision | Implementation | Evidence |
+|---|---|---|---|---|
+| GHANEPS | Ghana current tenders; public plan and award indexes | `PERMITTED_WEB_INGESTION`, metadata and official links only. No documented public aggregation API or explicit reuse licence was found; this limitation is stored in the registry. | Structured HTML, 100-row pages, stable `resourceId` | [Current tenders](https://www.ghaneps.gov.gh/epps/viewCFTSAction.do), [plans](https://www.ghaneps.gov.gh/epps/app/searchPlan.do?searchType=advanced), [awards](https://www.ghaneps.gov.gh/epps/viewAllAwardedContracts.do) |
+| Ministry of Roads and Highways | Ghana procurement notices | `PERMITTED_API` | Official WordPress REST category 29 | [Procurement notices](https://mrh.gov.gh/category/procurement-notices/), [REST endpoint](https://mrh.gov.gh/wp-json/wp/v2/posts?categories=29) |
+| Bank of Ghana | Ghana tender-labelled notices | `PERMITTED_API`; conservative title gate | Official WordPress REST `notice` type | [Tender notice](https://www.bog.gov.gh/notice/invitation-for-tenders/), [REST endpoint](https://www.bog.gov.gh/wp-json/wp/v2/notice) |
+| World Bank | Ghana-financed notices, projects and awards | `PERMITTED_API`, CC BY 4.0 | Existing official-domain APIs | [Procurement notices dataset](https://financesone.worldbank.org/d/DS00979), [opportunity definitions](https://projects.worldbank.org/en/projects-operations/opportunities), [Open API docs](https://ddh-openapi.worldbank.org/docs/index.html) |
+| African Union | AU bids | `PERMITTED_WEB_INGESTION`; metadata and links only | Official bids table | [Bids](https://au.int/en/bids), [robots policy](https://au.int/robots.txt) |
+| ECOWAS | Regional procurement adverts | `PERMITTED_WEB_INGESTION`; metadata and links only | Official procurement cards; vacancy/programme noise rejected | [Procurement](https://www.ecowas.int/procurement/), [current adverts](https://www.ecowas.int/event_advert/procurements/), [robots policy](https://www.ecowas.int/robots.txt) |
+| TED | EU notices with current submission deadlines | `PERMITTED_API` | Search API v3, unauthenticated | [Search API](https://docs.ted.europa.eu/api/latest/search.html), [reuse guide](https://docs.ted.europa.eu/ODS/latest/reuse/search-api.html), [field list](https://docs.ted.europa.eu/ODS/latest/reuse/field-list.html) |
+| UK Contracts Finder | Recent UK tender releases | `PERMITTED_API`, OGL 3.0 | Official OCDS API | [API documentation](https://www.contractsfinder.service.gov.uk/apidocumentation), [open-contracting policy](https://www.gov.uk/government/publications/open-contracting) |
+| UK Find a Tender | Recent UK tender releases | `PERMITTED_API`, OGL 3.0 | Official OCDS 1.1.5 API | [Developer documentation](https://www.find-tender.service.gov.uk/Developer/Documentation) |
+| UNGM | UN notices | `AUTHORIZATION_REQUIRED` | Not enabled; OAuth client credentials are required | [UNGM developer centre](https://developer.ungm.org/) |
+| SAM.gov | US federal opportunities | `API_KEY_REQUIRED` | Not enabled until `SAM_GOV_API_KEY` exists server-side | [Get Opportunities API](https://open.gsa.gov/api/get-opportunities-public-api/) |
+| African Development Bank | African procurement | `RESEARCH_REQUIRED` / currently unavailable | Not enabled; an advertised RSS route exists but a stable server-fetchable feed was not verified and Cloudflare challenged direct fetches | [RSS feeds](https://www.afdb.org/en/rss-feeds), [specific notices](https://www.afdb.org/en/documents/project-related-procurement/procurement-notices/specific-procurement-notices) |
+
+The source registry is the operational truth. A source is scheduled only when `sync_enabled`, `status=ACTIVE`, and `implementation_status=LIVE`. Credentials stay in server environment variables and never in the public registry.

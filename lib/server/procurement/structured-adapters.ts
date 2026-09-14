@@ -1,0 +1,78 @@
+import { z } from "zod";
+import { firstDate, normalize, text } from "./normalization.ts";
+import { enforceSourceRateLimit, fetchWithRetry } from "./safety.ts";
+import type { AdapterHealth, NormalizedOpportunity, ProcurementSourceAdapter } from "./types.ts";
+
+type Raw = Record<string, unknown>;
+const RecordSchema = z.record(z.string(), z.unknown());
+
+function decode(value: string) { return text(value.replace(/&ndash;|&#8211;/g, "-").replace(/&mdash;|&#8212;/g, "—")); }
+function match(value: string, pattern: RegExp) { return decode(value.match(pattern)?.[1] || ""); }
+function absolute(base: string, value: string) { try { return new URL(value, base).toString(); } catch { return base; } }
+function sourceHealth(slug: string, fetcher: () => Promise<unknown[]>) {
+  return async (): Promise<AdapterHealth> => { try { const rows = await fetcher(); return { ok: true, message: `Official source connected; ${rows.length} records returned in the verification page.`, checkedAt: new Date().toISOString() }; } catch (error) { return { ok: false, message: error instanceof Error ? error.message : `${slug} check failed`, checkedAt: new Date().toISOString() }; } };
+}
+
+abstract class BaseAdapter implements ProcurementSourceAdapter<Raw> {
+  abstract readonly slug: string;
+  abstract fetchOpportunities(): Promise<Raw[]>;
+  abstract normaliseOpportunity(raw: Raw): Promise<NormalizedOpportunity>;
+  abstract getOfficialUrl(raw: Raw): string;
+  getSubmissionUrl() { return null; }
+  async fetchOpportunityById(id: string) { return (await this.fetchOpportunities()).find((row) => String(row.id) === id) || null; }
+  async healthCheck() { return sourceHealth(this.slug, () => this.fetchOpportunities())(); }
+}
+
+export class GhanepsAdapter extends BaseAdapter {
+  readonly slug = "ghaneps";
+  private endpoint = "https://www.ghaneps.gov.gh/epps/viewCFTSAction.do?T01_ps=100";
+  async fetchOpportunities() {
+    enforceSourceRateLimit(this.slug, 8);
+    const response = await fetchWithRetry(this.endpoint, { headers: { "User-Agent": "BidScopeGhana/1.0 (+https://www.bidscopeghana.com)", Accept: "text/html" } });
+    const html = await response.text(); const rows = html.match(/<tr\b[\s\S]*?<\/tr>/gi) || []; const out: Raw[] = [];
+    for (const row of rows) {
+      const detail = row.match(/href=["']([^"']*prepareViewCfTWS[^"']*resourceId=([^&"']+)[^"']*)/i);
+      if (!detail) continue;
+      const cells = [...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((cell) => cell[1]);
+      const title = decode(cells[1] || ""); const buyer = decode(cells[2] || ""); const description = match(cells[3] || "", /title=["']([^"']+)/i) || decode(cells[3] || "");
+      if (!title) continue;
+      out.push({ id: detail[2], title, buyer, description, deadline: decode(cells[4] || ""), method: decode(cells[5] || ""), sourceStatus: decode(cells[6] || ""), published: decode(cells[8] || ""), url: absolute(this.endpoint, detail[1]), rawHtml: row });
+    }
+    return out;
+  }
+  async normaliseOpportunity(raw: Raw) { const deadline = firstDate(raw.deadline); return normalize({ title: String(raw.title), summary: String(raw.description || ""), description: String(raw.description || ""), buyer_name: String(raw.buyer || "Ghana public entity"), country: "Ghana", country_code: "GH", procurement_method: String(raw.method || "") || null, published_at: firstDate(raw.published), deadline_at: deadline, source_name: "GHANEPS", source_type: "STRUCTURED_WEB", external_opportunity_id: String(raw.id), external_reference: String(raw.id), official_source_url: String(raw.url), official_tender_url: String(raw.url), submission_platform: "GHANEPS", requires_registration: true, registration_url: "https://www.ghaneps.gov.gh/epps/register.do", funding_source: "Government of Ghana", eligibility_country: "GH", raw_payload: raw }); }
+  getOfficialUrl(raw: Raw) { return String(raw.url || this.endpoint); }
+}
+
+export class GhanaRoadsAdapter extends BaseAdapter {
+  readonly slug = "mrh-procurement";
+  private endpoint = "https://mrh.gov.gh/wp-json/wp/v2/posts?categories=29&per_page=100&_embed=1";
+  async fetchOpportunities() { enforceSourceRateLimit(this.slug, 20); const response = await fetchWithRetry(this.endpoint, { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } }); return z.array(RecordSchema).parse(await response.json()); }
+  async normaliseOpportunity(raw: Raw) { const content = String((raw.content as Raw)?.rendered || ""); const title = text((raw.title as Raw)?.rendered || ""); const body = text(content); const deadline = firstDate(body.match(/(?:deadline|closing date|submission[^.]{0,30})(?:\s*(?:is|:|-))?\s*([A-Z][a-z]+\s+\d{1,2},?\s+\d{4}(?:[^.;]{0,20})?)/i)?.[1]); const pdf = content.match(/href=["']([^"']+\.pdf(?:\?[^"']*)?)/i)?.[1]; return normalize({ title, summary: body, description: body, buyer_name: "Ministry of Roads and Highways, Ghana", country: "Ghana", country_code: "GH", published_at: firstDate(raw.date_gmt, raw.date), deadline_at: deadline, source_name: "Ministry of Roads and Highways", source_type: "OPEN_API", external_opportunity_id: String(raw.id), external_reference: body.match(/(?:reference|ref\.?|contract no\.?)[\s:#-]*([A-Z0-9/_.-]{5,})/i)?.[1] || null, official_source_url: String(raw.link), documents_url: pdf || String(raw.link), funding_source: "Government of Ghana", raw_payload: raw }); }
+  getOfficialUrl(raw: Raw) { return String(raw.link); }
+}
+
+export class BankOfGhanaAdapter extends BaseAdapter {
+  readonly slug = "bank-of-ghana";
+  private endpoint = "https://www.bog.gov.gh/wp-json/wp/v2/notice?per_page=100";
+  async fetchOpportunities() { enforceSourceRateLimit(this.slug, 20); const response = await fetchWithRetry(this.endpoint, { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } }); const rows = z.array(RecordSchema).parse(await response.json()); return rows.filter((row) => /tender|procurement|expression of interest|request for proposal|prequalification/i.test(text((row.title as Raw)?.rendered))); }
+  async normaliseOpportunity(raw: Raw) { const title = text((raw.title as Raw)?.rendered); return normalize({ title, buyer_name: "Bank of Ghana", country: "Ghana", country_code: "GH", published_at: firstDate(raw.date_gmt, raw.date), deadline_at: null, status: "UNKNOWN", source_name: "Bank of Ghana", source_type: "OPEN_API", external_opportunity_id: String(raw.id), official_source_url: String(raw.link), funding_source: "Bank of Ghana", eligibility_summary: "Check the official notice and attached tender document for eligibility and closing date.", raw_payload: raw }); }
+  getOfficialUrl(raw: Raw) { return String(raw.link); }
+}
+
+abstract class RegionalHtmlAdapter extends BaseAdapter {
+  abstract readonly endpoint: string; abstract readonly sourceName: string; abstract readonly country: string; abstract parse(html: string): Raw[];
+  async fetchOpportunities() { enforceSourceRateLimit(this.slug, 10); const response = await fetchWithRetry(this.endpoint, { headers: { Accept: "text/html", "User-Agent": "BidScopeGhana/1.0 (+https://www.bidscopeghana.com)" } }); return this.parse(await response.text()); }
+  async normaliseOpportunity(raw: Raw) { const deadline = firstDate(raw.deadline); return normalize({ title: String(raw.title), summary: String(raw.summary || ""), description: String(raw.summary || ""), buyer_name: this.sourceName, country: this.country, country_code: String(raw.countryCode || "ZZ"), published_at: firstDate(raw.published), deadline_at: deadline, source_name: this.sourceName, source_type: "STRUCTURED_WEB", external_opportunity_id: String(raw.id || raw.url), external_reference: String(raw.reference || "") || null, official_source_url: String(raw.url), funding_source: this.sourceName, eligibility_text: String(raw.eligibility || "") || null, raw_payload: raw }); }
+  getOfficialUrl(raw: Raw) { return String(raw.url || this.endpoint); }
+}
+
+export class EcowasAdapter extends RegionalHtmlAdapter {
+  readonly slug = "ecowas"; readonly endpoint = "https://www.ecowas.int/event_advert/procurements/"; readonly sourceName = "ECOWAS"; readonly country = "ECOWAS region";
+  parse(html: string) { return (html.match(/<article\b[^>]*class=["'][^"']*ev-card[\s\S]*?<\/article>/gi) || []).flatMap((card) => { const link = card.match(/<a\b[^>]*class=["'][^"']*ev-link[^"']*["'][^>]*href=["']([^"']+)["'][^>]*aria-label=["']([^"']+)/i) || card.match(/<a\b[^>]*href=["']([^"']+)["'][^>]*aria-label=["']([^"']+)/i); if (!link) return []; const title = decode(link[2]); if (/job|vacanc|immersion programme/i.test(title)) return []; const range = match(card, /class=["'][^"']*ev-range[^"']*["'][^>]*>([\s\S]*?)<\/span>/i); return [{ id: link[1], url: absolute(this.endpoint, link[1]), title, deadline: range.split(/\s+[–—-]\s+/).at(-1), summary: match(card, /class=["'][^"']*ev-excerpt[^"']*["'][^>]*>([\s\S]*?)<\/p>/i), countryCode: "ZZ", eligibility: "ECOWAS regional procurement; Ghanaian eligibility must be confirmed in the official notice." }]; }); }
+}
+
+export class AfricanUnionAdapter extends RegionalHtmlAdapter {
+  readonly slug = "african-union"; readonly endpoint = "https://au.int/en/bids"; readonly sourceName = "African Union"; readonly country = "African Union";
+  parse(html: string) { return (html.match(/<tr\b[\s\S]*?<\/tr>/gi) || []).flatMap((row) => { const link = row.match(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i); const title = match(row, /class=["'][^"']*views-field-title[^"']*["'][^>]*>([\s\S]*?)<\/td>/i) || decode(link?.[2] || ""); if (!link || !title) return []; const cells = [...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((item) => decode(item[1])); const reference = cells.find((cell) => /[A-Z]{2,}[/-]\w+/i.test(cell)) || ""; const deadline = cells.find((cell) => /\d{1,2}\s+[A-Z][a-z]+\s+20\d{2}|20\d{2}-\d{2}-\d{2}/.test(cell)) || ""; return [{ id: reference || link[1], url: absolute(this.endpoint, link[1]), title, reference, deadline, summary: cells.join(" "), countryCode: "ZZ", eligibility: "African Union procurement; confirm country and supplier restrictions in the official notice." }]; }); }
+}

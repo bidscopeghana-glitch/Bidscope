@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { ArrowRight, CalendarClock, Filter, MapPin, Search, SlidersHorizontal } from "lucide-react";
 import { SourceBadge } from "@/components/procurement/source-badge";
 
-type Opportunity = { id:string; slug:string; bidscope_reference:string; title:string; summary:string; buyer_name:string; region:string|null; sector:string|null; category:string; procurement_method:string|null; contract_type:string|null; currency:string|null; estimated_value:number|null; deadline_at:string|null; status:string; source_name:string; funding_source:string; external_reference:string|null; data_confidence:string };
+type Opportunity = { id:string; slug:string; bidscope_reference:string; title:string; summary:string; buyer_name:string; country:string; region:string|null; sector:string|null; category:string; procurement_method:string|null; contract_type:string|null; currency:string|null; estimated_value:number|null; deadline_at:string|null; status:string; source_name:string; funding_source:string; external_reference:string|null; data_confidence:string; eligibility_summary?:string|null };
 type Result = { data: Opportunity[]; pagination: { total: number | null } };
 const selectClass = "h-11 min-w-0 rounded-xl border border-[#17362d]/15 bg-white px-3 text-sm text-[#27493f] outline-none focus:border-[#187052]";
 
@@ -12,7 +12,7 @@ async function fetchOpportunityResults(next: URLSearchParams): Promise<Result> {
   const response = await fetch(`/api/opportunities?${next.toString()}`);
   const json = await response.json() as Result & { error?: string };
   if (!response.ok) throw new Error(json.error || "Opportunities could not be loaded.");
-  return { ...json, data: json.data.filter((item) => item.status.toUpperCase() === "OPEN") };
+  return json;
 }
 
 export function OpportunityBrowser() {

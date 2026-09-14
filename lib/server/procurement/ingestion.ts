@@ -32,6 +32,13 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
   });
   const runId = runs[0]?.id;
 
+  if (records.length) {
+    await supabaseRest("procurement_raw_records?on_conflict=source_id,source_hash", {
+      method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+      body: JSON.stringify(records.map((record) => ({ source_id: source.id, sync_run_id: runId || null, external_id: record.external_opportunity_id, source_hash: record.raw_source_hash, payload: record.raw_payload, normalization_status: "ACCEPTED" }))),
+    });
+  }
+
   for (const record of records) {
     try {
       const sameSourceId = await findExistingSourceRecord(source.id, record.external_opportunity_id);
@@ -64,7 +71,7 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
   const completedAt = new Date().toISOString();
   const status = totals.failed === records.length && records.length > 0 ? "FAILED" : totals.failed ? "PARTIALLY_SUCCEEDED" : "SUCCEEDED";
   if (runId) await supabaseRest(`source_sync_runs?id=eq.${runId}`, { method: "PATCH", body: JSON.stringify({ status, completed_at: completedAt, inserted_count: totals.inserted, updated_count: totals.updated, duplicate_count: totals.duplicates, failed_count: totals.failed, error_summary: totals.errors[0] || null, error_details: totals.errors }) });
-  await supabaseRest(`procurement_sources?id=eq.${source.id}`, { method: "PATCH", body: JSON.stringify({ last_sync_at: completedAt, ...(status === "SUCCEEDED" ? { last_success_at: completedAt, last_error: null, status: "ACTIVE" } : { last_error: totals.errors[0] || "Sync failed", status: "ERROR" }) }) });
+  await supabaseRest(`procurement_sources?id=eq.${source.id}`, { method: "PATCH", body: JSON.stringify({ last_sync_at: completedAt, last_health_at: completedAt, last_health_message: status, last_record_at: records.length ? completedAt : undefined, ...(status === "SUCCEEDED" ? { last_success_at: completedAt, last_error: null, status: "ACTIVE", consecutive_failures: 0 } : { last_error: totals.errors[0] || "Sync failed", status: "DEGRADED" }) }) });
   return { runId, ...totals, status };
 }
 

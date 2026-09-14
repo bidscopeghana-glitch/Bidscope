@@ -11,7 +11,7 @@ export const maxDuration = 60;
 export async function GET(request: Request) {
   try {
     requireCronOrInternalSecret(request);
-    await supabaseRest("rpc/close_expired_procurement_opportunities", { method: "POST", body: "{}" });
+    await supabaseRest("rpc/refresh_procurement_opportunity_statuses", { method: "POST", body: "{}" });
     const { data: sources } = await supabaseRest<ProcurementSource[]>("procurement_sources?select=*&sync_enabled=eq.true&status=eq.ACTIVE&implementation_status=eq.LIVE");
     const results = [];
     for (const source of sources) {
@@ -46,8 +46,9 @@ export async function GET(request: Request) {
           }),
           supabaseRest(`procurement_sources?id=eq.${source.id}`, {
             method: "PATCH",
-            body: JSON.stringify({ last_sync_at: completedAt, last_error: reason }),
+            body: JSON.stringify({ last_sync_at: completedAt, last_health_at: completedAt, last_health_message: reason, last_error: reason, status: "DEGRADED", consecutive_failures: (source.consecutive_failures || 0) + 1 }),
           }),
+          supabaseRest("procurement_source_alerts", { method: "POST", body: JSON.stringify({ source_id: source.id, severity: "CRITICAL", alert_type: "SOURCE_SYNC_FAILED", message: reason, details: { slug: source.slug, endpoint: source.endpoint_url } }) }),
         ]);
         results.push({ source: source.slug, status: "FAILED", reason });
       }

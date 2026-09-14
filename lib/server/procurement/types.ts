@@ -1,5 +1,10 @@
 export const SOURCE_IMPLEMENTATION_STATUSES = [
   "LIVE",
+  "AUTHORIZATION_REQUIRED",
+  "API_KEY_REQUIRED",
+  "CONFIGURATION_REQUIRED",
+  "RESEARCH_REQUIRED",
+  "UNAVAILABLE",
   "READY_API_REQUIRED",
   "READY_MANUAL_CONFIGURATION_REQUIRED",
   "UNSUPPORTED",
@@ -23,9 +28,10 @@ export type ProcurementSource = {
   endpoint_url: string | null;
   sync_enabled: boolean;
   sync_frequency: string;
-  status: "ACTIVE" | "PAUSED" | "ERROR";
+  status: "ACTIVE" | "DEGRADED" | "PAUSED" | "ERROR" | "UNAVAILABLE";
   trust_level: "VERIFIED_OFFICIAL" | "OFFICIAL" | "PUBLIC" | "NEEDS_REVIEW";
   configuration: Record<string, unknown>;
+  consecutive_failures?: number;
 };
 
 export type NormalizedOpportunity = {
@@ -50,7 +56,10 @@ export type NormalizedOpportunity = {
   maximum_value: number | null;
   published_at: string | null;
   deadline_at: string | null;
-  status: "DRAFT" | "OPEN" | "CLOSED" | "CANCELLED" | "AWARDED" | "ARCHIVED";
+  status: "UPCOMING" | "OPEN" | "CLOSING_SOON" | "CLOSED" | "AWARDED" | "CANCELLED" | "DRAFT" | "ARCHIVED" | "UNKNOWN";
+  notice_stage?: "FORECAST" | "PLANNED" | "OPEN" | "AWARD" | "OTHER";
+  eligibility_status?: "GHANA_ELIGIBLE" | "INTERNATIONAL_ELIGIBLE" | "RESTRICTED" | "UNCLEAR";
+  eligibility_summary?: string | null;
   source_name: string;
   source_type: string;
   external_opportunity_id: string | null;
