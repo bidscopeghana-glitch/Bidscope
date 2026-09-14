@@ -13,7 +13,7 @@
     "start": "next start",
     "dev:cloudflare": "node scripts/run-framework.mjs dev",
     "build:cloudflare": "node scripts/run-framework.mjs build",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .codex-tmp",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

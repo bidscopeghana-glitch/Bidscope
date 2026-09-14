@@ -94,3 +94,12 @@ export async function PATCH(request:Request){
     if(!data.length)throw new ApiError(404,"Saved search not found.","not_found");return Response.json({data:data[0]});
   }catch(error){return apiErrorResponse(error);}
 }
+export async function DELETE(request:Request){
+  try{
+    const {user}=await requireUser(request);
+    const id=uuid.parse(new URL(request.url).searchParams.get("id"));
+    const {data}=await supabaseRest<unknown[]>(`customer_saved_searches?id=eq.${id}&user_id=eq.${user.id}`,{method:"DELETE",headers:{Prefer:"return=representation"}});
+    if(!data.length)throw new ApiError(404,"Saved search not found.","not_found");
+    return Response.json({data:{deleted:true}});
+  }catch(error){return apiErrorResponse(error);}
+}

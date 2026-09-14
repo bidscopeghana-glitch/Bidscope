@@ -65,6 +65,29 @@ export function AuthPanel() {
 
   const busy = state === "submitting";
 
+  async function requestPasswordReset() {
+    const emailInput = document.querySelector<HTMLInputElement>('input[name="email"]');
+    const email = emailInput?.value.trim();
+    if (!email) {
+      setState("error");
+      setMessage("Enter your email address first, then choose Forgot password.");
+      emailInput?.focus();
+      return;
+    }
+    setState("submitting");
+    setMessage("");
+    try {
+      const response = await fetch("/api/auth/recovery", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+      const result = await response.json() as {message?:string;error?:string};
+      if(!response.ok)throw new Error(result.error||"A reset link could not be requested.");
+      setState("success");
+      setMessage(result.message||"If that address has an account, a password reset link is on its way.");
+    } catch(error) {
+      setState("error");
+      setMessage(error instanceof Error?error.message:"Please try again.");
+    }
+  }
+
   return (
     <div className="rounded-[26px] border border-[#17362d]/10 bg-[#fffdf8]/97 p-5 shadow-[0_24px_70px_rgba(8,39,30,.2)] backdrop-blur-xl sm:p-7 lg:bg-[#fffdf8] lg:shadow-[0_24px_70px_rgba(19,62,49,.11)]">
       <div className="grid grid-cols-2 rounded-2xl bg-[#e8eee9] p-1" role="tablist" aria-label="Account access">
@@ -76,7 +99,7 @@ export function AuthPanel() {
         {mode === "sign-up" && <Field label="Full name" name="fullName" type="text" autoComplete="name" placeholder="Your full name" />}
         <Field label="Email address" name="email" type="email" autoComplete="email" placeholder="you@company.com" />
         <label className="grid gap-2 text-sm font-bold text-[#315b4e]">
-          Password
+          <span className="flex items-center justify-between">Password{mode === "sign-in" && <button type="button" onClick={requestPasswordReset} disabled={busy} className="text-xs font-bold text-[#116149] hover:underline disabled:opacity-60">Forgot password?</button>}</span>
           <span className="relative">
             <input name="password" type={showPassword ? "text" : "password"} autoComplete={mode === "sign-up" ? "new-password" : "current-password"} minLength={8} required placeholder={mode === "sign-up" ? "At least 8 characters" : "Enter your password"} className="h-12 w-full rounded-xl border border-[#17362d]/15 bg-white px-4 pr-12 font-normal text-[#17362d] outline-none placeholder:text-[#8a9791] focus:border-[#16805e] focus:ring-3 focus:ring-[#16805e]/12" />
             <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-1.5 top-1.5 grid size-9 place-items-center rounded-lg text-[#718079] hover:bg-[#edf3ee]">

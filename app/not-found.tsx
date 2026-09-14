@@ -1,0 +1,5 @@
+import Link from "next/link";
+import {SearchX} from "lucide-react";
+import {BrandLogo} from "@/components/brand/brand-logo";
+
+export default function NotFound(){return <main className="grid min-h-svh place-items-center bg-[#f7f4eb] px-5 py-16"><section className="w-full max-w-xl text-center"><BrandLogo className="mx-auto h-auto w-44"/><SearchX className="mx-auto mt-12 text-[#b88b37]" size={38}/><p className="mt-5 text-xs font-bold uppercase tracking-[.16em] text-[#6a7a73]">Page not found</p><h1 className="serif mt-3 text-5xl text-[#17362d]">That opportunity has moved.</h1><p className="mx-auto mt-4 max-w-md text-sm leading-7 text-[#61736a]">The address may be incorrect, or the page may no longer be available.</p><div className="mt-8 flex flex-wrap justify-center gap-3"><Link href="/opportunities" className="inline-flex h-12 items-center rounded-full bg-[#116149] px-6 text-sm font-bold text-white">Find opportunities</Link><Link href="/" className="inline-flex h-12 items-center rounded-full border border-[#17362d]/15 px-6 text-sm font-bold text-[#17362d]">BidScope home</Link></div></section></main>}

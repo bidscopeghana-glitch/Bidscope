@@ -27,6 +27,10 @@ async function findExistingSourceRecord(sourceId: string, externalId: string | n
 
 export async function ingestNormalizedRecords(source: ProcurementSource, records: NormalizedOpportunity[], actorUserId?: string) {
   const totals: IngestionTotals = { fetched: records.length, inserted: 0, updated: 0, duplicates: 0, failed: 0, errors: [] };
+  const { data: previousRuns } = await supabaseRest<Array<{ records_fetched: number }>>(
+    `source_sync_runs?select=records_fetched&source_id=eq.${source.id}&status=eq.SUCCEEDED&order=completed_at.desc&limit=1`,
+  );
+  const previousFetched = previousRuns[0]?.records_fetched || 0;
   const { data: runs } = await supabaseRest<Array<{ id: string }>>("source_sync_runs", {
     method: "POST", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ source_id: source.id, triggered_by: actorUserId ? "admin" : "schedule", actor_user_id: actorUserId || null, records_fetched: records.length }),
@@ -72,9 +76,25 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
   }
 
   const completedAt = new Date().toISOString();
-  const status = totals.failed === records.length && records.length > 0 ? "FAILED" : totals.failed ? "PARTIALLY_SUCCEEDED" : "SUCCEEDED";
-  if (runId) await supabaseRest(`source_sync_runs?id=eq.${runId}`, { method: "PATCH", body: JSON.stringify({ status, completed_at: completedAt, inserted_count: totals.inserted, updated_count: totals.updated, duplicate_count: totals.duplicates, failed_count: totals.failed, error_summary: totals.errors[0] || null, error_details: totals.errors }) });
-  await supabaseRest(`procurement_sources?id=eq.${source.id}`, { method: "PATCH", body: JSON.stringify({ last_sync_at: completedAt, last_health_at: completedAt, last_health_message: status, last_record_at: records.length ? completedAt : undefined, ...(status === "SUCCEEDED" ? { last_success_at: completedAt, last_error: null, status: "ACTIVE", consecutive_failures: 0 } : { last_error: totals.errors[0] || "Sync failed", status: "DEGRADED" }) }) });
+  const materialDrop = previousFetched >= 10 && records.length < previousFetched * 0.2;
+  const status = totals.failed === records.length && records.length > 0
+    ? "FAILED"
+    : totals.failed || materialDrop
+      ? "PARTIALLY_SUCCEEDED"
+      : "SUCCEEDED";
+  const dropMessage = materialDrop
+    ? `Source volume dropped from ${previousFetched} to ${records.length} records (more than 80%). Existing coverage was preserved.`
+    : null;
+  if (runId) await supabaseRest(`source_sync_runs?id=eq.${runId}`, { method: "PATCH", body: JSON.stringify({ status, completed_at: completedAt, inserted_count: totals.inserted, updated_count: totals.updated, duplicate_count: totals.duplicates, failed_count: totals.failed, error_summary: totals.errors[0] || dropMessage, error_details: dropMessage ? [...totals.errors, dropMessage] : totals.errors }) });
+  if (materialDrop) {
+    await supabaseRest("procurement_source_alerts", {
+      method: "POST",
+      body: JSON.stringify({ source_id: source.id, sync_run_id: runId || null, severity: records.length === 0 ? "CRITICAL" : "WARNING", alert_type: "SOURCE_VOLUME_DROP", message: dropMessage, details: { previous_records_fetched: previousFetched, current_records_fetched: records.length, threshold_percent: 80 } }),
+    });
+  } else if (status === "SUCCEEDED") {
+    await supabaseRest(`procurement_source_alerts?source_id=eq.${source.id}&alert_type=eq.SOURCE_VOLUME_DROP&resolved_at=is.null`, { method: "PATCH", body: JSON.stringify({ resolved_at: completedAt }) });
+  }
+  await supabaseRest(`procurement_sources?id=eq.${source.id}`, { method: "PATCH", body: JSON.stringify({ last_sync_at: completedAt, last_health_at: completedAt, last_health_message: dropMessage || status, last_record_at: records.length ? completedAt : undefined, ...(status === "SUCCEEDED" ? { last_success_at: completedAt, last_error: null, status: "ACTIVE", consecutive_failures: 0 } : { last_error: totals.errors[0] || dropMessage || "Sync failed", status: "DEGRADED" }) }) });
   return { runId, ...totals, status };
 }
 
