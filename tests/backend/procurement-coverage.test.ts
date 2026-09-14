@@ -3,6 +3,7 @@ import test from "node:test";
 import { eligibility, normalize, opportunityStatus } from "../../lib/server/procurement/normalization.ts";
 import { AfricanUnionAdapter, EcowasAdapter } from "../../lib/server/procurement/structured-adapters.ts";
 import { deduplicationKeys } from "../../lib/server/procurement/deduplication.ts";
+import { parseDate } from "../../lib/server/procurement/safety.ts";
 
 test("status engine separates upcoming, closing soon, open and closed", () => {
   const now = new Date("2026-09-14T00:00:00Z");
@@ -11,6 +12,11 @@ test("status engine separates upcoming, closing soon, open and closed", () => {
   assert.equal(opportunityStatus({ deadlineAt: "2026-10-16T00:00:00Z" }, now), "OPEN");
   assert.equal(opportunityStatus({ deadlineAt: "2026-09-01T00:00:00Z" }, now), "CLOSED");
   assert.equal(opportunityStatus({}, now), "UNKNOWN");
+});
+
+test("Ghana day-first deadlines are parsed without US date reversal", () => {
+  assert.equal(parseDate("02/10/2026 10:00:00"), "2026-10-02T10:00:00.000Z");
+  assert.equal(parseDate("30/09/2026 13:30:00"), "2026-09-30T13:30:00.000Z");
 });
 
 test("eligibility never invents international access", () => {

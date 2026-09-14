@@ -11,6 +11,8 @@ export function stripImportedHtml(value: unknown, maximum = 50_000) {
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .replace(/&#39;/g, "'")
+    .replace(/&#0*39;/g, "'")
+    .replace(/&#0*38;/g, "&")
     .replace(/&quot;/gi, '"')
     .replace(/\s+/g, " ")
     .trim()
@@ -27,6 +29,13 @@ export function slugify(value: string) {
 
 export function parseDate(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
+  const european = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (european) {
+    const [, day, month, year, hour = "0", minute = "0", second = "0"] = european;
+    const timestamp = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+    const parsed = new Date(timestamp);
+    return parsed.getUTCFullYear() === Number(year) && parsed.getUTCMonth() === Number(month) - 1 && parsed.getUTCDate() === Number(day) ? parsed.toISOString() : null;
+  }
   const timestamp = Date.parse(value);
   return Number.isNaN(timestamp) ? null : new Date(timestamp).toISOString();
 }
@@ -55,4 +64,3 @@ export function enforceSourceRateLimit(source: string, maximumPerMinute = 10) {
   recent.push(now);
   calls.set(source, recent);
 }
-
