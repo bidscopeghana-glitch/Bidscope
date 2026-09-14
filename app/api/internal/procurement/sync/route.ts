@@ -6,7 +6,7 @@ import type { ProcurementSource } from "@/lib/server/procurement/types";
 import { supabaseRest } from "@/lib/server/supabase-rest";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   try {

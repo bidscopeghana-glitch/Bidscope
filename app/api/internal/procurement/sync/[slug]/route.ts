@@ -6,7 +6,7 @@ import type { ProcurementSource } from "@/lib/server/procurement/types";
 import { supabaseRest } from "@/lib/server/supabase-rest";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
@@ -26,4 +26,3 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     return Response.json({ source: source.name, normalized: normalized.length, rejectedDuringNormalization: settled.length - normalized.length, ...result }, { status: 202 });
   } catch (error) { return apiErrorResponse(error); }
 }
-
