@@ -39,8 +39,9 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
     });
   }
 
-  for (const record of records) {
-    try {
+  for (let start = 0; start < records.length; start += 10) {
+    await Promise.all(records.slice(start, start + 10).map(async (record) => {
+      try {
       const sameSourceId = await findExistingSourceRecord(source.id, record.external_opportunity_id);
       const existingId = sameSourceId || await findExisting(record);
       const opportunityId = existingId || randomUUID();
@@ -62,10 +63,11 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
       const eventBase={entity_type:"opportunity",entity_id:opportunityId};
       if(!existingId){await supabaseRest("procurement_events?on_conflict=dedupe_key",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({...eventBase,event_type:"OPPORTUNITY_CREATED",payload:{source_id:source.id},dedupe_key:`opportunity-created:${opportunityId}`})});}
       if(previous){const changes=amendmentFields.flatMap(field=>{const before=previous?.[field]??null;const after=(record as unknown as Record<string,unknown>)[field]??null;return JSON.stringify(before)===JSON.stringify(after)?[]:[{field,previous:before,current:after}];});if(changes.length){await supabaseRest("opportunity_revisions?on_conflict=opportunity_id,source_hash",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({opportunity_id:opportunityId,source_id:source.id,source_hash:record.raw_source_hash,snapshot:body,changed_fields:changes,verified_at:record.last_verified_at})});await supabaseRest("procurement_events?on_conflict=dedupe_key",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates"},body:JSON.stringify({...eventBase,event_type:"OPPORTUNITY_AMENDED",payload:{changes,source_id:source.id},dedupe_key:`opportunity-amended:${opportunityId}:${record.raw_source_hash}`})});}}
-    } catch (error) {
-      totals.failed += 1;
-      totals.errors.push(error instanceof Error ? error.message.slice(0, 300) : "Unknown record error");
-    }
+      } catch (error) {
+        totals.failed += 1;
+        totals.errors.push(error instanceof Error ? error.message.slice(0, 300) : "Unknown record error");
+      }
+    }));
   }
 
   const completedAt = new Date().toISOString();

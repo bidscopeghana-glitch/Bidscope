@@ -25,7 +25,7 @@ abstract class BaseAdapter implements ProcurementSourceAdapter<Raw> {
 
 export class GhanepsAdapter extends BaseAdapter {
   readonly slug = "ghaneps";
-  private endpoint = "https://www.ghaneps.gov.gh/epps/viewCFTSAction.do?T01_ps=100";
+  private endpoint = "https://www.ghaneps.gov.gh/epps/viewCFTSAction.do?T01_ps=50";
   async fetchOpportunities() {
     enforceSourceRateLimit(this.slug, 8);
     const response = await fetchWithRetry(this.endpoint, { headers: { "User-Agent": "BidScopeGhana/1.0 (+https://www.bidscopeghana.com)", Accept: "text/html" } });
