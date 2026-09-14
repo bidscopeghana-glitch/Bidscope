@@ -33,9 +33,11 @@ export function CustomerShell({children}:{children:React.ReactNode}){
  useEffect(()=>{if(session)void api("/api/customer",{resource:"visit"}).catch(()=>{});},[session]);
  useEffect(()=>{const key=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();setSearch(true);}if(e.key==="Escape"){setMobile(false);setSearch(false);}};window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key);},[]);
  useEffect(()=>{if(!message)return;const timer=setTimeout(()=>setMessage(""),6000);return()=>clearTimeout(timer);},[message]);
+ const signInHref=`/sign-in?next=${encodeURIComponent(pathname+(params.size?`?${params}`:""))}`;
+ useEffect(()=>{if(session===false||expired)router.replace(signInHref);},[session,expired,router,signInHref]);
  const setPreferences=(p:Preferences)=>{const next={...preferences,...p};setLocalPreferences(next);void api("/api/customer",{resource:"preferences",preferences:next}).catch(e=>setMessage(e.message));};
  if(session===null)return <div className="cc-loading" aria-busy="true"><div className="cc-skeleton"/><p>Opening your command centre…</p></div>;
- if(!session||expired)return <div className="cc-auth"><BrandLogo className="w-44"/><h1>{expired?"Your session has expired":"Your procurement command centre"}</h1><p>Sign in to access your recommendations, saved opportunities and bids.</p><Link href={`/sign-in?next=${encodeURIComponent(pathname+(params.size?`?${params}`:""))}`} className="cc-button primary">Sign in / Create account</Link></div>;
+ if(!session||expired)return <div className="cc-loading" aria-busy="true"><div className="cc-skeleton"/><p>Opening secure sign-in…</p></div>;
  const selected=pathname+(params.size?`?${params}`:"");
  const name=me.data?.data.full_name||me.data?.data.email?.split("@")[0]||"Your account";
  return <Context.Provider value={{profile:me.data?.data,organization:org.data?.data[0]?.organization,preferences,setPreferences,toast:setMessage}}><div className={`cc-app ${preferences.collapsed?"cc-collapsed":""} ${mobile?"cc-menu-open":""}`}>
