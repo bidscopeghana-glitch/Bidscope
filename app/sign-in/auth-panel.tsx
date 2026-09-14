@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { ArrowRight, CheckCircle2, Eye, EyeOff, LoaderCircle, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { storeSession } from "@/lib/client/session";
 
 type Mode = "sign-in" | "sign-up";
 type State = "idle" | "submitting" | "success" | "error";
@@ -52,9 +53,7 @@ export function AuthPanel() {
       }
       if (!result.accessToken) throw new Error("A secure session could not be created. Please try again.");
 
-      localStorage.setItem("bidscope_access_token", result.accessToken);
-      if (result.refreshToken) localStorage.setItem("bidscope_refresh_token", result.refreshToken);
-      localStorage.setItem("bidscope_token_expires_at", String(Date.now() + (result.expiresIn || 3600) * 1000));
+      storeSession({ accessToken: result.accessToken, refreshToken: result.refreshToken, expiresIn: result.expiresIn });
       setState("success");
       setMessage(mode === "sign-up" ? "Your account is ready. Opening BidScope…" : "Welcome back. Opening BidScope…");
       window.setTimeout(() => router.replace("/customer"), 500);

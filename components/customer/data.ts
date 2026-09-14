@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { clearSession, getValidAccessToken } from "@/lib/client/session";
 export type Opportunity={id:string;slug:string;title:string;summary:string;description?:string;buyer_name:string;buyer_normalized_id?:string;country:string;country_code:string;region:string|null;sector:string|null;category:string;source_name:string;estimated_value:number|null;currency:string;deadline_at:string|null;published_at:string;external_reference:string|null;status:string;official_source_url:string;official_tender_url?:string;eligibility_text:string|null;eligibility_status:string;eligibility_summary?:string;verification_status:string;documents_url?:string;contract_type?:string;procurement_method?:string;documents?:{id:string;title:string;url:string}[];match?:{percentage:number|null;reasons:string[];evidenceAvailable:boolean};saved?:boolean};
 export type Organization={id:string;name:string;region:string|null;sectors:string[];services:string[];products:string[];certifications:string[];preferred_regions:string[];preferred_countries?:string[];preferred_buyers?:string[];excluded_buyers?:string[];preferred_opportunity_types?:string[];cpv_codes?:string[];unspsc_codes?:string[];preferred_minimum_value:number|null;preferred_maximum_value:number|null;business_description?:string|null;registration_number?:string|null;website?:string|null;phone?:string|null;company_size?:string|null;annual_turnover_min?:number|null;annual_turnover_max?:number|null;turnover_currency?:string|null;international_willingness?:boolean|null;local_partnership_willingness?:boolean|null};
 export type Decision="STRONG_GO"|"GO"|"REVIEW"|"HIGH_RISK"|"NO_GO"|"UNKNOWN";
@@ -13,10 +14,13 @@ type CacheEntry={at:number;data:unknown};
 const cache=new Map<string,CacheEntry>();
 export function invalidate(){cache.clear();window.dispatchEvent(new Event("bidscope-data-change"));}
 export async function api<T>(url:string,body?:unknown,method?:string):Promise<T>{
-  const token=localStorage.getItem("bidscope_access_token");
-  const response=await fetch(url,{method:method||(body?"POST":"GET"),headers:{Authorization:`Bearer ${token||""}`,...(body?{"Content-Type":"application/json"}:{})},...(body?{body:JSON.stringify(body)}:{})});
+  let token=await getValidAccessToken();
+  if(!token)throw new Error("Sign in to continue.");
+  const request=()=>fetch(url,{method:method||(body?"POST":"GET"),headers:{Authorization:`Bearer ${token}`,...(body?{"Content-Type":"application/json"}:{})},...(body?{body:JSON.stringify(body)}:{})});
+  let response=await request();
+  if(response.status===401){token=await getValidAccessToken(true);if(token)response=await request();}
   const result=response.status===204?{}:await response.json();
-  if(!response.ok){if(response.status===401)window.dispatchEvent(new Event("bidscope-session-expired"));throw new Error((result as {error?:string}).error||"This request could not be completed. Please try again.");}
+  if(!response.ok){if(response.status===401)clearSession(true);throw new Error((result as {error?:string}).error||"This request could not be completed. Please try again.");}
   return result as T;
 }
 export function useData<T>(url:string|null){

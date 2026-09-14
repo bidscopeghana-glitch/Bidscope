@@ -3,6 +3,7 @@
 import { CheckCircle2, CircleAlert, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { storeSession } from "@/lib/client/session";
 
 export default function GoogleAuthCallbackPage() {
   const [state, setState] = useState<"loading" | "success" | "error">("loading");
@@ -32,11 +33,9 @@ export default function GoogleAuthCallbackPage() {
       return () => window.clearTimeout(update);
     }
 
-    localStorage.setItem("bidscope_access_token", accessToken);
     const refreshToken = hash.get("refresh_token");
     const expiresIn = Number(hash.get("expires_in") || 3600);
-    if (refreshToken) localStorage.setItem("bidscope_refresh_token", refreshToken);
-    localStorage.setItem("bidscope_token_expires_at", String(Date.now() + expiresIn * 1000));
+    storeSession({ accessToken, refreshToken, expiresIn });
     window.history.replaceState({}, document.title, "/auth/callback");
     const update = window.setTimeout(() => {
       setState("success");

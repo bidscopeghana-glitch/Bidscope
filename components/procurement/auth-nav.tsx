@@ -4,27 +4,17 @@ import Link from "next/link";
 import { LogIn, LogOut, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-
-const sessionEvent = "bidscope-session-change";
-
-function hasActiveSession() {
-  try {
-    const token = window.localStorage.getItem("bidscope_access_token");
-    const expiresAt = Number(window.localStorage.getItem("bidscope_token_expires_at") || 0);
-    return Boolean(token && (!expiresAt || expiresAt > Date.now()));
-  } catch {
-    return false;
-  }
-}
+import { clearSession, getValidAccessToken, SESSION_CHANGE_EVENT } from "@/lib/client/session";
 
 export function useBidScopeSession() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   useEffect(() => {
-    const update = () => setSignedIn(hasActiveSession());
-    const timer = window.setTimeout(update, 0);
+    let active = true;
+    const update = () => { void getValidAccessToken().then((token) => { if (active) setSignedIn(Boolean(token)); }); };
+    update();
     window.addEventListener("storage", update);
-    window.addEventListener(sessionEvent, update);
-    return () => { window.clearTimeout(timer); window.removeEventListener("storage", update); window.removeEventListener(sessionEvent, update); };
+    window.addEventListener(SESSION_CHANGE_EVENT, update);
+    return () => { active = false; window.removeEventListener("storage", update); window.removeEventListener(SESSION_CHANGE_EVENT, update); };
   }, []);
   return signedIn;
 }
@@ -44,10 +34,7 @@ export function AuthNav() {
   const router = useRouter();
 
   function signOut() {
-    localStorage.removeItem("bidscope_access_token");
-    localStorage.removeItem("bidscope_refresh_token");
-    localStorage.removeItem("bidscope_token_expires_at");
-    window.dispatchEvent(new Event(sessionEvent));
+    clearSession();
     router.push("/");
     router.refresh();
   }
