@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const rulesQuery = new URLSearchParams({ select: "*", enabled: "eq.true", limit: "500" });
     const opportunitiesQuery = new URLSearchParams({
       select: "id,title,summary,description,category,sector,region,buyer_normalized_id,estimated_value,deadline_at,slug,official_source_url",
-      status: "eq.OPEN", published_at: "not.is.null", updated_at: `gte.${since}`, limit: "500",
+      status: "in.(OPEN,CLOSING_SOON)", deadline_at: `gt.${new Date().toISOString()}`, published_at: "not.is.null", updated_at: `gte.${since}`, limit: "500",
     });
     const [{ data: rules }, { data: opportunities }] = await Promise.all([
       supabaseRest<AlertRuleRecord[]>(`alert_rules?${rulesQuery}`),

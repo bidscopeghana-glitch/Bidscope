@@ -31,7 +31,7 @@ export async function PATCH(request:Request){
     const{url,publicKey}=supabaseConfiguration();
     if(!publicKey)return NextResponse.json({error:"Account service is not configured."},{status:503});
     const response=await fetch(`${url}/auth/v1/user`,{method:"PUT",headers:{apikey:publicKey,Authorization:`Bearer ${body.accessToken}`,"Content-Type":"application/json"},body:JSON.stringify({password:body.password}),cache:"no-store"});
-    if(!response.ok)return NextResponse.json({error:response.status===401?"This reset link is invalid or has expired.":safeMessage(response.status)},{status:response.status});
+    if(!response.ok){const invalid=[401,403].includes(response.status);return NextResponse.json({error:invalid?"This reset link is invalid or has expired.":safeMessage(response.status)},{status:invalid?401:response.status});}
     return NextResponse.json({message:"Your password has been changed. You can now sign in."});
   }catch{return NextResponse.json({error:"Account service is temporarily unavailable. Please try again."},{status:503});}
 }

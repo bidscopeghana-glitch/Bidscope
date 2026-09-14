@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const input = savedOpportunitySchema.parse(await request.json());
     await requireOrganizationMember(user.id, input.organizationId);
     const {data:existing}=await supabaseRest<unknown[]>(`saved_opportunities?select=organization_id&organization_id=eq.${input.organizationId}&opportunity_id=eq.${input.opportunityId}&limit=1`);
-    if(!existing.length)await requireResourceCapacity({organizationId:input.organizationId,limitKey:"saved_opportunities",table:"saved_opportunities"});
+    if(!existing.length)await requireResourceCapacity({organizationId:input.organizationId,limitKey:"saved_opportunities",table:"saved_opportunities",selectColumn:"opportunity_id"});
     const { data } = await supabaseRest<unknown[]>("saved_opportunities?on_conflict=organization_id,opportunity_id", {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=representation" },

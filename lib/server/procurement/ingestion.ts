@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { supabaseRest } from "../supabase-rest.ts";
 import { deduplicationKeys } from "./deduplication.ts";
-import { stableHash } from "./safety.ts";
+import { slugify, stableHash } from "./safety.ts";
 import type { NormalizedAward, NormalizedOpportunity, NormalizedProject, ProcurementSource } from "./types.ts";
 
 type IngestionTotals = { fetched: number; inserted: number; updated: number; duplicates: number; failed: number; errors: string[] };
@@ -9,6 +9,19 @@ const amendmentFields = ["title","deadline_at","estimated_value","currency","eli
 export function changeSeverity(fields:string[]){if(fields.some(field=>["status","deadline_at","eligibility_status","eligibility_text","official_submission_url"].includes(field)))return "CRITICAL";if(fields.some(field=>["estimated_value","currency","documents_url","procurement_method","buyer_name","contract_type"].includes(field)))return "IMPORTANT";return "INFORMATIONAL";}
 
 function safe(value: string) { return encodeURIComponent(value.replace(/[(),*]/g, " ")); }
+
+function groupPotentialDuplicates(records: NormalizedOpportunity[]) {
+  const groups: NormalizedOpportunity[][] = [];
+  const groupByKey = new Map<string, NormalizedOpportunity[]>();
+  for (const record of records) {
+    const keys = deduplicationKeys(record);
+    const group = keys.map((key) => groupByKey.get(key)).find(Boolean) || [];
+    if (!group.length) groups.push(group);
+    group.push(record);
+    for (const key of keys) groupByKey.set(key, group);
+  }
+  return groups;
+}
 
 async function findExisting(record: NormalizedOpportunity) {
   if (record.external_reference) {
@@ -37,6 +50,17 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
   });
   const runId = runs[0]?.id;
 
+  const distinctBuyers = [...new Map(records.filter(record => record.buyer_name.trim()).map(record => {
+    const countryCode = record.country_code.length === 2 ? record.country_code : "ZZ";
+    const slug = slugify(record.buyer_name) || `buyer-${stableHash([countryCode, record.buyer_name]).slice(0, 12)}`;
+    return [`${countryCode}:${slug}`, { country_code: countryCode, name: record.buyer_name.trim(), slug, entity_type: record.buyer_type, region: record.region, source_url: record.official_source_url, metadata: { last_source: record.source_name } }];
+  })).values()];
+  const buyerIds = new Map<string,string>();
+  if(distinctBuyers.length){
+    const{data:buyers}=await supabaseRest<Array<{id:string;country_code:string;slug:string}>>("procuring_entities?on_conflict=country_code,slug",{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(distinctBuyers)});
+    for(const buyer of buyers)buyerIds.set(`${buyer.country_code}:${buyer.slug}`,buyer.id);
+  }
+
   if (records.length) {
     await supabaseRest("procurement_raw_records?on_conflict=source_id,source_hash", {
       method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
@@ -44,13 +68,17 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
     });
   }
 
-  for (let start = 0; start < records.length; start += 10) {
-    await Promise.all(records.slice(start, start + 10).map(async (record) => {
+  const recordGroups = groupPotentialDuplicates(records);
+  for (let start = 0; start < recordGroups.length; start += 10) {
+    await Promise.all(recordGroups.slice(start, start + 10).map(async (group) => {
+      for (const record of group) {
       try {
       const sameSourceId = await findExistingSourceRecord(source.id, record.external_opportunity_id);
       const existingId = sameSourceId || await findExisting(record);
       const opportunityId = existingId || randomUUID();
-      const body = { ...record, id: opportunityId, source_id: source.id, bidscope_reference: record.bidscope_reference || `BS-${randomUUID().slice(0, 10).toUpperCase()}` };
+      const buyerCountry = record.country_code.length === 2 ? record.country_code : "ZZ";
+      const buyerSlug = slugify(record.buyer_name) || `buyer-${stableHash([buyerCountry, record.buyer_name]).slice(0, 12)}`;
+      const body = { ...record, id: opportunityId, source_id: source.id, buyer_normalized_id: buyerIds.get(`${buyerCountry}:${buyerSlug}`) || null, bidscope_reference: record.bidscope_reference || `BS-${randomUUID().slice(0, 10).toUpperCase()}` };
       let previous:Record<string,unknown>|null=null;
       if(sameSourceId){const{data}=await supabaseRest<Record<string,unknown>[]>(`procurement_opportunities?select=${amendmentFields.join(",")},raw_source_hash&id=eq.${opportunityId}&limit=1`);previous=data[0]||null;}
       if (!existingId || sameSourceId) {
@@ -71,6 +99,7 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
       } catch (error) {
         totals.failed += 1;
         totals.errors.push(error instanceof Error ? error.message.slice(0, 300) : "Unknown record error");
+      }
       }
     }));
   }

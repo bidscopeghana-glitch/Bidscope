@@ -14,9 +14,10 @@ export async function GET() {
     const now = new Date();
     const week = new Date(now); week.setDate(week.getDate() + 7);
     const recent = new Date(now); recent.setDate(recent.getDate() - 7);
+    const nowEncoded = encodeURIComponent(now.toISOString());
     const [active, closingThisWeek, addedRecently, sources] = await Promise.all([
-      count("procurement_opportunities?select=id&status=eq.OPEN&published_at=not.is.null"),
-      count(`procurement_opportunities?select=id&status=eq.OPEN&deadline_at=gte.${encodeURIComponent(now.toISOString())}&deadline_at=lte.${encodeURIComponent(week.toISOString())}`),
+      count(`procurement_opportunities?select=id&status=in.(OPEN,CLOSING_SOON)&published_at=not.is.null&deadline_at=gt.${nowEncoded}`),
+      count(`procurement_opportunities?select=id&status=in.(OPEN,CLOSING_SOON)&deadline_at=gt.${nowEncoded}&deadline_at=lte.${encodeURIComponent(week.toISOString())}`),
       count(`procurement_opportunities?select=id&published_at=gte.${encodeURIComponent(recent.toISOString())}`),
       count("procurement_sources?select=id&status=eq.ACTIVE"),
     ]);
