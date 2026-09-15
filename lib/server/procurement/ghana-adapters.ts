@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import { z } from "zod";
 import { firstDate, normalize, text } from "./normalization.ts";
 import { enforceSourceRateLimit, fetchWithRetry, parseDate } from "./safety.ts";
@@ -40,6 +39,7 @@ async function pooledMap<T, R>(items: T[], concurrency: number, mapper: (item: T
   return output;
 }
 async function pdfText(url: string) {
+  const { PDFParse } = await import("pdf-parse");
   const response = await fetchWithRetry(url, { headers: { Accept: "application/pdf", "User-Agent": "BidScopeGhana/1.0" } }, 2);
   const length = Number(response.headers.get("content-length") || 0); if (length > 12_000_000) throw new Error("Official tender PDF exceeds the safe extraction limit.");
   const data = new Uint8Array(await response.arrayBuffer()); if (data.byteLength > 12_000_000) throw new Error("Official tender PDF exceeds the safe extraction limit.");
