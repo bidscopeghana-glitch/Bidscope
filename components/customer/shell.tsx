@@ -2,7 +2,7 @@
 import { createContext,useContext,useEffect,useRef,useState } from "react";
 import Link from "next/link";
 import { usePathname,useRouter,useSearchParams } from "next/navigation";
-import { Home,Search,Globe2,Bookmark,BriefcaseBusiness,Building2,ChartNoAxesCombined,FileText,CalendarDays,Bell,Settings,HelpCircle,PanelLeftClose,PanelLeftOpen,LogOut,ChevronRight,Sparkles,History,Eye,Menu,X,ArrowUpRight,SlidersHorizontal,Compass,CreditCard } from "lucide-react";
+import { Home,Search,Globe2,Bookmark,BriefcaseBusiness,Building2,ChartNoAxesCombined,FileText,CalendarDays,Bell,Settings,HelpCircle,PanelLeftClose,PanelLeftOpen,LogOut,ChevronRight,Sparkles,History,Eye,Menu,X,ArrowUpRight,SlidersHorizontal,Compass,CreditCard,Users } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { useBidScopeSession } from "@/components/procurement/auth-nav";
 import { api,useData,invalidate,type Organization,type Preferences,type Notice,type Opportunity } from "./data";
@@ -17,7 +17,7 @@ export const navGroups:ReadonlyArray<{title:string;links:ReadonlyArray<readonly 
  {title:"Bid Workspace",links:[["My Bids","/customer/bids",BriefcaseBusiness],["Bid Pipeline","/customer/pipeline",ChartNoAxesCombined],["Documents","/customer/documents",FileText],["Deadlines","/customer/deadlines",CalendarDays]]},
  {title:"Intelligence",links:[["Buyers","/customer/buyers",Building2],["Market Intelligence","/customer/intelligence",ChartNoAxesCombined],["Awards & History","/customer/awards",History]]},
  {title:"",links:[["BidScope AI","/customer/ai",Sparkles],["Alerts","/customer/alerts",Bell]]},
- {title:"Account",links:[["Business Profile","/customer/profile",Building2],["Tender Readiness","/customer/readiness",ChartNoAxesCombined],["Billing","/customer/billing",CreditCard],["Notifications","/customer/notifications",Bell],["Help & Support","/customer/help",HelpCircle],["Settings","/customer/settings",Settings]]}
+ {title:"Account",links:[["Business Profile","/customer/profile",Building2],["Team","/customer/team",Users],["Tender Readiness","/customer/readiness",ChartNoAxesCombined],["Billing","/customer/billing",CreditCard],["Notifications","/customer/notifications",Bell],["Help & Support","/customer/help",HelpCircle],["Settings","/customer/settings",Settings]]}
 ] as const;
 
 export function CustomerShell({children}:{children:React.ReactNode}){

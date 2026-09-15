@@ -51,6 +51,7 @@ export function CustomerPage({
       />
     );
   if (section === "profile") return <BusinessProfile />;
+  if (section === "team") return <TeamPage />;
   if (section === "readiness") return <ReadinessPage />;
   if (section === "billing") return <BillingPage />;
   if (section === "settings") return <SettingsPage />;
@@ -434,6 +435,12 @@ function ReadinessPage() {
     </>
   );
 }
+const CURRENT_BILLING_PLAN_CODES = new Set([
+  "professional_monthly", "professional_annual",
+  "intelligence_monthly", "intelligence_annual",
+  "business_monthly", "business_annual",
+]);
+
 function BillingPage() {
   const { organization, toast } = useAccount();
   const plans = useData<{
@@ -441,6 +448,8 @@ function BillingPage() {
       code: string;
       tier: string;
       name: string;
+      description: string;
+      billing_interval: string;
       payment_kind: string;
       currency: string;
       amount_minor: number | null;
@@ -482,6 +491,10 @@ function BillingPage() {
           minor / 100,
         );
   const entitlement = billing.data?.data.entitlement;
+  const currentPackages = plans.data?.data.filter((plan) => CURRENT_BILLING_PLAN_CODES.has(plan.code)) || [];
+  const displayedPackages = currentPackages.length
+    ? currentPackages
+    : plans.data?.data.filter((plan) => plan.tier === "PREMIUM") || [];
   async function checkout(code: string) {
     if (!organization) return;
     try {
@@ -589,22 +602,21 @@ function BillingPage() {
             </section>
           )}
           <section className="cc-editor">
-            <h2>Premium options</h2>
+            <h2>Packages and billing options</h2>
             <p className="cc-quiet">
-              Card plans renew automatically. Mobile Money purchases are
-              non-renewing Premium periods and require manual renewal.
+              Choose the level of monitoring, intelligence and bid preparation
+              your business needs. Card plans renew automatically until cancelled.
             </p>
             <div className="cc-plan-options">
-              {plans.data?.data
-                .filter((p) => p.tier === "PREMIUM")
-                .map((plan) => (
+              {displayedPackages.map((plan) => (
                   <article key={plan.code}>
                     <strong>{plan.name}</strong>
                     <span>{money(plan.amount_minor, plan.currency)}</span>
+                    <p className="cc-quiet">{plan.description}</p>
                     <small>
                       {plan.payment_kind === "RECURRING_CARD"
-                        ? "CARD · AUTOMATIC RENEWAL"
-                        : "MOBILE MONEY · MANUAL RENEWAL"}
+                          ? `${plan.billing_interval} · CARD · AUTOMATIC RENEWAL`
+                          : "MOBILE MONEY · MANUAL RENEWAL"}
                     </small>
                     <button
                       className="cc-button primary"
@@ -1190,17 +1202,29 @@ function Documents() {
     </>
   );
 }
+function TeamPage(){
+  const params=useSearchParams();const invite=params.get("invite");const{organization,toast}=useAccount();
+  const r=useData<{data:{organizationId:string|null;members:Array<{user_id:string;role:string;created_at:string;profile:{email:string;full_name:string}|null}>;invitations:Array<{id:string;email:string;role:string;expires_at:string}>;used:number;limit:number;canManage:boolean}}>("/api/team");
+  return <><Heading title="Team workspace" description="Give colleagues controlled access to your procurement workspace."/>
+  {invite&&<section className="cc-brief"><div><p className="cc-eyebrow">WORKSPACE INVITATION</p><h2>Accept your BidScope invitation</h2><p>The invitation is tied to the email address that received it.</p><div><button className="cc-button primary" onClick={()=>void api("/api/team",{action:"accept",token:invite}).then(()=>{toast("Invitation accepted.");invalidate();window.history.replaceState({},"","/customer/team");}).catch(error=>toast((error as Error).message))}>Accept invitation</button></div></div></section>}
+  {r.loading?<Skeleton/>:r.error?<p className="cc-error">{r.error}</p>:r.data&&<><section className="cc-editor"><div className="cc-team-heading"><div><h2>Workspace members</h2><p className="cc-quiet">{r.data.data.used} of {r.data.data.limit} seats allocated, including pending invitations.</p></div><Link className="cc-button" href="/customer/billing">Compare team plans</Link></div>{r.data.data.members.map(member=><div className="cc-document-row" key={member.user_id}><div><strong>{member.profile?.full_name||member.profile?.email||"Workspace member"}</strong><p className="cc-quiet">{member.profile?.email}</p></div><span>{member.role}</span></div>)}</section>
+  {r.data.data.canManage&&<section className="cc-editor"><h2>Invite a teammate</h2><p className="cc-quiet">An email invitation expires after seven days. Intelligence supports up to three seats; Business supports up to five.</p><form className="cc-form-grid" onSubmit={async e=>{e.preventDefault();if(!organization)return;const form=new FormData(e.currentTarget);try{await api("/api/team",{action:"invite",organizationId:organization.id,email:form.get("email"),role:form.get("role")});(e.target as HTMLFormElement).reset();toast("Invitation sent.");invalidate();}catch(error){toast((error as Error).message);}}}><label>Email address<input name="email" type="email" required autoComplete="email" placeholder="colleague@company.com"/></label><label>Role<select name="role" defaultValue="member"><option value="member">Member</option><option value="admin">Administrator</option></select></label><button className="cc-button primary">Send secure invitation</button></form>{r.data.data.invitations.length>0&&<><h2 className="cc-subheading">Pending invitations</h2>{r.data.data.invitations.map(invitation=><div className="cc-document-row" key={invitation.id}><div><strong>{invitation.email}</strong><p className="cc-quiet">{invitation.role} · expires {date(invitation.expires_at)}</p></div><button className="cc-button" onClick={()=>void api(`/api/team?id=${invitation.id}`,undefined,"DELETE").then(()=>{toast("Invitation revoked.");invalidate();}).catch(error=>toast((error as Error).message))}>Revoke</button></div>)}</>}</section>}</>}
+  </>;
+}
 function AIPage() {
   const params = useSearchParams();
   const slug = params.get("opportunity");
   const r = useData<{ data: Opportunity }>(
     slug ? `/api/opportunities/${encodeURIComponent(slug)}` : null,
   );
+  const recommendations = useData<{ data: Opportunity[] }>(
+    slug ? null : "/api/customer?resource=discover&collection=recommended&sort=match&pageSize=6",
+  );
   return (
     <>
       <Heading
-        title="Ask BidScope AI"
-        description="Interpret official procurement information in the context of your business."
+        title="BidScope AI"
+        description="Turn official opportunity records into clear, source-cited bidding intelligence."
       />
       {slug ? (
         r.loading ? (
@@ -1213,16 +1237,17 @@ function AIPage() {
       ) : (
         <>
           <section className="cc-brief">
-            <h2>Start with an opportunity.</h2>
-            <p>
-              Choose Analyse on any tender to review its requirements,
-              eligibility, documents and risks with source citations.
-            </p>
-            <Link className="cc-button primary" href="/customer/recommended">
-              Explore your recommendations
-            </Link>
+            <div>
+              <p className="cc-eyebrow">SOURCE-GROUNDED PROCUREMENT ASSISTANT</p>
+              <h2>Choose an opportunity to begin.</h2>
+              <p>BidScope AI can summarise the notice, find mandatory documents and dates, assess eligibility, flag disqualification risks and compare requirements with your Supplier Passport. Every answer stays tied to the official record.</p>
+              <div><Link href="/customer/discover">Search all opportunities</Link><Link href="/customer/documents">Review Supplier Passport</Link></div>
+            </div>
           </section>
-          <Intelligence />
+          <section className="cc-editor">
+            <PanelTitle title="Recommended for AI analysis" />
+            {recommendations.loading?<Skeleton/>:recommendations.error?<p className="cc-error">{recommendations.error}</p>:recommendations.data?.data.length?recommendations.data.data.map(o=><article className="cc-opportunity" key={o.id}><div className="cc-op-main"><div className="cc-op-meta"><span className="cc-badge positive">OPEN</span><span>{o.source_name}</span></div><h3><Link href={`/customer/ai?opportunity=${encodeURIComponent(o.slug)}`}>{o.title}</Link></h3><p className="cc-buyer-line">{o.buyer_name}</p><div className="cc-row-actions"><Link href={`/customer/ai?opportunity=${encodeURIComponent(o.slug)}`}>Analyse with BidScope AI →</Link><Link href={`/customer/opportunity/${o.slug}`}>View opportunity</Link></div></div><div className="cc-op-right">{o.match?.percentage!=null&&<span className="cc-match"><strong>{o.match.percentage}%</strong><span>business match</span></span>}<span className="cc-deadline"><strong>{date(o.deadline_at)}</strong><span>submission deadline</span></span></div></article>):<Empty title="No recommended opportunities yet" description="Complete your business profile or search the live opportunity index, then choose Analyse with BidScope AI."/>}
+          </section>
         </>
       )}
     </>
@@ -1246,6 +1271,7 @@ function Alerts() {
       name: string;
       alerts_enabled: boolean;
       frequency: "instant" | "daily" | "weekly";
+      delivery_recipients: string[];
       filters: Record<string, string>;
     }[];
   }>("/api/customer?resource=searches");
@@ -1387,6 +1413,11 @@ function Alerts() {
                 />
                 Alert me to new results
               </label>
+              <form className="cc-alert-recipients" onSubmit={async e=>{e.preventDefault();const input=new FormData(e.currentTarget).get("recipients")?.toString()||"";try{await api("/api/customer",{id:s.id,alertsEnabled:s.alerts_enabled,frequency:s.frequency,deliveryRecipients:input.split(",").map(value=>value.trim()).filter(Boolean)},"PATCH");invalidate();toast("Alert recipients saved.");}catch(error){toast((error as Error).message);}}}>
+                <label>Additional email recipients<input name="recipients" type="text" inputMode="email" defaultValue={(s.delivery_recipients||[]).join(", ")} placeholder="procurement@company.com" aria-describedby={`recipients-${s.id}`}/></label>
+                <small id={`recipients-${s.id}`}>Separate addresses with commas. Your plan controls the maximum.</small>
+                <button className="cc-button">Save recipients</button>
+              </form>
               <button
                 className="cc-button"
                 onClick={async () => {

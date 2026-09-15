@@ -16,6 +16,6 @@ export async function GET(request:Request){
       supabaseRest("procurement_source_alerts?select=id,severity,alert_type,message,created_at,source:procurement_sources(name,slug)&resolved_at=is.null&order=created_at.desc&limit=8"),
       supabaseRest("audit_log?select=id,action,entity_type,entity_id,created_at&order=created_at.desc&limit=8"),
     ]);
-    return Response.json({data:{window:"24 hours",metrics:{users,businesses,openOpportunities,sources,degradedSources,pendingPayments,activeSubscriptions,failedDeliveries,failedSyncs,aiRequests},recentBusinesses,recentPayments,sourceAlerts,auditLog,services:{database:"connected",payments:process.env.PAYSTACK_SECRET_KEY?"configured":"not configured",email:process.env.RESEND_API_KEY?"configured":"not configured",ai:process.env.OPENAI_API_KEY?"model configured":"grounded fallback"}}});
+    return Response.json({data:{window:"24 hours",metrics:{users,businesses,openOpportunities,sources,degradedSources,pendingPayments,activeSubscriptions,failedDeliveries,failedSyncs,aiRequests},recentBusinesses,recentPayments,sourceAlerts,auditLog,services:{database:"connected",payments:process.env.PAYSTACK_SECRET_KEY?"configured":"not configured",email:process.env.RESEND_API_KEY?"configured":"not configured",ai:process.env.GEMINI_API_KEY||process.env.OPENAI_API_KEY?"model configured":"grounded fallback"}}});
   }catch(error){return apiErrorResponse(error);}
 }

@@ -1,7 +1,7 @@
 import {ApiError} from "./api-error.ts";
 import {supabaseRest,supabaseRpc} from "./supabase-rest.ts";
 
-export const PREMIUM_FEATURES=["advanced_feed","best_match","advanced_matching","smart_alerts","follow_buyers","buyer_intelligence","bid_advisor","procurement_radar","change_monitoring","readiness_score","tender_intelligence_report","ai_assistant","bid_workspace","international_eligibility","market_intelligence"] as const;
+export const PREMIUM_FEATURES=["advanced_feed","best_match","advanced_matching","smart_alerts","follow_buyers","buyer_intelligence","bid_advisor","procurement_radar","change_monitoring","readiness_score","tender_intelligence_report","ai_assistant","bid_workspace","international_eligibility","market_intelligence","csv_exports","multi_recipient_alerts"] as const;
 export type EntitlementFeature=typeof PREMIUM_FEATURES[number];
 export type SubscriptionStatus="FREE"|"PENDING"|"ACTIVE"|"PAST_DUE"|"GRACE_PERIOD"|"CANCEL_AT_PERIOD_END"|"CANCELLED"|"EXPIRED"|"PAYMENT_FAILED"|"INCOMPLETE";
 type Plan={code:string;tier:"FREE"|"PREMIUM";name:string;description:string;billing_interval:string;payment_kind:string;currency:string;amount_minor:number|null;provider_plan_code:string|null;features:Record<string,boolean>;limits:Record<string,number>;access_days:number|null;activation_status:string;enabled:boolean};

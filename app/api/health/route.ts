@@ -12,7 +12,7 @@ export async function GET() {
       optional: {
         payments: process.env.PAYSTACK_SECRET_KEY ? "configured" : "not_configured",
         emailAlerts: process.env.RESEND_API_KEY && process.env.ALERT_FROM_EMAIL ? "configured" : "not_configured",
-        aiEnhancement: process.env.OPENAI_API_KEY ? "configured" : "grounded_fallback",
+        aiEnhancement: process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY ? "configured" : "grounded_fallback",
       },
       timestamp: new Date().toISOString(),
     }, { headers: { "Cache-Control": "no-store" } });

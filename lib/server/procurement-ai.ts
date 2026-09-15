@@ -31,9 +31,30 @@ export function groundedFallback(action:string,question:string,opportunity:Oppor
   return{content:`## Procurement analysis\nI could not find a sufficiently supported answer to “${question||"this question"}” in the available source record or indexed tender sections.\n\n${unavailable}\n\nBidScope AI helps interpret procurement information. Always review the official tender documents before submitting a bid.`,citations,groundingStatus:"not_found" as const};
 }
 
-export async function callConfiguredModel(input:{action:string;question:string;opportunity:OpportunityContext;chunks:DocumentChunk[];passport?:Passport|null}){
-  const key=process.env.OPENAI_API_KEY;const model=process.env.BIDSCOPE_AI_MODEL;if(!key||!model)return null;
+type ModelInput={action:string;question:string;opportunity:OpportunityContext;chunks:DocumentChunk[];passport?:Passport|null};
+const analystRules="You are BidScope AI, a careful procurement analyst for Ghanaian businesses. Use only the supplied JSON context. Never invent a tender requirement. Label any interpretation as 'Inferred by BidScope'. Use 'Not found in source' when evidence is absent. Never promise an award, claim insider knowledge, or imply a bid was submitted. Cite retrieved sections as [1], [2]. End by reminding the user to review the official tender documents.";
+function modelContext(input:ModelInput){return{opportunity:input.opportunity,retrievedSections:input.chunks.map((chunk,index)=>({citation:index+1,page:chunk.page_number,section:chunk.section_label,text:chunk.content})),supplierPassport:input.passport||undefined};}
+
+async function callGemini(input:ModelInput,key:string){
+  const model=process.env.BIDSCOPE_AI_MODEL||"gemini-2.5-flash";
+  const response=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{method:"POST",headers:{"x-goog-api-key":key,"Content-Type":"application/json"},body:JSON.stringify({model,store:false,input:`${analystRules}\n\nREQUEST\n${JSON.stringify({action:input.action,question:input.question,context:modelContext(input)})}`}),signal:AbortSignal.timeout(45000)});
+  if(!response.ok)throw new Error(`AI provider returned ${response.status}`);
+  const body=await response.json() as {steps?:Array<{type?:string;content?:Array<{type?:string;text?:string}>}>;usage?:{total_input_tokens?:number;total_output_tokens?:number}};
+  const content=(body.steps||[]).filter(step=>step.type==="model_output").flatMap(step=>step.content||[]).filter(part=>part.type==="text").map(part=>part.text||"").join("\n").trim();
+  if(!content)return null;
+  return{content,usage:{input_tokens:body.usage?.total_input_tokens,output_tokens:body.usage?.total_output_tokens},provider:"google-gemini",model};
+}
+
+async function callOpenAI(input:ModelInput,key:string,model:string){
   const context={opportunity:input.opportunity,retrievedSections:input.chunks.map((chunk,index)=>({citation:index+1,page:chunk.page_number,section:chunk.section_label,text:chunk.content})),supplierPassport:input.passport||undefined};
-  const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,input:[{role:"developer",content:"You are BidScope's procurement analyst. Use only the supplied JSON context. Never infer a tender requirement without labelling it Inferred by BidScope. Use 'Not found in source' when evidence is absent. Never promise an award, claim insider knowledge, or imply a bid was submitted. Cite retrieved sections as [1], [2]. End by reminding the user to review official tender documents."},{role:"user",content:JSON.stringify({action:input.action,question:input.question,context})}],max_output_tokens:1400})});
+  const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,input:[{role:"developer",content:analystRules},{role:"user",content:JSON.stringify({action:input.action,question:input.question,context})}],max_output_tokens:1400}),signal:AbortSignal.timeout(45000)});
   if(!response.ok)throw new Error(`AI provider returned ${response.status}`);const body=await response.json() as {output_text?:string;usage?:{input_tokens?:number;output_tokens?:number}};if(!body.output_text)return null;return{content:body.output_text,usage:body.usage,provider:"openai",model};
+}
+
+export async function callConfiguredModel(input:ModelInput){
+  const geminiKey=process.env.GEMINI_API_KEY;
+  if(geminiKey)return callGemini(input,geminiKey);
+  const openAIKey=process.env.OPENAI_API_KEY;const openAIModel=process.env.BIDSCOPE_OPENAI_MODEL;
+  if(openAIKey&&openAIModel)return callOpenAI(input,openAIKey,openAIModel);
+  return null;
 }

@@ -61,12 +61,14 @@ async function emailAddress(userId:string) {
 async function sendEmail(delivery:PendingDelivery) {
   const key = process.env.RESEND_API_KEY; const from = process.env.ALERT_FROM_EMAIL;
   if (!key || !from) return { status:"skipped", reason:"Email provider is not configured." } as const;
-  const to = await emailAddress(delivery.notification.user_id);
-  if (!to) return { status:"failed", reason:"User email address was not found." } as const;
+  const owner = await emailAddress(delivery.notification.user_id);
+  const extras=Array.isArray(delivery.notification.metadata?.deliveryRecipients)?delivery.notification.metadata.deliveryRecipients.filter((value):value is string=>typeof value==="string"&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)).slice(0,5):[];
+  const to=[...new Set([owner,...extras].filter((value):value is string=>Boolean(value)))];
+  if (!to.length) return { status:"failed", reason:"User email address was not found." } as const;
   const site = process.env.NEXT_PUBLIC_SITE_URL || "https://www.bidscopeghana.com";
   const href = delivery.notification.related_url ? new URL(delivery.notification.related_url, site).toString() : `${site}/notifications`;
   const response = await fetch("https://api.resend.com/emails", { method:"POST", headers:{ Authorization:`Bearer ${key}`, "Content-Type":"application/json" }, body:JSON.stringify({
-    from, to:[to], subject:`BidScope: ${delivery.notification.title}`,
+    from, to, subject:`BidScope: ${delivery.notification.title}`,
     html:`<div style="background:#f7f2e7;padding:32px;font-family:Arial,sans-serif;color:#17362d"><div style="max-width:620px;margin:auto;background:#fffdf8;border-radius:20px;padding:28px"><p style="color:#116149;font-weight:700;letter-spacing:.12em;font-size:11px">BIDSCOPE PROCUREMENT INTELLIGENCE</p><h2>${escapeHtml(delivery.notification.title)}</h2><p style="line-height:1.7;color:#526a61">${escapeHtml(delivery.notification.message)}</p><p><a href="${escapeHtml(href)}" style="display:inline-block;background:#116149;color:white;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">View in BidScope</a></p><p style="font-size:12px;color:#718078">Always review the official tender documents before submitting a bid.</p></div></div>`,
   }) });
   const result = await response.json().catch(() => ({})) as {id?:string;message?:string};
