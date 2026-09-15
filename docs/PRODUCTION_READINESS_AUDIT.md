@@ -1,6 +1,6 @@
 # BidScope Production Readiness Audit
 
-Audit date: 14 September 2026
+Audit date: 15 September 2026
 
 Production domain: `https://www.bidscopeghana.com`
 Application: BidScope Ghana procurement intelligence platform
@@ -11,10 +11,12 @@ Application: BidScope Ghana procurement intelligence platform
 
 The application code, production database, deployment, procurement discovery, authentication core, customer workspace, server-side entitlements, grounded AI fallback and admin monitoring are operating as one coherent system. The production build is clean, the database schema passes Supabase lint, the dependency audit reports zero vulnerabilities, 45 backend tests pass, 30 production API/customer-journey checks pass, four Super Admin API journeys pass, and authenticated responsive browser checks pass at 375px, 768px and 1440px.
 
-The platform must not yet be declared fully ready for unrestricted paying customers because two launch controls remain outside the codebase:
+The platform must not yet be declared fully ready for unrestricted paying customers because two live-payment controls remain outside the codebase:
 
-1. **ACTION_REQUIRED — transactional email:** Resend and a verified sender are not configured, and Supabase custom SMTP is not configured. Google OAuth works, but dependable public email verification, password recovery and email alerts cannot be guaranteed for arbitrary customers.
-2. **ACTION_REQUIRED — controlled live payment:** Paystack production keys and four live plans are configured, but an actual GHS payment, signed webhook, Premium activation, persistence after a new login, cancellation/expiry and refund have not been exercised with real funds. One uncompleted GHS 100 Mobile Money checkout remains pending and needs reconciliation.
+1. **ACTION_REQUIRED — controlled live payment:** Paystack production keys and four live plans are configured, but an actual GHS payment, signed webhook, Premium activation, persistence after a new login, cancellation/expiry and refund have not been exercised with real funds.
+2. **ACTION_REQUIRED — pending payment reconciliation:** One uncompleted GHS 100 Mobile Money checkout remains pending and needs reconciliation.
+
+Transactional email is now production-configured: the BidScope sending domain is verified in Resend, Supabase Auth custom SMTP is active, and a live password-recovery message to an existing non-team customer address was accepted by Supabase and reported `Delivered` by Resend on 15 September 2026.
 
 Everything safely fixable from code and the connected production database was repaired and deployed. No fake production data was introduced. Audit users and organisations were deleted after testing.
 
@@ -46,9 +48,9 @@ Everything safely fixable from code and the connected production database was re
 | Public discovery | `/opportunities` | WORKING |
 | Opportunity detail | `/opportunities/[slug]` | WORKING |
 | Plans/pricing | `/plans`, `/pricing` | WORKING |
-| Sign in/sign up | `/sign-in` | WORKING; email delivery blocker remains |
+| Sign in/sign up | `/sign-in` | WORKING; production email delivery verified |
 | OAuth callback | `/auth/callback` | WORKING |
-| Password reset | `/auth/reset-password` | WIRED; email delivery blocker remains |
+| Password reset | `/auth/reset-password` | WORKING; live recovery email delivered |
 | Terms/privacy | `/terms`, `/privacy` | WORKING |
 | Robots/sitemap | `/robots.txt`, `/sitemap.xml` | WORKING |
 | Legacy member entry points | `/live-opportunities`, `/awarded-opportunities`, `/workspace`, `/profile`, `/notifications`, `/settings/alerts` | LEGACY redirects into the authenticated customer shell |
@@ -101,6 +103,7 @@ All customer routes are under `/customer/[[...section]]` and are guarded by a pe
 | Tender Watch could not be deleted | High | Retention | Added authenticated DELETE route and confirmed-delete UI | Live create/edit/delete journey passed |
 | Email/WhatsApp settings implied unavailable delivery | High | Product truthfulness | Exposed provider availability; disabled unsupported preferences and labelled them clearly | API/UI build and lint pass |
 | Password recovery was absent/unsafe | High | Authentication | Added request/update APIs, reset page, safe invalid-token handling and sign-in link | Invalid token returns safe 401; no provider details exposed |
+| Transactional email was not production-configured | Critical | Authentication/email | Verified the BidScope domain in Resend, configured domain-scoped sending, activated Supabase custom SMTP and revoked superseded credentials | Live password-recovery request returned 200 and Resend reported `Delivered` on 15 September 2026 |
 | Admin operations required DB inspection | High | Administration | Added Command Centre overview and dedicated source, billing, alert and AI operations pages/APIs | Four live Super Admin endpoints returned 200 with data |
 | Generic unhandled page failures | Medium | Error handling | Added global, route and not-found boundaries | Production build includes error routes |
 | Dependency advisories | High | Supply chain | Updated lockfile safely | `npm audit --omit=dev`: zero vulnerabilities |
@@ -109,18 +112,6 @@ All customer routes are under `/customer/[[...section]]` and are guarded by a pe
 | Homepage illustrative save action looked real | Medium | Product truthfulness | Replaced it with a live discovery action and labelled the record illustrative | Deployed UI contains no fake persistence action |
 
 ## C. Remaining external actions
-
-### ACTION_REQUIRED — transactional email and public email auth
-
-Configure and verify:
-
-- `RESEND_API_KEY`
-- `ALERT_FROM_EMAIL` using a verified BidScope sender/domain
-- Supabase Auth custom SMTP for verification and password-reset mail
-- Delivery tests to an address that is not a Supabase project team member
-- SPF, DKIM and DMARC for the sending domain
-
-Until this is complete, Google OAuth is the dependable signup path. The password UI and recovery backend are wired, but public delivery is not launch-ready.
 
 ### ACTION_REQUIRED — controlled Paystack live-money acceptance test
 
@@ -205,7 +196,7 @@ No unresolved code-level Critical finding was found.
 - **Fixed:** Paystack amount, currency and fulfilment are server controlled and webhook signed.
 - **Fixed:** expired tenders cannot appear as live through API time-of-request checks.
 - **Fixed:** service keys remain server-only; public pages use publishable access only where applicable.
-- **Remaining external:** public email recovery/verification delivery must be configured before unrestricted launch.
+- **Fixed:** public password-recovery delivery uses the verified BidScope sending domain and Supabase custom SMTP; a live recovery email was delivered successfully.
 
 ### Medium
 
@@ -244,7 +235,7 @@ Supabase schema lint reported zero errors. Tables containing customer, billing, 
 | Responsive public browser | PASS — sign-in at 375/768 and pricing at 375/1440; no overflow or browser errors |
 | Route smoke | PASS — home, login, pricing, discovery, customer, admin, legal, robots and sitemap returned expected responses |
 | Paystack logic/security | PASS — unit/integration; live charge remains ACTION_REQUIRED |
-| Email delivery | BLOCKED — provider/custom SMTP not configured |
+| Email delivery | PASS — verified BidScope Resend domain, Supabase custom SMTP active, live password-recovery message reported `Delivered` |
 
 The automated browser was able to validate core public and authenticated pages. A single all-pages browser batch was unreliable in the local Chrome sandbox, so API response coverage and targeted browser runs were used instead of treating the sandbox hang as an application failure.
 
@@ -274,9 +265,9 @@ Remaining non-blocking work:
 | Feature | Classification | Final state |
 | --- | --- | --- |
 | Public landing and navigation | EXISTING_AND_WORKING | WORKING |
-| Password/Google authentication | EXISTING_AND_WORKING | WORKING; email delivery BLOCKED |
+| Password/Google authentication | EXISTING_AND_WORKING | WORKING; production recovery email verified |
 | Session refresh/persistence | EXISTING_AND_WORKING | WORKING |
-| Password recovery | MISSING → FIXED | WIRED; email delivery BLOCKED |
+| Password recovery | MISSING → FIXED | WORKING; live recovery email delivered |
 | Customer command centre | EXISTING_BUT_NOT_WIRED → FIXED | WORKING |
 | Discovery/search/filtering | PARTIALLY_IMPLEMENTED → FIXED | WORKING |
 | Ghana/international/Africa scope | PARTIALLY_IMPLEMENTED → FIXED | WORKING |
@@ -292,7 +283,7 @@ Remaining non-blocking work:
 | Readiness score | EXISTING_AND_WORKING | WORKING from persisted evidence |
 | Bid workspace | EXISTING_AND_WORKING | Premium, persisted |
 | In-app notifications | PARTIALLY_IMPLEMENTED → FIXED | WORKING |
-| Email notifications | PARTIALLY_IMPLEMENTED | BLOCKED by provider configuration |
+| Email notifications | PARTIALLY_IMPLEMENTED → FIXED | CONFIGURED through verified Resend sender/domain; auth delivery verified and alert provider health check passes |
 | WhatsApp | MISSING | DISABLED and labelled unavailable |
 | AI assistant | EXISTING_AND_WORKING | Grounded fallback WORKING; model enhancement optional |
 | Tender intelligence report | EXISTING_AND_WORKING | Integrated into opportunity intelligence/AI views |
@@ -305,9 +296,8 @@ Remaining non-blocking work:
 
 ## J. Launch blockers
 
-1. **ACTION_REQUIRED: configure and verify transactional email/custom SMTP.**
-2. **ACTION_REQUIRED: execute and document a controlled real Paystack payment/webhook/Premium/cancellation test.**
-3. **ACTION_REQUIRED: reconcile the existing pending GHS 100 Mobile Money checkout.**
+1. **ACTION_REQUIRED: execute and document a controlled real Paystack payment/webhook/Premium/cancellation test.**
+2. **ACTION_REQUIRED: reconcile the existing pending GHS 100 Mobile Money checkout.**
 
 Once those actions pass, rerun the live production E2E suite and change the executive status to `READY_WITH_NON_BLOCKING_ACTIONS` or `READY` based on the result.
 
@@ -319,4 +309,4 @@ Once those actions pass, rerun the live production E2E suite and change the exec
 - **Payment:** pricing → `/api/billing/checkout` → server-owned plan/amount → Paystack → callback/webhook server verification → idempotent DB fulfilment → subscription → server entitlement → Premium UI/API.
 - **Ingestion:** official adapter → raw immutable record → normalization/status/eligibility → dedupe/canonical record → provenance/revision/event → discovery/matching/alerts.
 
-The full software path is wired. The remaining blockers are third-party delivery and live-money acceptance controls, not missing application architecture.
+The full software path is wired. Transactional email delivery is verified. The remaining blockers are live-money acceptance and reconciliation controls, not missing application architecture.
