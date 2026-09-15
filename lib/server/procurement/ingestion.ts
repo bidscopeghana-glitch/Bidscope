@@ -5,7 +5,7 @@ import { slugify, stableHash } from "./safety.ts";
 import type { NormalizedAward, NormalizedOpportunity, NormalizedProject, ProcurementSource } from "./types.ts";
 
 type IngestionTotals = { fetched: number; inserted: number; updated: number; duplicates: number; failed: number; errors: string[] };
-const amendmentFields = ["title","deadline_at","estimated_value","currency","eligibility_text","eligibility_status","documents_url","procurement_method","contract_type","category","buyer_name","contact_email","contact_phone","official_tender_url","official_submission_url","submission_method","status","summary","description"] as const;
+const amendmentFields = ["title","deadline_at","opening_at","clarification_deadline_at","estimated_value","currency","eligibility_text","eligibility_status","documents_url","procurement_method","contract_type","category","buyer_name","contact_email","contact_phone","contact_address","official_tender_url","official_submission_url","submission_method","submission_instructions","qualification_requirements","bid_security_requirement","participation_fee_amount","participation_fee_currency","procurement_codes","lots","source_details","status","summary","description"] as const;
 export function changeSeverity(fields:string[]){if(fields.some(field=>["status","deadline_at","eligibility_status","eligibility_text","official_submission_url"].includes(field)))return "CRITICAL";if(fields.some(field=>["estimated_value","currency","documents_url","procurement_method","buyer_name","contract_type"].includes(field)))return "IMPORTANT";return "INFORMATIONAL";}
 
 function safe(value: string) { return encodeURIComponent(value.replace(/[(),*]/g, " ")); }

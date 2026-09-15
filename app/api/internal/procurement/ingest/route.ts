@@ -40,7 +40,10 @@ export async function POST(request: Request) {
           registration_url: record.registrationUrl || null, funding_source: record.fundingSource, funding_agency: record.fundingAgency || null,
           eligibility_text: record.eligibilityText || null, eligibility_country: record.eligibilityCountry || null,
           documents_url: record.documentsUrl || null, contact_name: record.contactName || null, contact_email: record.contactEmail || null,
-          contact_phone: record.contactPhone || null, last_source_update: new Date().toISOString(), last_verified_at: new Date().toISOString(),
+          contact_phone: record.contactPhone || null, contact_address: null, opening_at: null, clarification_deadline_at: null,
+          bid_validity_days: null, participation_fee_amount: null, participation_fee_currency: null, bid_security_requirement: null,
+          procurement_codes: [], lots: [], submission_instructions: null, qualification_requirements: null, source_details: {},
+          quality_score: 60, rejection_reason: null, last_source_update: new Date().toISOString(), last_verified_at: new Date().toISOString(),
           data_confidence: source.trust_level === "VERIFIED_OFFICIAL" ? "VERIFIED_OFFICIAL_SOURCE" : source.trust_level === "OFFICIAL" ? "OFFICIAL_SOURCE" : source.trust_level === "PUBLIC" ? "PUBLIC_SOURCE" : "NEEDS_REVIEW",
           verification_status: source.trust_level === "VERIFIED_OFFICIAL" ? "VERIFIED" : source.trust_level === "OFFICIAL" ? "OFFICIAL" : "NEEDS_REVIEW",
           raw_source_hash: hash, document_fingerprint: stableHash([record.externalReference, title, deadline, record.estimatedValue]), raw_payload: record.rawPayload,
@@ -51,4 +54,3 @@ export async function POST(request: Request) {
     return Response.json({ results }, { status: 202 });
   } catch (error) { return apiErrorResponse(error); }
 }
-

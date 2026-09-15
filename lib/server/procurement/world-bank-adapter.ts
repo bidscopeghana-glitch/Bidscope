@@ -49,7 +49,7 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
 
   async fetchOpportunities() {
     const pageSize = Math.max(1, Math.min(Number(process.env.WORLD_BANK_PAGE_SIZE || 100), 100));
-    const maxPages = Math.max(1, Math.min(Number(process.env.WORLD_BANK_MAX_PAGES || 1), 100));
+    const maxPages = Math.max(1, Math.min(Number(process.env.WORLD_BANK_MAX_PAGES || 5), 100));
     const found = new Map<string, WorldBankRaw>();
     const firstPage = await this.fetchNoticePage(0, pageSize);
     for (let page = 0; page < maxPages; page += 1) {
@@ -99,6 +99,12 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
       requires_registration: false, registration_url: null, funding_source: "World Bank", funding_agency: "World Bank Group",
       eligibility_text: stripImportedHtml(stringValue(raw, "eligibility", "eligibility_text") || "", 1000) || null, eligibility_country: country, documents_url: officialUrl,
       contact_name: stripImportedHtml(stringValue(raw, "contact_name") || "", 300) || null, contact_email: stripImportedHtml(stringValue(raw, "contact_email") || "", 320) || null, contact_phone: stripImportedHtml(stringValue(raw, "contact_phone", "contact_tel") || "", 100) || null,
+      contact_address: stripImportedHtml(stringValue(raw, "contact_address", "address") || "", 1000) || null,
+      opening_at: null, clarification_deadline_at: null, bid_validity_days: null, participation_fee_amount: null, participation_fee_currency: null,
+      bid_security_requirement: null, procurement_codes: [stringValue(raw, "procurement_group_code", "procurement_group")].filter((value): value is string => Boolean(value)), lots: [],
+      submission_instructions: stripImportedHtml(stringValue(raw, "submission_method", "submission_instructions") || "", 2000) || null,
+      qualification_requirements: stripImportedHtml(stringValue(raw, "eligibility", "qualification_requirements") || "", 3000) || null,
+      source_details: { projectId, noticeType, procurementGroup: group }, quality_score: 75, rejection_reason: null,
       last_source_update: now, last_verified_at: now, data_confidence: "VERIFIED_OFFICIAL_SOURCE", verification_status: "VERIFIED",
       raw_source_hash: stableHash(raw), document_fingerprint: stableHash([reference, title, deadline]), raw_payload: raw,
     };
