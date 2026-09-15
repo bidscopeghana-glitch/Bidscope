@@ -31,3 +31,14 @@ test("production routes publish indexing and baseline security controls", () => 
   assert.match(read("app/robots.ts"), /sitemap\.xml/);
   assert.match(read("app/sitemap.ts"), /\/opportunities/);
 });
+
+test("administrator control is restricted to the builder identity and database flag",()=>{
+  const auth=read("lib/server/auth.ts");
+  const session=read("app/api/admin/session/route.ts");
+  const shell=read("app/admin/command-centre/admin-shell.tsx");
+  assert.match(auth,/BIDSCOPE_ADMIN_EMAIL = "basintaleuk@gmail\.com"/);
+  assert.match(auth,/authenticated\.user\.email\.trim\(\)\.toLowerCase\(\) !== BIDSCOPE_ADMIN_EMAIL/);
+  assert.match(auth,/is_super_admin/);
+  assert.match(session,/requireSuperAdmin\(request\)/);
+  assert.match(shell,/\/api\/admin\/session/);
+});

@@ -1,21 +1,19 @@
 import {ApiError} from "./api-error.ts";
 import {supabaseRest,supabaseRpc} from "./supabase-rest.ts";
-import type {AuthenticatedUser} from "./auth.ts";
+import {BIDSCOPE_ADMIN_EMAIL,type AuthenticatedUser} from "./auth.ts";
 
 export const PREMIUM_FEATURES=["advanced_feed","best_match","advanced_matching","smart_alerts","follow_buyers","buyer_intelligence","bid_advisor","procurement_radar","change_monitoring","readiness_score","tender_intelligence_report","ai_assistant","bid_workspace","international_eligibility","market_intelligence","csv_exports","multi_recipient_alerts"] as const;
 export type EntitlementFeature=typeof PREMIUM_FEATURES[number];
 export type SubscriptionStatus="FREE"|"PENDING"|"ACTIVE"|"PAST_DUE"|"GRACE_PERIOD"|"CANCEL_AT_PERIOD_END"|"CANCELLED"|"EXPIRED"|"PAYMENT_FAILED"|"INCOMPLETE";
 type Plan={code:string;tier:"FREE"|"PREMIUM";name:string;description:string;billing_interval:string;payment_kind:string;currency:string;amount_minor:number|null;provider_plan_code:string|null;features:Record<string,boolean>;limits:Record<string,number>;access_days:number|null;activation_status:string;enabled:boolean};
 type Subscription={id:string;organization_id:string;plan_code:string;status:SubscriptionStatus;provider:string;provider_customer_code:string|null;provider_subscription_code:string|null;provider_plan_code:string|null;billing_interval:string|null;currency:string|null;amount_minor:number|null;started_at:string|null;current_period_starts_at:string|null;current_period_ends_at:string|null;cancel_at_period_end:boolean;cancelled_at:string|null;last_payment_at:string|null;next_payment_at:string|null;grace_period_end:string|null;payment_method_summary:Record<string,unknown>;metadata:Record<string,unknown>};
-const BUILDER_ADMIN_EMAIL="basintaleuk@gmail.com";
-
 export async function primaryOrganization(userId:string){const{data}=await supabaseRest<Array<{organization_id:string;role:string}>>(`organization_members?select=organization_id,role&user_id=eq.${userId}&order=created_at.asc&limit=1`);return data[0]||null;}
 export async function listBillingPlans(){const{data}=await supabaseRest<Plan[]>("billing_plans?select=*&order=amount_minor.asc.nullslast");return data;}
 async function planByCode(code:string){const{data}=await supabaseRest<Plan[]>(`billing_plans?select=*&code=eq.${encodeURIComponent(code)}&limit=1`);return data[0]||null;}
 function periodValid(subscription:Subscription,now=Date.now()){if(["ACTIVE","CANCEL_AT_PERIOD_END"].includes(subscription.status))return !subscription.current_period_ends_at||Date.parse(subscription.current_period_ends_at)>now;if(subscription.status==="GRACE_PERIOD")return Boolean(subscription.grace_period_end&&Date.parse(subscription.grace_period_end)>now);return false;}
 
 async function isBuilderAdmin(actor?:AuthenticatedUser){
- if(!actor||actor.email.trim().toLowerCase()!==BUILDER_ADMIN_EMAIL)return false;
+ if(!actor||actor.email.trim().toLowerCase()!==BIDSCOPE_ADMIN_EMAIL)return false;
  const{data}=await supabaseRest<Array<{is_super_admin:boolean}>>(`profiles?select=is_super_admin&id=eq.${actor.id}&limit=1`);
  return data[0]?.is_super_admin===true;
 }

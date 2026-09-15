@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Activity, AlertTriangle, CheckCircle2, Database, Pause, Play, RefreshCw } from "lucide-react";
+import {api} from "@/components/customer/data";
 
 type Run = { id:string; status:string; started_at:string; completed_at:string|null; records_fetched:number; ghana_opportunity_count?:number; project_count?:number; award_count?:number; inserted_count:number; updated_count:number; duplicate_count:number; failed_count:number; error_summary:string|null };
 type Source = { id:string; name:string; slug:string; organisation:string; base_url:string; integration_type:string; implementation_status:string; api_enabled:boolean; api_key_required:boolean; environment_key_name:string|null; sync_enabled:boolean; sync_frequency:string; last_sync_at:string|null; last_success_at:string|null; last_error:string|null; status:string; trust_level:string; runs?:Run[] };
@@ -16,35 +17,21 @@ export function SourceCommandCentre() {
 
   async function load() {
     try {
-      const token = localStorage.getItem("bidscope_access_token");
-      const endpoint = token ? "/api/admin/procurement-sources" : "/api/procurement-sources";
-      const response = await fetch(endpoint, { headers: token ? { Authorization:`Bearer ${token}` } : {} });
-      const body = await response.json() as { data:Source[]; error?:string };
-      if (!response.ok) throw new Error(body.error);
+      const body=await api<{data:Source[]}>("/api/admin/procurement-sources");
       setSources(body.data);
-      setMessage(token ? "" : "Read-only view. Sign in as Super Admin to use controls and view logs.");
+      setMessage("");
     } catch { setMessage("Source registry is unavailable until the database migration is applied."); }
   }
 
   useEffect(() => {
-    const token = localStorage.getItem("bidscope_access_token");
-    const endpoint = token ? "/api/admin/procurement-sources" : "/api/procurement-sources";
-    void fetch(endpoint, { headers:token ? { Authorization:`Bearer ${token}` } : {} }).then(async (response) => {
-      const body = await response.json() as { data:Source[]; error?:string };
-      if (!response.ok) throw new Error(body.error);
-      setSources(body.data); setMessage(token ? "" : "Read-only view. Sign in as Super Admin to use controls and view logs.");
-    }).catch(() => setMessage("Source registry is unavailable until the database migration is applied."));
+    void api<{data:Source[]}>("/api/admin/procurement-sources").then(body=>{setSources(body.data);setMessage("");}).catch(()=>setMessage("Source registry is unavailable until the database migration is applied."));
   }, []);
 
   async function action(source:Source, kind:"test"|"sync"|"toggle") {
-    const token = localStorage.getItem("bidscope_access_token");
-    if (!token) { setMessage("Super Admin sign-in is required for source controls."); return; }
     setBusy(`${source.slug}:${kind}`);
     try {
       const endpoint = kind === "test" ? `/api/admin/procurement-sources/${source.slug}/test` : kind === "sync" ? `/api/admin/procurement-sources/${source.slug}/sync` : `/api/admin/procurement-sources/${source.slug}`;
-      const response = await fetch(endpoint, { method:kind === "toggle" ? "PATCH" : "POST", headers:{ Authorization:`Bearer ${token}`, "Content-Type":"application/json" }, body:kind === "toggle" ? JSON.stringify({ status:source.status === "PAUSED" ? "ACTIVE" : "PAUSED", syncEnabled:source.status === "PAUSED" }) : undefined });
-      const body = await response.json() as { data?:{message?:string}; error?:string };
-      if (!response.ok) throw new Error(body.error || "Action failed");
+      const body=await api<{data?:{message?:string}}>(endpoint,kind === "toggle"?{status:source.status === "PAUSED" ? "ACTIVE" : "PAUSED",syncEnabled:source.status === "PAUSED"}:undefined,kind === "toggle"?"PATCH":"POST");
       setMessage(kind === "test" ? body.data?.message || "Connection checked." : `${source.name}: ${kind} completed.`);
       await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Action failed."); }

@@ -35,8 +35,8 @@ test("approved paid packages are connected to live Paystack plans",()=>{
 });
 test("builder access requires the exact authenticated email and database super-admin flag",()=>{
   assert.match(packageMigration,/where lower\(email\)='basintaleuk@gmail\.com'/);
-  assert.match(entitlements,/BUILDER_ADMIN_EMAIL="basintaleuk@gmail\.com"/);
-  assert.match(entitlements,/actor\.email\.trim\(\)\.toLowerCase\(\)!==BUILDER_ADMIN_EMAIL/);
+  assert.match(entitlements,/BIDSCOPE_ADMIN_EMAIL/);
+  assert.match(entitlements,/actor\.email\.trim\(\)\.toLowerCase\(\)!==BIDSCOPE_ADMIN_EMAIL/);
   assert.match(entitlements,/is_super_admin===true/);
   assert.match(entitlements,/adminOverride:true/);
 });

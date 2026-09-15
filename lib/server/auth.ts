@@ -3,6 +3,7 @@ import { supabaseConfiguration, supabaseRest } from "./supabase-rest";
 import { timingSafeEqual } from "node:crypto";
 
 export type AuthenticatedUser = { id: string; email: string };
+export const BIDSCOPE_ADMIN_EMAIL = "basintaleuk@gmail.com";
 
 export async function requireUser(request: Request): Promise<{ user: AuthenticatedUser; accessToken: string }> {
   const authorization = request.headers.get("authorization") || "";
@@ -36,9 +37,12 @@ export async function requireOrganizationMember(userId: string, organizationId: 
 
 export async function requireSuperAdmin(request: Request) {
   const authenticated = await requireUser(request);
+  if (authenticated.user.email.trim().toLowerCase() !== BIDSCOPE_ADMIN_EMAIL) {
+    throw new ApiError(403, "Administrator access is restricted.", "admin_access_denied");
+  }
   const query = new URLSearchParams({ select: "is_super_admin", id: `eq.${authenticated.user.id}`, limit: "1" });
   const { data } = await supabaseRest<Array<{ is_super_admin: boolean }>>(`profiles?${query}`);
-  if (!data[0]?.is_super_admin) throw new ApiError(403, "Super Admin access is required.", "admin_access_denied");
+  if (!data[0]?.is_super_admin) throw new ApiError(403, "Administrator access is restricted.", "admin_access_denied");
   return authenticated;
 }
 
