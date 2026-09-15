@@ -36,8 +36,8 @@ export async function POST(request: Request) {
     const { user } = await requireUser(request);
     const input = alertRuleSchema.parse(await request.json());
     await requireOrganizationMember(user.id, input.organizationId);
-    await requireResourceCapacity({organizationId:input.organizationId,limitKey:"tender_watches",table:"alert_rules"});
-    if(input.frequency==="instant")await requireEntitlement(input.organizationId,"smart_alerts");
+    await requireResourceCapacity({organizationId:input.organizationId,limitKey:"tender_watches",table:"alert_rules",actor:user});
+    if(input.frequency==="instant")await requireEntitlement(input.organizationId,"smart_alerts",user);
     const { data } = await supabaseRest<unknown[]>("alert_rules", {
       method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row(input, user.id)),
     });

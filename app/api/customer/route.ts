@@ -26,7 +26,7 @@ const preparationSchema = z.object({
   deadlines:z.array(z.object({label:z.string().max(200),date:z.string().refine(v=>!Number.isNaN(Date.parse(v)))})).max(50),
 });
 const recipientsSchema=z.array(z.string().trim().toLowerCase().email().max(320)).max(5).transform(values=>[...new Set(values)]);
-async function validateAlertRecipients(userId:string,recipients:string[]){const membership=await primaryOrganization(userId);if(!membership)throw new ApiError(400,"Create a business profile before adding alert recipients.","profile_required");const entitlement=await getEntitlement(membership.organization_id);const limit=Math.max(1,getPlanLimit(entitlement,"alert_recipients"));if(recipients.length>limit)throw new ApiError(402,`Your plan supports ${limit} alert recipient${limit===1?"":"s"}. Upgrade to add more.`,"plan_limit_reached");if(recipients.length>1&&!entitlement.features.multi_recipient_alerts)throw new ApiError(402,"Multi-recipient alerts require BidScope Intelligence or Business.","premium_required");return recipients;}
+async function validateAlertRecipients(user:{id:string;email:string},recipients:string[]){const membership=await primaryOrganization(user.id);if(!membership)throw new ApiError(400,"Create a business profile before adding alert recipients.","profile_required");const entitlement=await getEntitlement(membership.organization_id,user);const limit=Math.max(1,getPlanLimit(entitlement,"alert_recipients"));if(recipients.length>limit)throw new ApiError(402,`Your plan supports ${limit} alert recipient${limit===1?"":"s"}. Upgrade to add more.`,"plan_limit_reached");if(recipients.length>1&&!entitlement.features.multi_recipient_alerts)throw new ApiError(402,"Multi-recipient alerts require BidScope Premium or Platinum.","premium_required");return recipients;}
 export async function GET(request:Request) {
   try {
     const {user}=await requireUser(request); const params=new URL(request.url).searchParams;
@@ -67,10 +67,10 @@ export async function POST(request:Request) {
     }
     if(resource==="recent") {const opportunityId=uuid.parse(body.opportunityId);const viewedAt=new Date().toISOString();await Promise.all([supabaseRest("customer_recent_opportunities?on_conflict=user_id,opportunity_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,opportunity_id:opportunityId,viewed_at:viewedAt})}),supabaseRest("customer_preferences?on_conflict=user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,last_opportunity_seen_at:viewedAt,updated_at:viewedAt})}),supabaseRest("analytics_events",{method:"POST",body:JSON.stringify({user_id:user.id,opportunity_id:opportunityId,event_name:"MATCH_OPENED",metadata:{surface:"customer_opportunity"}})})]);}
     if(resource==="searches") {
-      const name=z.string().trim().min(1).max(160).parse(body.name);const filters=filtersSchema.parse(body.filters);const frequency=z.enum(["instant","daily","weekly"]).default("daily").parse(body.frequency);const recipients=await validateAlertRecipients(user.id,recipientsSchema.default([]).parse(body.deliveryRecipients));
+      const name=z.string().trim().min(1).max(160).parse(body.name);const filters=filtersSchema.parse(body.filters);const frequency=z.enum(["instant","daily","weekly"]).default("daily").parse(body.frequency);const recipients=await validateAlertRecipients(user,recipientsSchema.default([]).parse(body.deliveryRecipients));
       const membership=await primaryOrganization(user.id);if(!membership)throw new ApiError(400,"Create a business profile before saving a Tender Watch.","profile_required");
-      await requireUserResourceCapacity({userId:user.id,organizationId:membership.organization_id,limitKey:"tender_watches",table:"customer_saved_searches"});
-      if(frequency==="instant")await requireEntitlement(membership.organization_id,"smart_alerts");
+      await requireUserResourceCapacity({userId:user.id,organizationId:membership.organization_id,limitKey:"tender_watches",table:"customer_saved_searches",actor:user});
+      if(frequency==="instant")await requireEntitlement(membership.organization_id,"smart_alerts",user);
       await supabaseRest("customer_saved_searches",{method:"POST",body:JSON.stringify({user_id:user.id,name,filters,frequency,alerts_enabled:false,delivery_recipients:recipients})});
     }
     if(resource==="preparation") {
@@ -91,8 +91,8 @@ export async function POST(request:Request) {
 }
 export async function PATCH(request:Request){
   try{const {user}=await requireUser(request);const input=z.object({id:uuid,alertsEnabled:z.boolean(),frequency:z.enum(["instant","daily","weekly"]).optional(),deliveryRecipients:recipientsSchema.optional()}).parse(await request.json());
-    if(input.frequency==="instant"){const membership=await primaryOrganization(user.id);if(!membership)throw new ApiError(400,"Create a business profile before enabling immediate alerts.","profile_required");await requireEntitlement(membership.organization_id,"smart_alerts");}
-    const recipients=input.deliveryRecipients?await validateAlertRecipients(user.id,input.deliveryRecipients):undefined;
+    if(input.frequency==="instant"){const membership=await primaryOrganization(user.id);if(!membership)throw new ApiError(400,"Create a business profile before enabling immediate alerts.","profile_required");await requireEntitlement(membership.organization_id,"smart_alerts",user);}
+    const recipients=input.deliveryRecipients?await validateAlertRecipients(user,input.deliveryRecipients):undefined;
     const {data}=await supabaseRest<unknown[]>(`customer_saved_searches?id=eq.${input.id}&user_id=eq.${user.id}`,{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({alerts_enabled:input.alertsEnabled,...(input.frequency?{frequency:input.frequency}:{}),...(recipients?{delivery_recipients:recipients}:{})})});
     if(!data.length)throw new ApiError(404,"Saved search not found.","not_found");return Response.json({data:data[0]});
   }catch(error){return apiErrorResponse(error);}

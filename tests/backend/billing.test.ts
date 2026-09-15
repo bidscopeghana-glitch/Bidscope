@@ -5,9 +5,10 @@ import {readFileSync} from "node:fs";
 import {isValidPaystackSignature} from "../../lib/server/paystack-signature.ts";
 
 const migration=readFileSync("supabase/migrations/20260914170000_free_premium_paystack.sql","utf8");
-const packageMigration=readFileSync("supabase/migrations/20260915125337_expand_subscription_packages.sql","utf8");
+const packageMigration=readFileSync("supabase/migrations/20260915151119_configure_pro_premium_platinum.sql","utf8");
 const checkout=readFileSync("app/api/billing/checkout/route.ts","utf8");
 const adminSubscriptions=readFileSync("app/api/admin/subscriptions/route.ts","utf8");
+const entitlements=readFileSync("lib/server/entitlements.ts","utf8");
 const webhook=readFileSync("app/api/payments/paystack/webhook/route.ts","utf8");
 const paystack=readFileSync("lib/server/paystack.ts","utf8");
 
@@ -18,16 +19,24 @@ test("webhook and callback always verify on the server",()=>{const signatureSour
 test("authenticated clients cannot mutate billing authority tables",()=>{assert.doesNotMatch(migration,/grant (insert|update|delete)[^;]*(billing_plans|payment_transactions|subscriptions)/i);assert.match(migration,/grant select on public\.billing_plans,public\.payment_transactions/);});
 test("production plans remain inactive without real pricing",()=>{assert.match(migration,/amount_minor[^\n]*null/);assert.match(migration,/PRICING_CONFIGURATION_REQUIRED/);assert.match(migration,/false\)/);});
 test("three paid package levels have monthly and annual prices",()=>{
-  for(const code of ["professional_monthly","professional_annual","intelligence_monthly","intelligence_annual","business_monthly","business_annual"]){
+  for(const code of ["pro_monthly","pro_annual","premium_monthly","premium_annual","platinum_monthly","platinum_annual"]){
     assert.match(packageMigration,new RegExp(`'${code}'`));
     assert.match(checkout,new RegExp(`"${code}"`));
     assert.match(adminSubscriptions,new RegExp(`"${code}"`));
   }
-  for(const amount of ["29500","295000","45000","450000","60000","600000"]){
-    assert.match(packageMigration,new RegExp(`,${amount},null`));
+  for(const amount of ["50000","500000","100000","1000000","150000","1500000"]){
+    assert.match(packageMigration,new RegExp(`,${amount},'PLN_[a-z0-9]+'`));
   }
 });
-test("new paid packages remain disabled until Paystack plans are approved",()=>{
-  assert.equal((packageMigration.match(/'PRICING_CONFIGURATION_REQUIRED',false\)/g)||[]).length,6);
-  assert.match(packageMigration,/where code in \('premium_monthly','premium_annual','premium_momo_30','premium_momo_365'\)/);
+test("approved paid packages are connected to live Paystack plans",()=>{
+  assert.equal((packageMigration.match(/'LIVE',true\)/g)||[]).length,6);
+  assert.equal((packageMigration.match(/'PLN_[a-z0-9]+'/g)||[]).length,6);
+  assert.match(packageMigration,/where tier='PREMIUM'/);
+});
+test("builder access requires the exact authenticated email and database super-admin flag",()=>{
+  assert.match(packageMigration,/where lower\(email\)='basintaleuk@gmail\.com'/);
+  assert.match(entitlements,/BUILDER_ADMIN_EMAIL="basintaleuk@gmail\.com"/);
+  assert.match(entitlements,/actor\.email\.trim\(\)\.toLowerCase\(\)!==BUILDER_ADMIN_EMAIL/);
+  assert.match(entitlements,/is_super_admin===true/);
+  assert.match(entitlements,/adminOverride:true/);
 });

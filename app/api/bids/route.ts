@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const input = bidTrackingSchema.parse(await request.json());
     const billingOrganization=input.organizationId||(await primaryOrganization(user.id))?.organization_id;
     if(!billingOrganization)throw new ApiError(400,"Create a business profile before using the bid workspace.","profile_required");
-    await requireOrganizationMember(user.id,billingOrganization);await requireEntitlement(billingOrganization,"bid_workspace");
+    await requireOrganizationMember(user.id,billingOrganization);await requireEntitlement(billingOrganization,"bid_workspace",user);
     const now = new Date().toISOString();
     const timestamps = input.status === "PREPARING" ? { preparation_started_at: now } : input.status === "OFFICIAL_SUBMISSION_OPENED" ? { official_submission_opened_at: now } : input.status === "SUBMITTED" ? { submitted_at: now } : {};
     const body = { user_id: user.id, organization_id: billingOrganization, opportunity_id: input.opportunityId, status: input.status, submission_reference: input.submissionReference || null, outcome: input.outcome || null, notes: input.notes, ...timestamps };

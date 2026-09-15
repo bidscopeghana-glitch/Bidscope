@@ -9,70 +9,61 @@ type LivePlan = { code: string; enabled: boolean; activation_status: string; amo
 
 const packages = [
   {
-    id: "free", name: "Free", eyebrow: "Explore",
-    summary: "Verify the quality of BidScope opportunities before you pay.",
-    monthly: 0, annual: 0, monthlyCode: "free", annualCode: "free", featured: false,
+    id: "pro", name: "Pro", eyebrow: "Discover & monitor",
+    summary: "For businesses that need reliable opportunity discovery and daily monitoring.",
+    monthly: 500, annual: 5000, monthlyCode: "pro_monthly", annualCode: "pro_annual", featured: false,
     features: [
-      "Live Ghana and international opportunity listings",
-      "Unlimited keyword and buyer search",
-      "Official source links and core tender details",
-      "Published award and archive browsing",
-      "5 saved opportunities and 1 Tender Watch",
-      "3 basic AI checks each month",
-    ],
-  },
-  {
-    id: "professional", name: "Professional", eyebrow: "Monitor",
-    summary: "For a business that wants relevant opportunities delivered and tracked.",
-    monthly: 295, annual: 2950, monthlyCode: "professional_monthly", annualCode: "professional_annual", featured: false,
-    features: [
-      "Everything in Free",
+      "Live Ghana and eligible international opportunities",
+      "Unlimited website access and keyword search",
+      "Official tender details, links, awards and archive",
       "Personalised opportunity matching and Best Match",
       "Daily email alerts and immediate in-app alerts",
-      "Deadline, buyer and tender-change monitoring",
-      "10 Tender Watches, 25 buyer follows and 100 saves",
+      "10 Tender Watches, 25 buyer follows and 100 saved opportunities",
       "30 AI checks per month",
     ],
   },
   {
-    id: "intelligence", name: "Intelligence", eyebrow: "Decide",
-    summary: "For serious bidders who need evidence before committing time and money.",
-    monthly: 450, annual: 4500, monthlyCode: "intelligence_monthly", annualCode: "intelligence_annual", featured: true,
+    id: "premium", name: "Premium", eyebrow: "Qualify & decide",
+    summary: "For serious bidders who need deeper intelligence before committing resources.",
+    monthly: 1000, annual: 10000, monthlyCode: "premium_monthly", annualCode: "premium_annual", featured: true,
     features: [
-      "Everything in Professional",
+      "Everything in Pro",
       "Bid / No-Bid and eligibility analysis",
       "Buyer, award and market intelligence",
       "Readiness scoring and tender intelligence reports",
-      "50 Tender Watches, 100 buyer follows and 500 saves",
+      "CSV opportunity exports and multi-recipient alerts",
+      "50 Tender Watches, 100 buyer follows and 500 saved opportunities",
       "300 AI analyses per month",
     ],
   },
   {
-    id: "business", name: "Business", eyebrow: "Prepare",
-    summary: "For organisations running a larger, repeatable bidding operation.",
-    monthly: 600, annual: 6000, monthlyCode: "business_monthly", annualCode: "business_annual", featured: false,
+    id: "platinum", name: "Platinum", eyebrow: "Prepare & collaborate",
+    summary: "For organisations managing a larger, repeatable bidding operation.",
+    monthly: 1500, annual: 15000, monthlyCode: "platinum_monthly", annualCode: "platinum_annual", featured: false,
     features: [
-      "Everything in Intelligence",
+      "Everything in Premium",
       "Full bid workspace, pipeline, documents and deadlines",
-      "Expanded opportunity and change monitoring",
-      "Highest save, watch and buyer-follow limits",
-      "2,000 saves, 200 Tender Watches and 500 buyer follows",
+      "Advanced change monitoring and procurement radar",
+      "Up to 5 workspace seats and 5 alert recipients",
+      "200 Tender Watches, 500 buyer follows and 2,000 saved opportunities",
       "1,200 AI analyses per month",
     ],
   },
 ] as const;
 
 const comparison = [
-  ["Live opportunities and official links", "Included", "Included", "Included", "Included"],
-  ["Keyword and buyer search", "Unlimited", "Unlimited", "Unlimited", "Unlimited"],
-  ["Daily email alerts", "—", "Included", "Included", "Included"],
-  ["Tender Watches", "1", "10", "50", "200"],
-  ["Saved opportunities", "5", "100", "500", "2,000"],
-  ["Best Match and advanced matching", "—", "Included", "Included", "Included"],
-  ["Awards and buyer intelligence", "Archive", "Archive", "Full intelligence", "Full intelligence"],
-  ["Bid / No-Bid and readiness", "—", "—", "Included", "Included"],
-  ["AI analysis allowance", "3 / month", "30 / month", "300 / month", "1,200 / month"],
-  ["Full bid workspace", "—", "—", "—", "Included"],
+  ["Live opportunities and official links", "Included", "Included", "Included"],
+  ["Keyword and buyer search", "Unlimited", "Unlimited", "Unlimited"],
+  ["Daily email and in-app alerts", "Included", "Included", "Included"],
+  ["Tender Watches", "10", "50", "200"],
+  ["Saved opportunities", "100", "500", "2,000"],
+  ["Best Match and advanced matching", "Included", "Included", "Included"],
+  ["Awards and buyer intelligence", "Archive", "Full intelligence", "Full intelligence"],
+  ["Bid / No-Bid and readiness", "—", "Included", "Included"],
+  ["CSV exports and multiple alert recipients", "—", "Included", "Included"],
+  ["Team seats", "1", "3", "5"],
+  ["AI analysis allowance", "30 / month", "300 / month", "1,200 / month"],
+  ["Full bid workspace", "—", "—", "Included"],
 ] as const;
 
 function money(value: number) {
@@ -80,7 +71,7 @@ function money(value: number) {
 }
 
 export function PlansClient() {
-  const [cycle, setCycle] = useState<BillingCycle>("annual");
+  const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [livePlans, setLivePlans] = useState<LivePlan[]>([]);
 
   useEffect(() => {
@@ -109,11 +100,11 @@ export function PlansClient() {
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-5 px-5 py-10 md:grid-cols-2 xl:grid-cols-4">
+      <section className="mx-auto grid max-w-7xl gap-5 px-5 py-10 md:grid-cols-3">
         {packages.map((plan) => {
           const code = cycle === "annual" ? plan.annualCode : plan.monthlyCode;
           const price = cycle === "annual" ? plan.annual : plan.monthly;
-          const ready = plan.id === "free" || liveCodes.has(code);
+          const ready = liveCodes.has(code);
           return (
             <article key={plan.id} className={`relative flex min-h-full flex-col rounded-[26px] border p-6 ${plan.featured ? "border-[#185e46] bg-white shadow-[0_24px_70px_rgba(20,65,51,.15)]" : "border-[#17362d]/10 bg-white"}`}>
               {plan.featured && <span className="absolute right-5 top-5 inline-flex items-center gap-1 rounded-full bg-[#e3f3eb] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#116149]"><Sparkles size={12}/>Best value</span>}
@@ -124,13 +115,12 @@ export function PlansClient() {
                 <strong className="text-3xl tracking-[-.04em]">{money(price)}</strong>
                 <span className="ml-1 text-sm text-[#6c7c74]">/{cycle === "annual" ? "year" : "month"}</span>
                 {cycle === "annual" && price > 0 && <p className="mt-1 text-xs text-[#6c7c74]">Equivalent to {money(Math.round(price / 12))} per month</p>}
-                {price === 0 && <p className="mt-1 text-xs text-[#6c7c74]">No card required</p>}
               </div>
               <ul className="mt-6 flex-1 space-y-3">
                 {plan.features.map((feature) => <li className="flex gap-2.5 text-sm leading-5 text-[#38594e]" key={feature}><Check className="mt-0.5 shrink-0 text-[#16805e]" size={16}/><span>{feature}</span></li>)}
               </ul>
-              <Link className={`mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-sm font-bold ${plan.featured ? "bg-[#185e46] text-white" : "border border-[#17362d]/18 text-[#17362d]"}`} href={plan.id === "free" ? "/sign-in" : "/customer/billing"}>
-                {plan.id === "free" ? "Create free account" : ready ? `Choose ${plan.name}` : "Preview package"}<ArrowRight size={16}/>
+              <Link className={`mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-sm font-bold ${plan.featured ? "bg-[#185e46] text-white" : "border border-[#17362d]/18 text-[#17362d]"}`} href="/customer/billing">
+                {ready ? `Choose ${plan.name}` : "Preview package"}<ArrowRight size={16}/>
               </Link>
               {!ready && <p className="mt-3 text-center text-[11px] font-semibold text-[#8a6a2d]">Checkout activates after package approval</p>}
             </article>
@@ -155,7 +145,7 @@ export function PlansClient() {
 
       <section className="mx-auto max-w-7xl px-5 pb-16">
         <div className="grid gap-5 rounded-[26px] bg-[#17362d] p-7 text-white md:grid-cols-[1fr_auto] md:items-center md:p-9">
-          <div><div className="flex items-center gap-2 text-[#8ce0bd]"><ShieldCheck size={19}/><span className="text-xs font-bold uppercase tracking-[.15em]">Truthful packaging</span></div><h2 className="serif mt-3 text-3xl">No invented service promises.</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-white/68">BidScope currently sells one business account per package. Five-seat administration, hosted document downloads, 24/7 support and dedicated account management will only appear after those services are operational.</p></div>
+          <div><div className="flex items-center gap-2 text-[#8ce0bd]"><ShieldCheck size={19}/><span className="text-xs font-bold uppercase tracking-[.15em]">Truthful packaging</span></div><h2 className="serif mt-3 text-3xl">Clear features. Verifiable sources.</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-white/68">Every package is governed by server-side feature permissions and usage limits. Formal submissions still take place through the issuing authority’s official procurement system.</p></div>
           <Link href="/opportunities" className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-5 text-sm font-bold text-[#17362d]">Explore opportunities<ArrowRight size={16}/></Link>
         </div>
       </section>

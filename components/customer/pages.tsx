@@ -436,9 +436,9 @@ function ReadinessPage() {
   );
 }
 const CURRENT_BILLING_PLAN_CODES = new Set([
-  "professional_monthly", "professional_annual",
-  "intelligence_monthly", "intelligence_annual",
-  "business_monthly", "business_annual",
+  "pro_monthly", "pro_annual",
+  "premium_monthly", "premium_annual",
+  "platinum_monthly", "platinum_annual",
 ]);
 
 function BillingPage() {
@@ -463,6 +463,8 @@ function BillingPage() {
       entitlement: {
         tier: string;
         status: string;
+        adminOverride: boolean;
+        plan: { name: string };
         subscription: {
           billing_interval: string | null;
           amount_minor: number | null;
@@ -534,13 +536,12 @@ function BillingPage() {
             <section className="cc-editor cc-billing-summary">
               <p className="cc-eyebrow">CURRENT PLAN</p>
               <h2>
-                {entitlement?.tier === "PREMIUM"
-                  ? "BidScope Premium"
-                  : "BidScope Free"}
+                {entitlement?.plan?.name || "BidScope Free"}
               </h2>
               <p>
                 Status: <strong>{entitlement?.status || "FREE"}</strong>
               </p>
+              {entitlement?.adminOverride && <p className="cc-quiet">Builder administrator access · all features enabled · no subscription required</p>}
               {entitlement?.subscription && (
                 <div className="cc-billing-facts">
                   <span>
@@ -1208,7 +1209,7 @@ function TeamPage(){
   return <><Heading title="Team workspace" description="Give colleagues controlled access to your procurement workspace."/>
   {invite&&<section className="cc-brief"><div><p className="cc-eyebrow">WORKSPACE INVITATION</p><h2>Accept your BidScope invitation</h2><p>The invitation is tied to the email address that received it.</p><div><button className="cc-button primary" onClick={()=>void api("/api/team",{action:"accept",token:invite}).then(()=>{toast("Invitation accepted.");invalidate();window.history.replaceState({},"","/customer/team");}).catch(error=>toast((error as Error).message))}>Accept invitation</button></div></div></section>}
   {r.loading?<Skeleton/>:r.error?<p className="cc-error">{r.error}</p>:r.data&&<><section className="cc-editor"><div className="cc-team-heading"><div><h2>Workspace members</h2><p className="cc-quiet">{r.data.data.used} of {r.data.data.limit} seats allocated, including pending invitations.</p></div><Link className="cc-button" href="/customer/billing">Compare team plans</Link></div>{r.data.data.members.map(member=><div className="cc-document-row" key={member.user_id}><div><strong>{member.profile?.full_name||member.profile?.email||"Workspace member"}</strong><p className="cc-quiet">{member.profile?.email}</p></div><span>{member.role}</span></div>)}</section>
-  {r.data.data.canManage&&<section className="cc-editor"><h2>Invite a teammate</h2><p className="cc-quiet">An email invitation expires after seven days. Intelligence supports up to three seats; Business supports up to five.</p><form className="cc-form-grid" onSubmit={async e=>{e.preventDefault();if(!organization)return;const form=new FormData(e.currentTarget);try{await api("/api/team",{action:"invite",organizationId:organization.id,email:form.get("email"),role:form.get("role")});(e.target as HTMLFormElement).reset();toast("Invitation sent.");invalidate();}catch(error){toast((error as Error).message);}}}><label>Email address<input name="email" type="email" required autoComplete="email" placeholder="colleague@company.com"/></label><label>Role<select name="role" defaultValue="member"><option value="member">Member</option><option value="admin">Administrator</option></select></label><button className="cc-button primary">Send secure invitation</button></form>{r.data.data.invitations.length>0&&<><h2 className="cc-subheading">Pending invitations</h2>{r.data.data.invitations.map(invitation=><div className="cc-document-row" key={invitation.id}><div><strong>{invitation.email}</strong><p className="cc-quiet">{invitation.role} · expires {date(invitation.expires_at)}</p></div><button className="cc-button" onClick={()=>void api(`/api/team?id=${invitation.id}`,undefined,"DELETE").then(()=>{toast("Invitation revoked.");invalidate();}).catch(error=>toast((error as Error).message))}>Revoke</button></div>)}</>}</section>}</>}
+  {r.data.data.canManage&&<section className="cc-editor"><h2>Invite a teammate</h2><p className="cc-quiet">An email invitation expires after seven days. Premium supports up to three seats; Platinum supports up to five.</p><form className="cc-form-grid" onSubmit={async e=>{e.preventDefault();if(!organization)return;const form=new FormData(e.currentTarget);try{await api("/api/team",{action:"invite",organizationId:organization.id,email:form.get("email"),role:form.get("role")});(e.target as HTMLFormElement).reset();toast("Invitation sent.");invalidate();}catch(error){toast((error as Error).message);}}}><label>Email address<input name="email" type="email" required autoComplete="email" placeholder="colleague@company.com"/></label><label>Role<select name="role" defaultValue="member"><option value="member">Member</option><option value="admin">Administrator</option></select></label><button className="cc-button primary">Send secure invitation</button></form>{r.data.data.invitations.length>0&&<><h2 className="cc-subheading">Pending invitations</h2>{r.data.data.invitations.map(invitation=><div className="cc-document-row" key={invitation.id}><div><strong>{invitation.email}</strong><p className="cc-quiet">{invitation.role} · expires {date(invitation.expires_at)}</p></div><button className="cc-button" onClick={()=>void api(`/api/team?id=${invitation.id}`,undefined,"DELETE").then(()=>{toast("Invitation revoked.");invalidate();}).catch(error=>toast((error as Error).message))}>Revoke</button></div>)}</>}</section>}</>}
   </>;
 }
 function AIPage() {

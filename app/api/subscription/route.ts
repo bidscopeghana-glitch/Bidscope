@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const organizationId = new URL(request.url).searchParams.get("organizationId");
     if (!organizationId) throw new ApiError(400, "organizationId is required.", "validation_error");
     await requireOrganizationMember(user.id, organizationId);
-    const entitlement=await getEntitlement(organizationId);
+    const entitlement=await getEntitlement(organizationId,user);
     return Response.json({ data: {plan_code:entitlement.tier.toLowerCase(),status:entitlement.status,current_period_starts_at:entitlement.subscription?.current_period_starts_at||null,current_period_ends_at:entitlement.subscription?.current_period_ends_at||null,cancel_at_period_end:entitlement.subscription?.cancel_at_period_end||false,features:entitlement.features,limits:entitlement.limits} });
   } catch (error) {
     return apiErrorResponse(error);

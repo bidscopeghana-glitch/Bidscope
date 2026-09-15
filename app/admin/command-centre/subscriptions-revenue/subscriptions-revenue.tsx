@@ -2,7 +2,7 @@
 import {useEffect,useState} from "react";
 type Plan={code:string;name:string;amount_minor:number|null;provider_plan_code:string|null;activation_status:string;enabled:boolean;payment_kind:string};
 type Data={provider:{configured:boolean;mode:string};productionActivation:string;plans:Plan[];metrics:Record<string,number>;subscriptions:Array<{id:string;organization:{name:string};plan_code:string;status:string;current_period_ends_at:string|null;provider:string}>};
-const CURRENT_PLAN_CODES=new Set(["professional_monthly","professional_annual","intelligence_monthly","intelligence_annual","business_monthly","business_annual"]);
+const CURRENT_PLAN_CODES=new Set(["pro_monthly","pro_annual","premium_monthly","premium_annual","platinum_monthly","platinum_annual"]);
 export function SubscriptionsRevenue(){
  const[data,setData]=useState<Data|null>(null),[message,setMessage]=useState("Loading subscription operations…");
  async function load(){const token=localStorage.getItem("bidscope_access_token");if(!token){setMessage("Super Admin sign-in is required.");return;}const response=await fetch("/api/admin/subscriptions",{headers:{Authorization:`Bearer ${token}`}});const body=await response.json() as {data?:Data;error?:string};if(!response.ok||!body.data)throw new Error(body.error||"Subscription operations could not be loaded.");setData(body.data);setMessage("");}
