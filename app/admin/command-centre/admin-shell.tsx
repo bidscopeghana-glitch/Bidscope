@@ -3,7 +3,7 @@
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import {usePathname,useRouter} from "next/navigation";
-import {Activity,ArrowLeft,BarChart3,BellRing,ContactRound,CreditCard,Database,LayoutDashboard,LogOut,Menu,ShieldCheck,UsersRound,X} from "lucide-react";
+import {Activity,ArrowLeft,BarChart3,BellRing,BrainCircuit,ContactRound,CreditCard,Database,LayoutDashboard,LogOut,Menu,ShieldCheck,UsersRound,X} from "lucide-react";
 import {BrandLogo} from "@/components/brand/brand-logo";
 import {api,invalidate} from "@/components/customer/data";
 import {clearSession} from "@/lib/client/session";
@@ -15,6 +15,7 @@ const navigation=[
   ["Procurement sources","/admin/command-centre/procurement-data/sources",Database],
   ["Subscriptions & revenue","/admin/command-centre/subscriptions-revenue",CreditCard],
   ["Alerts & AI","/admin/command-centre/alerts-ai",BellRing],
+  ["AI control centre","/admin/ai",BrainCircuit],
   ["Outreach","/admin/outreach",ContactRound],
 ] as const;
 

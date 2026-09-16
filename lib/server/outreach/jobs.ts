@@ -183,6 +183,7 @@ async function importApproved(job: ImportJob) {
   }
   const prospects: Array<{
       id: string;
+      company_name: string;
       industry: string | null;
       country_code: string | null;
       source_row_number: number;
@@ -191,7 +192,7 @@ async function importApproved(job: ImportJob) {
     }> = [];
   for (let offset = 0; ; offset += 1000) {
     const { data: page } = await supabaseRest<typeof prospects>(
-      `prospects?source_file_id=eq.${encodeFilter(job.id)}&select=id,industry,country_code,source_row_number,tender_activity_count,award_count&order=source_row_number.asc&limit=1000&offset=${offset}`,
+      `prospects?source_file_id=eq.${encodeFilter(job.id)}&select=id,company_name,industry,country_code,source_row_number,tender_activity_count,award_count&order=source_row_number.asc&limit=1000&offset=${offset}`,
     );
     prospects.push(...page);
     if (page.length < 1000) break;
@@ -217,6 +218,8 @@ async function importApproved(job: ImportJob) {
       },
     );
   });
+  const ambiguous=prospects.filter(prospect=>!prospect.industry||prospect.industry==="Other");
+  await chunks(ambiguous,25,async rows=>{await supabaseRest("ai_jobs",{method:"POST",body:JSON.stringify({task_type:"company_classification",user_id:job.uploaded_by,priority:150,status:"queued",next_attempt_at:new Date().toISOString(),payload:{prospectIds:rows.map(row=>row.id),sourceImportId:job.id}})});});
   const segmentGroups = new Map<string, typeof prospects>();
   for (const prospect of prospects) {
     const key = `${prospect.country_code || "Global"}|${prospect.industry || "Other"}`;
@@ -273,6 +276,7 @@ async function importApproved(job: ImportJob) {
       ...result.summary,
       newProspects: prospects.length,
       segmentsCreated: segmentGroups.size,
+      aiClassificationQueued: ambiguous.length,
     },
   });
   await supabaseRest("audit_log", {

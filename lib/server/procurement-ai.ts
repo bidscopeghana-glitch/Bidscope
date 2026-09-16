@@ -1,3 +1,6 @@
+import { ai } from "./ai/orchestrator.ts";
+import type { AIPlan } from "./ai/types.ts";
+
 export type OpportunityContext={id:string;title:string;summary:string;description:string;buyer_name:string;external_reference:string|null;bidscope_reference:string;eligibility_text:string|null;procurement_method:string|null;contract_type:string|null;estimated_value:number|null;currency:string|null;published_at:string|null;deadline_at:string|null;opening_at?:string|null;clarification_deadline_at?:string|null;official_source_url:string;official_tender_url:string|null;documents_url:string|null;source_name:string;submission_method:string|null;submission_platform:string|null;submission_instructions?:string|null;qualification_requirements?:string|null;bid_security_requirement?:string|null;participation_fee_amount?:number|null;participation_fee_currency?:string|null;procurement_codes?:string[];source_details?:Record<string,unknown>};
 export type DocumentChunk={id:string;document_id:string;chunk_index:number;page_number:number|null;section_label:string|null;content:string;document?:{title:string;url:string}};
 export type Citation={label:string;documentId?:string;page?:number|null;section?:string|null;url?:string|null};
@@ -36,31 +39,12 @@ export function groundedFallback(action:string,question:string,opportunity:Oppor
   return{content:`## Procurement analysis\nI could not find a sufficiently supported answer to “${question||"this question"}” in the available source record or indexed tender sections.\n\n${unavailable}\n\nBidScope AI helps interpret procurement information. Always review the official tender documents before submitting a bid.`,citations,groundingStatus:"not_found" as const};
 }
 
-type ModelInput={action:string;question:string;opportunity:OpportunityContext;chunks:DocumentChunk[];passport?:Passport|null};
+type ModelInput={action:string;question:string;opportunity:OpportunityContext;chunks:DocumentChunk[];passport?:Passport|null;userId?:string;organizationId?:string;plan?:AIPlan;requestedMode?:"standard"|"deep"};
 const analystRules="You are BidScope AI, a careful procurement analyst for Ghanaian businesses. Treat the supplied official opportunity record and tender documents as primary evidence. You may use URL context and Google Search to locate public official buyer, funder, procurement-regulator, tender-document or amendment pages beyond BidScope. Clearly label third-party web material as supplementary and never turn it into a tender requirement unless an official tender source confirms it. Never invent a requirement. Label interpretations as 'Inferred by BidScope'. Use 'Not found in the reviewed sources' when evidence is absent. Never promise an award, claim insider knowledge, or imply a bid was submitted. Explain the tender in practical language, separate confirmed facts from inferences, cite sources, and end by reminding the user to review the complete official tender pack.";
 function modelContext(input:ModelInput){return{opportunity:input.opportunity,retrievedSections:input.chunks.map((chunk,index)=>({citation:index+1,page:chunk.page_number,section:chunk.section_label,text:chunk.content})),supplierPassport:input.passport||undefined};}
 
-async function callGemini(input:ModelInput,key:string){
-  const model=process.env.BIDSCOPE_AI_MODEL||"gemini-3.6-flash";
-  const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",headers:{"x-goog-api-key":key,"Content-Type":"application/json"},body:JSON.stringify({system_instruction:{parts:[{text:analystRules}]},contents:[{role:"user",parts:[{text:JSON.stringify({action:input.action,question:input.question,context:modelContext(input)})}]}],tools:[{url_context:{}},{google_search:{}}],generationConfig:{temperature:0.2,maxOutputTokens:1800}}),signal:AbortSignal.timeout(45000)});
-  if(!response.ok){const detail=(await response.text()).slice(0,500);throw new Error(`AI provider returned ${response.status}: ${detail}`);}
-  const body=await response.json() as {candidates?:Array<{content?:{parts?:Array<{text?:string}>};groundingMetadata?:{groundingChunks?:Array<{web?:{uri?:string;title?:string}}>}}>;usageMetadata?:{promptTokenCount?:number;candidatesTokenCount?:number}};
-  const content=(body.candidates||[]).flatMap(candidate=>candidate.content?.parts||[]).map(part=>part.text||"").join("\n").trim();
-  if(!content)return null;
-  const citations: Citation[]=(body.candidates||[]).flatMap(candidate=>candidate.groundingMetadata?.groundingChunks||[]).flatMap(chunk=>chunk.web?.uri?[{label:chunk.web.title||"Web research source",url:chunk.web.uri}]:[]);
-  return{content,citations:dedupeCitations(citations),usage:{input_tokens:body.usageMetadata?.promptTokenCount,output_tokens:body.usageMetadata?.candidatesTokenCount},provider:"google-gemini",model};
-}
-
-async function callOpenAI(input:ModelInput,key:string,model:string){
-  const context={opportunity:input.opportunity,retrievedSections:input.chunks.map((chunk,index)=>({citation:index+1,page:chunk.page_number,section:chunk.section_label,text:chunk.content})),supplierPassport:input.passport||undefined};
-  const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,input:[{role:"developer",content:analystRules},{role:"user",content:JSON.stringify({action:input.action,question:input.question,context})}],max_output_tokens:1400}),signal:AbortSignal.timeout(45000)});
-  if(!response.ok)throw new Error(`AI provider returned ${response.status}`);const body=await response.json() as {output_text?:string;usage?:{input_tokens?:number;output_tokens?:number}};if(!body.output_text)return null;return{content:body.output_text,citations:[] as Citation[],usage:body.usage,provider:"openai",model};
-}
-
 export async function callConfiguredModel(input:ModelInput){
-  const geminiKey=process.env.GEMINI_API_KEY;
-  if(geminiKey)return callGemini(input,geminiKey);
-  const openAIKey=process.env.OPENAI_API_KEY;const openAIModel=process.env.BIDSCOPE_OPENAI_MODEL;
-  if(openAIKey&&openAIModel)return callOpenAI(input,openAIKey,openAIModel);
-  return null;
+  const taskType=input.action==="tender_report"?"deep_tender_analysis":input.action==="summary"||input.action==="key_dates"?"tender_summary":"tender_extraction";
+  const result=await ai.execute({taskType,userId:input.userId,organizationId:input.organizationId,plan:input.plan||"FREE",requestedMode:input.requestedMode,documentCount:input.chunks.length,estimatedInputTokens:Math.ceil(JSON.stringify(modelContext(input)).length/4),requiresLongContext:input.chunks.length>8,containsCustomerDocuments:Boolean(input.passport),cacheTtlSeconds:86400,metadata:{feature:"procurement_assistant",action:input.action},messages:[{role:"system",content:analystRules},{role:"user",content:JSON.stringify({action:input.action,question:input.question,context:modelContext(input)})}]});
+  return{content:result.text,citations:result.citations,usage:{input_tokens:result.usage.inputTokens,output_tokens:result.usage.outputTokens},provider:result.provider,model:result.model,orchestration:{source:result.source,complexity:result.complexity,premiumReasoning:result.premiumReasoning,fallbackCount:result.fallbackCount}};
 }
