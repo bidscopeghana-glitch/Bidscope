@@ -23,7 +23,7 @@ abstract class BaseProvider implements AIProvider {
   async healthCheck(): Promise<{ status: AIHealth; latencyMs: number; detail?: string }> {
     if (!this.configured) return { status: "not_configured", latencyMs: 0 };
     const started=Date.now();
-    try { await this.generateText({ model:this.defaultModel, messages:[{role:"user",content:"Reply OK"}], maxOutputTokens:4, temperature:0 }); return {status:"active",latencyMs:Date.now()-started}; }
+    try { await this.generateText({ model:this.defaultModel, messages:[{role:"user",content:"Reply with only the word OK."}], maxOutputTokens:128, temperature:0 }); return {status:"active",latencyMs:Date.now()-started}; }
     catch(error){const detail=error instanceof Error?error.message:"Provider check failed";return{status:/401|403|key/i.test(detail)?"invalid_key":/429|rate/i.test(detail)?"rate_limited":"offline",latencyMs:Date.now()-started,detail:detail.slice(0,180)};}
   }
   protected ensureConfigured(){if(!this.key)throw new Error(`${this.id} is not configured`);return this.key;}
