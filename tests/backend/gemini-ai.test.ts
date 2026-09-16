@@ -18,3 +18,10 @@ test("Gemini interactions are private and retain grounded procurement rules",()=
   assert.match(source,/Not found in the reviewed sources/);
   assert.match(source,/review the official tender documents/);
 });
+
+test("AI route refreshes current official source content before analysis",()=>{
+  const route=readFileSync(new URL("../../app/api/ai/assistant/route.ts",import.meta.url),"utf8");
+  assert.match(route,/extractDocumentText/);
+  assert.match(route,/Live official source/);
+  assert.match(route,/Promise\.allSettled/);
+});
