@@ -90,7 +90,7 @@ export class BankOfGhanaAdapter extends GhanaAdapter {
 const ghanepsLabels = ["Name of Procuring Entity", "APP Reference Number", "Tender Unique ID", "Tender Title", "Description", "Requisition Number", "Procurement Type", "Grade Type", "Procurement Method", "Includes eCatalogue", "Commencement Type", "Procurement Technique", "Number of Stages", "Evaluation Mechanism", "Margin of Preference", "Framework Agreement Establishment", "Postqualification", "UNSPSC Codes", "Tender Participation Fees", "Payment Amount\\s*\\(GHS\\)", "Payment Terms and Method", "Bid Security Type", "Bid Security Amount Type", "Bid Security Amount\\s*\\(GHS\\)", "Contract Awarded in Lots", "Bid submission deadline date", "End of Clarification Period", "Bid Opening Date", "Date of Publication/Invitation", "Contract Notice Date"];
 export function parseGhanepsDetail(html: string) {
   const clean = decode(html); const fields: Record<string, string> = {};
-  for (let index = 0; index < ghanepsLabels.length; index += 1) { const label = ghanepsLabels[index]; const value = labelled(clean, label, ghanepsLabels.slice(index + 1)); if (value) fields[label.replace(/\\s\*\\s\*|\\\(|\\\)/g, "")] = value; }
+  for (let index = 0; index < ghanepsLabels.length; index += 1) { const label = ghanepsLabels[index]; const value = labelled(clean, label, ghanepsLabels.slice(index + 1)); if (value) fields[label.replace(/\\s\*|\\\(|\\\)/g, "").replace(/\s+/g," ").trim()] = value; }
   return { clean, fields };
 }
 
