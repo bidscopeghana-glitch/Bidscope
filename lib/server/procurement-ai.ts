@@ -41,7 +41,7 @@ const analystRules="You are BidScope AI, a careful procurement analyst for Ghana
 function modelContext(input:ModelInput){return{opportunity:input.opportunity,retrievedSections:input.chunks.map((chunk,index)=>({citation:index+1,page:chunk.page_number,section:chunk.section_label,text:chunk.content})),supplierPassport:input.passport||undefined};}
 
 async function callGemini(input:ModelInput,key:string){
-  const model=process.env.BIDSCOPE_AI_MODEL||"gemini-2.5-flash";
+  const model=process.env.BIDSCOPE_AI_MODEL||"gemini-3.6-flash";
   const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",headers:{"x-goog-api-key":key,"Content-Type":"application/json"},body:JSON.stringify({system_instruction:{parts:[{text:analystRules}]},contents:[{role:"user",parts:[{text:JSON.stringify({action:input.action,question:input.question,context:modelContext(input)})}]}],tools:[{url_context:{}},{google_search:{}}],generationConfig:{temperature:0.2,maxOutputTokens:1800}}),signal:AbortSignal.timeout(45000)});
   if(!response.ok){const detail=(await response.text()).slice(0,500);throw new Error(`AI provider returned ${response.status}: ${detail}`);}
   const body=await response.json() as {candidates?:Array<{content?:{parts?:Array<{text?:string}>};groundingMetadata?:{groundingChunks?:Array<{web?:{uri?:string;title?:string}}>}}>;usageMetadata?:{promptTokenCount?:number;candidatesTokenCount?:number}};
