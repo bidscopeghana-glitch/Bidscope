@@ -3,6 +3,7 @@
 # dependencies
 /node_modules
 /.npm-cache-task/
+/.npm-cache/
 /.responsive-checks/
 /.pnp
 .pnp.*
