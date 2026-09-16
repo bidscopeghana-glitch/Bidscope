@@ -6,8 +6,8 @@ export type ParsedSheet={headers:string[];rows:Record<string,unknown>[]};
 
 export function hashFile(buffer:Buffer){return createHash("sha256").update(buffer).digest("hex");}
 export function parseProspectFile(buffer:Buffer,fileType:"csv"|"xlsx"|"xls"):ParsedSheet{
-  void fileType;
-  const workbook=XLSX.read(buffer,{type:"buffer",raw:false,cellDates:true,codepage:65001});
+  const source=fileType==="csv"?Buffer.from(buffer.toString("utf8").replace(/^\uFEFF/,""),"utf8"):buffer;
+  const workbook=XLSX.read(source,{type:"buffer",raw:false,cellDates:true,codepage:65001});
   const first=workbook.SheetNames[0];
   if(!first)return{headers:[],rows:[]};
   const matrix=XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[first],{header:1,defval:"",blankrows:false,raw:false});

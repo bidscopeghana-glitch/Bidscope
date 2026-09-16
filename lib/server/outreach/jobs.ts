@@ -112,6 +112,7 @@ async function importApproved(job: ImportJob) {
   const accepted: Array<Record<string, unknown>> = [...grouped.values()].map(
     (row) => ({
       ...row.cleaned,
+      award_count: Number(row.cleaned.award_count || 0),
       source_file_id: job.id,
       source_row_number: row.rowNumber,
       source: String(row.cleaned.source || "File import"),
@@ -171,24 +172,30 @@ async function importApproved(job: ImportJob) {
       body: JSON.stringify(rows),
     });
   });
-  await chunks(withoutEmail, 250, async (rows) => {
-    await supabaseRest("prospects", {
-      method: "POST",
-      body: JSON.stringify(rows),
-    });
-  });
-  const { data: prospects } = await supabaseRest<
-    Array<{
+  for (const row of withoutEmail) {
+    const company = encodeFilter(String(row.normalized_company_name || ""));
+    const country = row.country_code ? `eq.${encodeFilter(String(row.country_code))}` : "is.null";
+    const { data: existing } = await supabaseRest<Array<{ id: string }>>(
+      `prospects?normalized_email=is.null&normalized_company_name=eq.${company}&country_code=${country}&select=id&limit=1`,
+    );
+    if (existing[0]) await supabaseRest(`prospects?id=eq.${encodeFilter(existing[0].id)}`, { method: "PATCH", body: JSON.stringify(row) });
+    else await supabaseRest("prospects", { method: "POST", body: JSON.stringify(row) });
+  }
+  const prospects: Array<{
       id: string;
       industry: string | null;
       country_code: string | null;
       source_row_number: number;
       tender_activity_count: number;
       award_count: number;
-    }>
-  >(
-    `prospects?source_file_id=eq.${encodeFilter(job.id)}&select=id,industry,country_code,source_row_number,tender_activity_count,award_count&limit=50000`,
-  );
+    }> = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data: page } = await supabaseRest<typeof prospects>(
+      `prospects?source_file_id=eq.${encodeFilter(job.id)}&select=id,industry,country_code,source_row_number,tender_activity_count,award_count&order=source_row_number.asc&limit=1000&offset=${offset}`,
+    );
+    prospects.push(...page);
+    if (page.length < 1000) break;
+  }
   const rawByRow = new Map(result.staged.map((row) => [row.rowNumber, row.raw]));
   await chunks(prospects, 400, async (rows) => {
     await supabaseRest(
