@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   BarChart3,
   CheckCircle2,
@@ -17,7 +18,9 @@ import {
   ShieldCheck,
   UploadCloud,
   UsersRound,
+  Eye,
 } from "lucide-react";
+import { useParams } from "next/navigation";
 import { api, invalidate, useData } from "@/components/customer/data";
 import { getValidAccessToken } from "@/lib/client/session";
 
@@ -498,7 +501,12 @@ type Campaign = {
   state: string;
   recipient_limit: number | null;
   campaign_recipients: Array<{ status: string }>;
-  campaign_steps: Array<unknown>;
+  campaign_steps: Array<{ id?: string; step_order?: number; delay_days?: number; subject?: string; html_body?: string; text_body?: string | null }>;
+  description?: string | null;
+  objective?: string | null;
+  cta_label?: string | null;
+  cta_url?: string | null;
+  created_at?: string | null;
 };
 export function OutreachCampaigns() {
   const result = useData<{ data: Campaign[] }>("/api/admin/outreach/campaigns"),
@@ -634,16 +642,17 @@ export function OutreachCampaigns() {
           return (
             <Card key={c.id}>
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
+                <Link href={`/admin/outreach/campaigns/${c.id}`} className="group min-w-[240px] rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[#16805e]">
                   <Status value={c.state} />
-                  <h2 className="mt-3 text-xl font-bold">{c.name}</h2>
+                  <h2 className="mt-3 text-xl font-bold group-hover:text-[#16805e]">{c.name}</h2>
                   <p className="mt-1 text-xs text-[#718078]">
                     {c.campaign_steps.length} steps ·{" "}
                     {counts.eligible || counts.active || 0} eligible ·{" "}
                     {counts.suppressed || 0} suppressed · limit{" "}
                     {c.recipient_limit || "none"}
                   </p>
-                </div>
+                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#16805e]"><Eye size={14}/> View campaign</span>
+                </Link>
                 <div className="flex flex-wrap gap-2">
                   {c.state === "draft" ? (
                     <button
@@ -695,6 +704,33 @@ export function OutreachCampaigns() {
       </div>
     </Shell>
   );
+}
+
+type CampaignDetailData = Campaign & {
+  campaign_recipients: Array<{ id: string; status: string; suppression_reason?: string | null; prospect_id?: string }>;
+};
+
+export function OutreachCampaignDetail() {
+  const { id } = useParams<{ id: string }>();
+  const result = useData<{ data: CampaignDetailData | null }>(id ? `/api/admin/outreach/campaigns/${id}` : "");
+  const campaign = result.data?.data;
+  if (result.loading) return <Shell><p className="text-sm text-[#64766e]">Loading campaign…</p></Shell>;
+  if (!campaign) return <Shell><Link href="/admin/outreach/campaigns" className="inline-flex items-center gap-2 text-sm font-bold text-[#16805e]"><ArrowLeft size={16}/> Back to campaigns</Link><Card className="mt-6"><p className="text-sm text-[#a43f2f]">Campaign could not be loaded.</p></Card></Shell>;
+  const counts = campaign.campaign_recipients.reduce<Record<string, number>>((a, r) => ((a[r.status] = (a[r.status] || 0) + 1), a), {});
+  return <Shell>
+    <Link href="/admin/outreach/campaigns" className="inline-flex items-center gap-2 text-sm font-bold text-[#16805e] hover:underline"><ArrowLeft size={16}/> Back to campaigns</Link>
+    <Header title={campaign.name} description={campaign.description || campaign.objective || "Review campaign configuration, delivery steps and audience readiness."} action={<Status value={campaign.state}/>} />
+    <div className="mt-6 grid gap-5 lg:grid-cols-[1.4fr_.8fr]">
+      <Card>
+        <h2 className="text-lg font-bold text-[#17362d]">Campaign sequence</h2>
+        <div className="mt-4 space-y-3">{campaign.campaign_steps.map((step, index) => <article key={step.id || index} className="rounded-2xl border border-[#17362d]/10 bg-white p-4"><div className="flex items-center justify-between gap-3"><span className="text-xs font-black uppercase tracking-wider text-[#16805e]">Step {step.step_order || index + 1}</span><span className="text-xs text-[#718078]">{step.delay_days || 0} day delay</span></div><h3 className="mt-2 font-bold">{step.subject || "Untitled email"}</h3><p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-[#64766e]">{step.html_body?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() || "No message content"}</p></article>)}</div>
+      </Card>
+      <div className="space-y-5">
+        <Card><h2 className="text-lg font-bold text-[#17362d]">Audience & delivery</h2><dl className="mt-4 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-[#718078]">Eligible</dt><dd className="mt-1 text-2xl font-bold">{counts.eligible || counts.active || 0}</dd></div><div><dt className="text-[#718078]">Suppressed</dt><dd className="mt-1 text-2xl font-bold">{counts.suppressed || 0}</dd></div><div><dt className="text-[#718078]">Sent</dt><dd className="mt-1 text-2xl font-bold">{counts.sent || counts.delivered || 0}</dd></div><div><dt className="text-[#718078]">Limit</dt><dd className="mt-1 text-2xl font-bold">{campaign.recipient_limit || "—"}</dd></div></dl></Card>
+        <Card><h2 className="text-lg font-bold text-[#17362d]">Campaign link</h2><p className="mt-2 break-all text-sm text-[#64766e]">{campaign.cta_url || "No destination configured"}</p>{campaign.cta_label ? <p className="mt-2 text-xs font-bold text-[#16805e]">Button: {campaign.cta_label}</p> : null}</Card>
+      </div>
+    </div>
+  </Shell>;
 }
 
 export function OutreachSettings() {
