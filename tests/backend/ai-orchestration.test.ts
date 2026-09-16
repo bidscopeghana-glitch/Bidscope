@@ -14,7 +14,7 @@ class FakeProvider implements AIProvider{
   async healthCheck(){return{status:"active" as const,latencyMs:1};} estimateCost(){return 0;}
 }
 
-test("task complexity and plan mapping preserve premium boundaries",()=>{assert.equal(inferComplexity({taskType:"company_classification",messages:[],plan:"FREE"}),"LOW");assert.equal(planFromBillingCode("pro_monthly"),"STANDARD");assert.equal(planFromBillingCode("premium_monthly"),"PREMIUM");assert.equal(planFromBillingCode("platinum_monthly"),"PLATINUM");assert.equal(isPremiumEligible("STANDARD"),false);assert.equal(isPremiumEligible("PREMIUM"),true);});
+test("task complexity and plan mapping preserve premium boundaries",()=>{assert.equal(inferComplexity({taskType:"company_classification",messages:[],plan:"FREE"}),"LOW");assert.equal(inferComplexity({taskType:"deep_tender_analysis",messages:[],plan:"PREMIUM",requestedMode:"standard"}),"HIGH");assert.equal(planFromBillingCode("pro_monthly"),"STANDARD");assert.equal(planFromBillingCode("premium_monthly"),"PREMIUM");assert.equal(planFromBillingCode("platinum_monthly"),"PLATINUM");assert.equal(isPremiumEligible("STANDARD"),false);assert.equal(isPremiumEligible("PREMIUM"),true);});
 
 test("deterministic results bypass every provider",async()=>{const providers=[new FakeProvider("groq",true)];const orchestrator=new AIOrchestrator(providers);const deterministic=result("rules","deterministic-v1");const output=await orchestrator.execute({taskType:"company_classification",messages:[],plan:"FREE",deterministicResult:deterministic});assert.equal(output.source,"rule");assert.equal(output.provider,"rules");});
 

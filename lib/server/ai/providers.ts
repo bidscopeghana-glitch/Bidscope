@@ -18,7 +18,7 @@ abstract class BaseProvider implements AIProvider {
   reason(request: AIProviderRequest) { return this.generateText(request); }
   classify(request: AIProviderRequest) { return this.generateText(request); }
   summarize(request: AIProviderRequest) { return this.generateText(request); }
-  estimateCost() { return 0; }
+  estimateCost(...args: [model: string, inputTokens: number, outputTokens: number]) { void args; return 0; }
   async healthCheck(): Promise<{ status: AIHealth; latencyMs: number; detail?: string }> {
     if (!this.configured) return { status: "not_configured", latencyMs: 0 };
     const started=Date.now();
