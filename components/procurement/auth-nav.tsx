@@ -35,8 +35,7 @@ export function AuthNav() {
 
   function signOut() {
     clearSession();
-    router.push("/");
-    router.refresh();
+    router.replace("/");
   }
 
   if (signedIn) return <div className="flex items-center gap-1"><Link href="/profile" className="inline-flex items-center gap-1.5 rounded-full bg-[#116149] px-3 py-2 text-white transition hover:bg-[#0d523e]"><UserRound size={14}/><span className="hidden sm:inline">Profile</span></Link><button type="button" onClick={signOut} aria-label="Sign out" className="inline-flex items-center gap-1.5 rounded-full border border-[#17362d]/15 px-2.5 py-2 text-[#27493f] transition hover:bg-[#e9f1e8]"><LogOut size={14}/></button></div>;

@@ -27,6 +27,13 @@ test("anonymous navigation does not rebroadcast an empty session forever", () =>
   const session = read("lib/client/session.ts");
   assert.match(session, /if \(!token && !hasRefreshToken\) return null/);
   assert.match(session, /hasRefreshToken = Boolean\(window\.localStorage\.getItem\(REFRESH_TOKEN_KEY\)\)/);
+  assert.match(session, /if \(hadSession\) notify\(SESSION_CHANGE_EVENT\)/);
+});
+
+test("sign out performs one client navigation", () => {
+  const authNav = read("components/procurement/auth-nav.tsx");
+  assert.match(authNav, /clearSession\(\);\s*router\.replace\("\/"\)/);
+  assert.doesNotMatch(authNav, /router\.refresh\(\)/);
 });
 
 test("production routes publish indexing and baseline security controls", () => {

@@ -28,10 +28,21 @@ export function storeSession(session: SessionPayload) {
 }
 
 export function clearSession(expired = false) {
-  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
-  window.localStorage.removeItem(EXPIRES_AT_KEY);
-  notify(SESSION_CHANGE_EVENT);
+  let hadSession = false;
+  try {
+    hadSession = Boolean(
+      window.localStorage.getItem(ACCESS_TOKEN_KEY) ||
+      window.localStorage.getItem(REFRESH_TOKEN_KEY) ||
+      window.localStorage.getItem(EXPIRES_AT_KEY),
+    );
+    window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+    window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+    window.localStorage.removeItem(EXPIRES_AT_KEY);
+  } catch {
+    // Storage can be unavailable in privacy-restricted browser contexts. The
+    // caller should still be able to navigate away without entering a loop.
+  }
+  if (hadSession) notify(SESSION_CHANGE_EVENT);
   if (expired) notify(SESSION_EXPIRED_EVENT);
 }
 
