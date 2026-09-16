@@ -1,40 +1,26 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ProcurementFooter, ProcurementHeader } from "@/components/procurement/site-shell";
+import { LEGAL_CONTACT_EMAIL, PRIVACY_VERSION } from "@/lib/legal";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy | BidScope Ghana",
-  description: "How BidScope Ghana handles information when you use our services.",
-};
+export const metadata: Metadata = { title: "Privacy Policy | BidScope Ghana", description: "How BidScope Ghana collects, uses, protects and shares personal information." };
 
 export default function PrivacyPage() {
-  return (
-    <main className="min-h-screen bg-[#f7f4eb] text-[#12352a]">
-      <ProcurementHeader />
-      <article className="mx-auto max-w-3xl px-6 py-16 sm:py-24">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#84651f]">BidScope Ghana</p>
-        <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Privacy Policy</h1>
-        <p className="mt-5 text-base leading-8 text-[#496159]">Last updated: 12 September 2026</p>
-
-        <div className="mt-10 space-y-8 text-base leading-8 text-[#334d45]">
-          <section>
-            <h2 className="text-xl font-semibold text-[#12352a]">Information we collect</h2>
-            <p className="mt-2">When you sign in, we may receive your name, email address and profile image from your chosen authentication provider. We also collect information you choose to save in BidScope and basic technical data needed to operate and secure the service.</p>
-          </section>
-          <section>
-            <h2 className="text-xl font-semibold text-[#12352a]">How we use information</h2>
-            <p className="mt-2">We use this information to provide your account, personalise procurement research features, maintain saved opportunities, improve BidScope and protect the service from misuse. We do not sell personal information.</p>
-          </section>
-          <section>
-            <h2 className="text-xl font-semibold text-[#12352a]">Service providers and retention</h2>
-            <p className="mt-2">We use trusted infrastructure and authentication providers to operate BidScope. Information is retained only for as long as reasonably necessary to provide the service, meet legal obligations and resolve disputes.</p>
-          </section>
-          <section>
-            <h2 className="text-xl font-semibold text-[#12352a]">Your choices</h2>
-            <p className="mt-2">You may sign out at any time. To request access, correction or deletion of account information, contact us at bidscopeghana@gmail.com.</p>
-          </section>
-        </div>
-      </article>
-      <ProcurementFooter />
-    </main>
-  );
+  return <main className="min-h-screen bg-[#f7f4eb] text-[#12352a]"><ProcurementHeader/><article className="mx-auto max-w-4xl px-5 py-14 sm:px-6 sm:py-20"><header className="max-w-3xl"><p className="text-sm font-semibold uppercase tracking-[.2em] text-[#84651f]">BidScope Ghana · Legal</p><h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Privacy Policy</h1><p className="mt-5 text-base leading-8 text-[#496159]">Effective and last updated: 16 September 2026 · Version {PRIVACY_VERSION}</p><p className="mt-6 text-lg leading-8 text-[#334d45]">This policy explains how BidScope Ghana collects and handles personal data when you visit our website, create an account, use procurement-intelligence features, subscribe to a plan or communicate with us.</p></header>
+    <div className="legal-copy mt-12 space-y-10 text-base leading-8 text-[#334d45]">
+      <Policy title="1. Who is responsible for your information"><p>BidScope Ghana is the data controller for personal data described in this policy unless a different party is identified. Questions and data-rights requests may be sent to <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.</p></Policy>
+      <Policy title="2. Information we collect"><ul><li><strong>Account data:</strong> name, email address, authentication provider identifier, profile image, job title and phone number.</li><li><strong>Business and procurement data:</strong> organisation details, sectors, locations, certifications, preferences, saved opportunities, searches, bid-pipeline activity, documents and questions submitted to BidScope AI.</li><li><strong>Subscription data:</strong> plan, billing status, transaction reference and limited payment metadata. Complete card details are handled by the payment provider.</li><li><strong>Communications:</strong> support requests, survey responses, alert settings and marketing preferences.</li><li><strong>Technical and usage data:</strong> IP address, browser/device information, timestamps, security logs, page and feature interactions, referral data and cookie choices.</li><li><strong>Public-source data:</strong> business contact or procurement information lawfully obtained from identified public, official or licensed sources for procurement intelligence and business outreach.</li></ul></Policy>
+      <Policy title="3. Why we use personal data"><p>We use data to create and secure accounts; provide search, matching, alerts, collaboration, billing and AI features; personalise results; respond to support; prevent fraud and abuse; maintain audit records; improve performance; meet legal obligations; and, where permitted, communicate relevant BidScope services.</p><p>Our processing may rely on performance of our contract with you, your consent, compliance with law, and legitimate interests such as operating and improving a secure procurement service. Where we rely on consent, you may withdraw it without affecting earlier lawful processing.</p></Policy>
+      <Policy title="4. AI, matching and automated assistance"><p>We may use business-profile information, saved activity and opportunity data to calculate match indicators and produce AI-assisted research. These tools support human decisions; they do not make binding procurement, employment, credit or legal decisions about you. Avoid submitting unnecessary personal data or confidential third-party information.</p></Policy>
+      <Policy title="5. How we share information"><p>We share only what is reasonably necessary with infrastructure, database, authentication, email, analytics, customer-support, AI and payment providers acting for us; with your organisation’s authorised workspace users; with professional advisers; or with authorities where legally required. We may share information during a genuine business reorganisation subject to appropriate safeguards. We do not sell personal data.</p></Policy>
+      <Policy title="6. International processing"><p>Some service providers may process data outside Ghana. Where this occurs, we assess the provider and use contractual, technical or other appropriate safeguards required by applicable data-protection law.</p></Policy>
+      <Policy title="7. Retention"><p>We keep personal data only as long as needed for the purposes described, including while your account is active and for reasonable periods afterwards for security, backup, billing, dispute and legal requirements. Retention varies by record type. We delete or anonymise information when it is no longer required, subject to lawful archival and backup cycles.</p></Policy>
+      <Policy title="8. Security"><p>We use access controls, encrypted transport, restricted administrative access, logging and vetted service providers to protect data. No internet service can guarantee absolute security. Keep your credentials private and notify us promptly if you suspect misuse.</p></Policy>
+      <Policy title="9. Your rights and choices"><p>Subject to Ghana’s Data Protection Act, 2012 (Act 843) and other applicable law, you may request access to personal data, correction, deletion, restriction or objection; withdraw consent; and raise a complaint. We may need to verify your identity and may retain information where law permits or requires it. You can also manage alerts, marketing preferences and cookies through the service.</p></Policy>
+      <Policy title="10. Cookies"><p>We use essential storage and, only with the relevant choice, optional analytics or marketing storage. See our <Link href="/cookies">Cookie Policy</Link> or use “Cookie settings” in the footer to change optional choices.</p></Policy>
+      <Policy title="11. Children"><p>BidScope is a business service not directed to children under 18. We do not knowingly create accounts for children. Contact us if you believe a child has provided personal data.</p></Policy>
+      <Policy title="12. Changes and complaints"><p>We may update this policy and will show the effective date. Material changes will be communicated where appropriate. Contact <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> first so we can address a concern. You may also contact Ghana’s Data Protection Commission regarding your rights.</p></Policy>
+    </div></article><ProcurementFooter/></main>;
 }
+
+function Policy({title,children}:{title:string;children:React.ReactNode}) { return <section className="border-t border-[#12352a]/10 pt-8 first:border-0 first:pt-0"><h2 className="text-2xl font-semibold tracking-tight text-[#12352a]">{title}</h2><div className="mt-3 space-y-3">{children}</div></section>; }

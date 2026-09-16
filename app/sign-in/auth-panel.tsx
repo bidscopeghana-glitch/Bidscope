@@ -14,6 +14,7 @@ export function AuthPanel() {
   const [state, setState] = useState<State>("idle");
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const router = useRouter();
 
   function chooseMode(next: Mode) {
@@ -21,6 +22,7 @@ export function AuthPanel() {
     setState("idle");
     setMessage("");
     setShowPassword(false);
+    setLegalAccepted(false);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -40,7 +42,7 @@ export function AuthPanel() {
       const response = await fetch("/api/auth/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: mode, email: values.get("email"), password, fullName: values.get("fullName") }),
+        body: JSON.stringify({ action: mode, email: values.get("email"), password, fullName: values.get("fullName"), legalAccepted: mode === "sign-up" ? legalAccepted : undefined }),
       });
       const result = (await response.json()) as { accessToken?: string | null; refreshToken?: string | null; expiresIn?: number; confirmationRequired?: boolean; message?: string; error?: string };
       if (!response.ok) throw new Error(result.error || "We could not complete that request.");
@@ -109,7 +111,7 @@ export function AuthPanel() {
         </label>
         {mode === "sign-up" && <Field label="Confirm password" name="confirmPassword" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Type your password again" minLength={8} />}
 
-        {mode === "sign-up" && <label className="flex items-start gap-2.5 text-xs font-normal leading-5 text-[#61736a]"><input name="terms" type="checkbox" required className="mt-1 size-4 shrink-0 accent-[#116149]"/><span>I agree to the <Link href="/terms" className="font-bold text-[#315b4e] hover:underline">Terms</Link> and acknowledge the <Link href="/privacy" className="font-bold text-[#315b4e] hover:underline">Privacy Policy</Link>.</span></label>}
+        {mode === "sign-up" && <label className="flex items-start gap-2.5 rounded-xl border border-[#17362d]/10 bg-[#f3f6f2] p-3 text-xs font-normal leading-5 text-[#51665e]"><input name="terms" type="checkbox" required checked={legalAccepted} onChange={(event) => setLegalAccepted(event.target.checked)} className="mt-1 size-4 shrink-0 accent-[#116149]"/><span>I have read and agree to the <Link href="/terms" target="_blank" className="font-bold text-[#195e49] hover:underline">Terms of Service</Link>, and I acknowledge the <Link href="/privacy" target="_blank" className="font-bold text-[#195e49] hover:underline">Privacy Policy</Link> and <Link href="/cookies" target="_blank" className="font-bold text-[#195e49] hover:underline">Cookie Policy</Link>.</span></label>}
 
         {message && <p role="status" className={`flex items-start gap-2 rounded-xl px-3.5 py-3 text-xs leading-5 ${state === "success" ? "bg-[#e3f2e9] text-[#176347]" : "bg-red-50 text-red-700"}`}>{state === "success" && <CheckCircle2 className="mt-0.5 shrink-0" size={15}/>} {message}</p>}
 
@@ -120,7 +122,7 @@ export function AuthPanel() {
 
       <div className="my-5 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[.12em] text-[#89958f] before:h-px before:flex-1 before:bg-[#17362d]/10 after:h-px after:flex-1 after:bg-[#17362d]/10">or continue with</div>
 
-      <a href="/api/auth/google" className="group flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-[#17362d]/15 bg-white px-4 text-sm font-bold text-[#17362d] shadow-sm transition hover:-translate-y-0.5 hover:border-[#116149]/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#116149]/30">
+      <a href={mode === "sign-up" ? (legalAccepted ? "/api/auth/google?intent=sign-up&legalAccepted=true" : "#legal-consent") : "/api/auth/google?intent=sign-in"} onClick={(event) => { if (mode === "sign-up" && !legalAccepted) { event.preventDefault(); setState("error"); setMessage("Accept the legal terms above before signing up with Google."); } }} aria-disabled={mode === "sign-up" && !legalAccepted} className={`group flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-[#17362d]/15 bg-white px-4 text-sm font-bold text-[#17362d] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#116149]/30 ${mode === "sign-up" && !legalAccepted ? "cursor-not-allowed opacity-60" : "hover:-translate-y-0.5 hover:border-[#116149]/30 hover:shadow-md"}`}>
         <span aria-hidden="true" className="grid size-7 place-items-center rounded-full border border-[#17362d]/10 bg-white font-extrabold text-[#4285f4] shadow-sm">G</span>
         {mode === "sign-up" ? "Sign up with Google" : "Sign in with Google"}
       </a>

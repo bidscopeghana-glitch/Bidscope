@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseConfiguration } from "@/lib/server/supabase-rest";
+import { COOKIE_POLICY_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
+import { recordLegalConsent } from "@/lib/server/legal-consent";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +16,7 @@ function messageFor(status: number, fallback?: string) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { action?: AuthAction; email?: string; password?: string; fullName?: string };
+    const body = (await request.json()) as { action?: AuthAction; email?: string; password?: string; fullName?: string; legalAccepted?: boolean };
     const action = body.action;
     const email = body.email?.trim().toLowerCase();
     const password = body.password || "";
@@ -32,6 +34,9 @@ export async function POST(request: Request) {
     if (action === "sign-up" && (!fullName || fullName.length < 2)) {
       return NextResponse.json({ error: "Enter your full name." }, { status: 400 });
     }
+    if (action === "sign-up" && body.legalAccepted !== true) {
+      return NextResponse.json({ error: "You must accept the Terms of Service and acknowledge the Privacy and Cookie Policies to create an account." }, { status: 400 });
+    }
 
     const { url, publicKey } = supabaseConfiguration();
     if (!publicKey) {
@@ -46,7 +51,17 @@ export async function POST(request: Request) {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { apikey: publicKey, "Content-Type": "application/json" },
-      body: JSON.stringify(action === "sign-in" ? { email, password } : { email, password, data: { full_name: fullName } }),
+      body: JSON.stringify(action === "sign-in" ? { email, password } : {
+        email,
+        password,
+        data: {
+          full_name: fullName,
+          terms_version: TERMS_VERSION,
+          privacy_version: PRIVACY_VERSION,
+          cookie_policy_version: COOKIE_POLICY_VERSION,
+          legal_accepted_at: new Date().toISOString(),
+        },
+      }),
       cache: "no-store",
     });
     const result = (await response.json()) as Record<string, unknown>;
@@ -57,6 +72,8 @@ export async function POST(request: Request) {
     }
 
     const accessToken = typeof result.access_token === "string" ? result.access_token : null;
+    const createdUser = result.user && typeof result.user === "object" ? result.user as { id?: string } : null;
+    if (action === "sign-up" && createdUser?.id) await recordLegalConsent(createdUser.id, "password");
     if (!accessToken && action === "sign-up") {
       return NextResponse.json({ confirmationRequired: true, message: "Check your email to confirm your account, then return to sign in." });
     }

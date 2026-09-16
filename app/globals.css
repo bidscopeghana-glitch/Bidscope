@@ -24,11 +24,15 @@
   --radius-sm: calc(var(--radius) * .75); --radius-md: calc(var(--radius) * .875); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) * 1.5);
 }
 * { box-sizing: border-box; }
-html { overflow-x: hidden; scroll-behavior: smooth; background: var(--background); }
+html { overflow-x: hidden; scroll-behavior: smooth; background: var(--background); font-size: 16.5px; }
 body { margin: 0; overflow-x: hidden; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
 button, a, input, select { transition: background-color .2s ease, border-color .2s ease, color .2s ease, transform .2s ease, box-shadow .2s ease; }
 ::selection { background: var(--bidscope-gold); color: var(--bidscope-charcoal); }
 .serif { font-family: var(--font-display); }
+.legal-copy a { color: #116149; font-weight: 700; text-decoration: underline; text-decoration-color: rgba(17,97,73,.28); text-underline-offset: .2em; }
+.legal-copy a:hover { text-decoration-color: currentColor; }
+.legal-copy ul { margin: .65rem 0 0; padding-left: 1.25rem; }
+.legal-copy li { margin-top: .45rem; padding-left: .25rem; }
 .paper-noise { background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E"); }
 .ghana-weave { background-image: linear-gradient(45deg, rgba(255,255,255,.035) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.035) 75%), linear-gradient(45deg, rgba(255,255,255,.035) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.035) 75%); background-position: 0 0, 12px 12px; background-size: 24px 24px; }
 .marquee-track { animation: marquee 28s linear infinite; }

@@ -36,13 +36,22 @@ export default function GoogleAuthCallbackPage() {
     const refreshToken = hash.get("refresh_token");
     const expiresIn = Number(hash.get("expires_in") || 3600);
     storeSession({ accessToken, refreshToken, expiresIn });
+    const recordConsent = query.get("signup") === "google"
+      ? fetch("/api/legal/consent", { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } }).then(async (response) => {
+          if (!response.ok) throw new Error((await response.json() as { message?: string; error?: string }).message || "Your legal consent could not be recorded.");
+        })
+      : Promise.resolve();
     window.history.replaceState({}, document.title, "/auth/callback");
-    const update = window.setTimeout(() => {
+    let redirect: number | undefined;
+    void recordConsent.then(() => {
       setState("success");
       setMessage("You are signed in. Opening your BidScope workspace…");
-    }, 0);
-    const redirect = window.setTimeout(() => router.replace("/customer"), 700);
-    return () => { window.clearTimeout(update); window.clearTimeout(redirect); };
+      redirect = window.setTimeout(() => router.replace("/customer"), 700);
+    }).catch((consentError) => {
+      setState("error");
+      setMessage(consentError instanceof Error ? consentError.message : "Your legal consent could not be recorded.");
+    });
+    return () => { if (redirect) window.clearTimeout(redirect); };
   }, [router]);
 
   const Icon = state === "loading" ? LoaderCircle : state === "success" ? CheckCircle2 : CircleAlert;
