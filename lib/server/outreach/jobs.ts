@@ -227,27 +227,35 @@ async function importApproved(job: ImportJob) {
   for (const [key, members] of segmentGroups) {
     if (members.length < 2) continue;
     const [country, industry] = key.split("|");
-    const { data: segment } = await supabaseRest<Array<{ id: string }>>(
-      "prospect_segments",
-      {
+    const name = `${country} ${industry}`;
+    const query = new URLSearchParams({ select: "id", name: `eq.${name}`, order: "created_at.desc", limit: "1" });
+    const { data: existingSegments } = await supabaseRest<Array<{ id: string }>>(`prospect_segments?${query}`);
+    let segmentId = existingSegments[0]?.id;
+    const segmentBody = {
+      name,
+      description: `Suggested automatically from the approved import.`,
+      country_code: country === "Global" ? null : country,
+      filter_definition: { country_code: country, industry },
+      source_import_id: job.id,
+      created_by: job.uploaded_by,
+    };
+    if (segmentId) {
+      await supabaseRest(`prospect_segments?id=eq.${encodeFilter(segmentId)}`, { method: "PATCH", body: JSON.stringify(segmentBody) });
+      await supabaseRest(`prospect_segment_members?segment_id=eq.${encodeFilter(segmentId)}`, { method: "DELETE" });
+    } else {
+      const { data: segment } = await supabaseRest<Array<{ id: string }>>("prospect_segments", {
         method: "POST",
         headers: { Prefer: "return=representation" },
-        body: JSON.stringify({
-          name: `${country} ${industry}`,
-          description: `Suggested automatically from the approved import.`,
-          country_code: country === "Global" ? null : country,
-          filter_definition: { country_code: country, industry },
-          source_import_id: job.id,
-          created_by: job.uploaded_by,
-        }),
-      },
-    );
-    if (segment[0])
+        body: JSON.stringify(segmentBody),
+      });
+      segmentId = segment[0]?.id;
+    }
+    if (segmentId)
       await chunks(members, 500, async (part) => {
         await supabaseRest("prospect_segment_members", {
           method: "POST",
           body: JSON.stringify(
-            part.map((x) => ({ segment_id: segment[0].id, prospect_id: x.id })),
+            part.map((x) => ({ segment_id: segmentId, prospect_id: x.id })),
           ),
         });
       });
