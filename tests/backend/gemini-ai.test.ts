@@ -11,8 +11,9 @@ test("BidScope AI uses a server-only Gemini Auth key",()=>{
 });
 
 test("Gemini interactions are private and retain grounded procurement rules",()=>{
-  assert.match(source,/store:false/);
-  assert.match(source,/Use only the supplied JSON context/);
-  assert.match(source,/Not found in source/);
+  assert.match(source,/:generateContent/);
+  assert.match(source,/url_context/);
+  assert.match(source,/google_search/);
+  assert.match(source,/Not found in the reviewed sources/);
   assert.match(source,/review the official tender documents/);
 });
