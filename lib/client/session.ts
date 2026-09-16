@@ -71,11 +71,17 @@ export async function refreshSession(): Promise<string | null> {
 export async function getValidAccessToken(forceRefresh = false): Promise<string | null> {
   const token = storedAccessToken();
   let expiresAt = 0;
+  let hasRefreshToken = false;
   try {
     expiresAt = Number(window.localStorage.getItem(EXPIRES_AT_KEY) || 0);
+    hasRefreshToken = Boolean(window.localStorage.getItem(REFRESH_TOKEN_KEY));
   } catch {
     return null;
   }
+  // An anonymous visitor has nothing to refresh. Returning quietly is critical:
+  // clearing an already-empty session emits SESSION_CHANGE_EVENT, which makes
+  // every navigation listener check again and can create a synchronous loop.
+  if (!token && !hasRefreshToken) return null;
   if (!forceRefresh && token && (!expiresAt || expiresAt > Date.now() + REFRESH_EARLY_MS)) return token;
   const refreshed = await refreshSession();
   if (refreshed) return refreshed;

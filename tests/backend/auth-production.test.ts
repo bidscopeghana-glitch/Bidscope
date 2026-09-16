@@ -23,6 +23,12 @@ test("customer requests renew an expired session and retry once", () => {
   assert.match(data, /getValidAccessToken\(true\)/);
 });
 
+test("anonymous navigation does not rebroadcast an empty session forever", () => {
+  const session = read("lib/client/session.ts");
+  assert.match(session, /if \(!token && !hasRefreshToken\) return null/);
+  assert.match(session, /hasRefreshToken = Boolean\(window\.localStorage\.getItem\(REFRESH_TOKEN_KEY\)\)/);
+});
+
 test("production routes publish indexing and baseline security controls", () => {
   const config = read("next.config.ts");
   assert.match(config, /Content-Security-Policy/);
