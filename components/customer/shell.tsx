@@ -2,9 +2,10 @@
 import { createContext,useContext,useEffect,useRef,useState } from "react";
 import Link from "next/link";
 import { usePathname,useRouter,useSearchParams } from "next/navigation";
-import { Home,Search,Globe2,Bookmark,BriefcaseBusiness,Building2,ChartNoAxesCombined,FileText,CalendarDays,Bell,Settings,HelpCircle,PanelLeftClose,PanelLeftOpen,LogOut,ChevronRight,Sparkles,History,Eye,Menu,X,ArrowUpRight,SlidersHorizontal,Compass,CreditCard,Users,ShieldCheck } from "lucide-react";
+import { Home,Search,Globe2,Bookmark,BriefcaseBusiness,Building2,ChartNoAxesCombined,FileText,CalendarDays,Bell,Settings,PanelLeftClose,PanelLeftOpen,LogOut,ChevronRight,Sparkles,History,Eye,Menu,X,ArrowUpRight,SlidersHorizontal,Compass,CreditCard,Users,ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { useBidScopeSession } from "@/components/procurement/auth-nav";
+import { FloatingHelp } from "@/components/help/floating-help";
 import { api,useData,invalidate,type Organization,type Preferences,type Notice,type Opportunity } from "./data";
 
 type Account={profile?:{full_name:string;email:string};organization?:Organization;preferences:Preferences;setPreferences:(p:Preferences)=>void;toast:(m:string)=>void};
@@ -17,7 +18,7 @@ export const navGroups:ReadonlyArray<{title:string;links:ReadonlyArray<readonly 
  {title:"Bid Workspace",links:[["My Bids","/customer/bids",BriefcaseBusiness],["Bid Pipeline","/customer/pipeline",ChartNoAxesCombined],["Documents","/customer/documents",FileText],["Deadlines","/customer/deadlines",CalendarDays]]},
  {title:"Intelligence",links:[["Buyers","/customer/buyers",Building2],["Market Intelligence","/customer/intelligence",ChartNoAxesCombined],["Awards & History","/customer/awards",History]]},
  {title:"",links:[["AI Tender Evaluation","/customer/ai",Sparkles],["Alerts","/customer/alerts",Bell]]},
- {title:"Account",links:[["Business Profile","/customer/profile",Building2],["Team","/customer/team",Users],["Tender Readiness","/customer/readiness",ChartNoAxesCombined],["Billing","/customer/billing",CreditCard],["Notifications","/customer/notifications",Bell],["Help Assistant","/customer/help",HelpCircle],["Settings","/customer/settings",Settings]]}
+ {title:"Account",links:[["Business Profile","/customer/profile",Building2],["Team","/customer/team",Users],["Tender Readiness","/customer/readiness",ChartNoAxesCombined],["Billing","/customer/billing",CreditCard],["Notifications","/customer/notifications",Bell],["Settings","/customer/settings",Settings]]}
 ] as const;
 
 export function CustomerShell({children}:{children:React.ReactNode}){
@@ -51,7 +52,7 @@ export function CustomerShell({children}:{children:React.ReactNode}){
  <div className="cc-context"><span>Workspace <ChevronRight size={12}/> {navGroups.flatMap(g=>g.links).find(([,href])=>href===selected)?.[0]||"Procurement intelligence"}</span><span className="cc-context-right"><span className="cc-status-dot"/> Official sources. Informed decisions.</span></div>
  <main id="customer-main" className="cc-main">{children}</main><footer className="cc-footer">Independent procurement intelligence. Always confirm requirements and submit through the official authority.<Link href="/customer/help">Source & analysis guide <ArrowUpRight size={12}/></Link></footer></div>
  <nav className="cc-bottom" aria-label="Mobile navigation">{[["Home","/customer",Home],["Discover","/customer/discover",Compass],["Saved","/customer/saved",Bookmark],["Bids","/customer/bids",BriefcaseBusiness]].map(([label,href,Icon])=>{const I=Icon as typeof Home;return <Link key={String(href)} href={String(href)} aria-current={pathname===href?"page":undefined}><I size={20}/>{String(label)}</Link>;})}<button onClick={()=>setMobile(true)} aria-expanded={mobile}><Menu size={20}/>More</button></nav>
- <Link href="/customer/help" className="cc-floating-help" aria-label="Open BidScope Help Assistant"><HelpCircle size={22}/><span>Help</span></Link>
+ <FloatingHelp />
  {message&&<div role="status" className="cc-toast">{message}<button onClick={()=>setMessage("")} aria-label="Dismiss message"><X size={15}/></button></div>}
  {search&&<SearchDialog close={()=>setSearch(false)}/>}
  </div></Context.Provider>;

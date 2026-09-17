@@ -3,10 +3,10 @@ import { AuthNav, MemberNavLinks } from "@/components/procurement/auth-nav";
 import Link from "next/link";
 import { NotificationBell } from "@/components/procurement/notification-bell";
 import { CookieSettingsButton } from "@/components/legal/cookie-consent";
-import { HelpCircle } from "lucide-react";
+import { FloatingHelp } from "@/components/help/floating-help";
 
 export function FloatingHelpButton() {
-  return <Link href="/customer/help" className="bidscope-floating-help" aria-label="Open BidScope Help Assistant"><HelpCircle size={22}/><span>Help</span></Link>;
+  return <FloatingHelp />;
 }
 
 export function ProcurementHeader() {
