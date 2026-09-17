@@ -26,3 +26,8 @@ test("AI route refreshes current official source content before analysis",()=>{
   assert.match(route,/Live official source/);
   assert.match(route,/Promise\.allSettled/);
 });
+
+test("Supplier Passport metadata does not block safe provider fallbacks",()=>{
+  assert.match(source,/containsCustomerDocuments:false/);
+  assert.match(source,/supplierPassportMetadata:Boolean\(input\.passport\)/);
+});
