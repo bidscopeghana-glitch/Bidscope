@@ -38,6 +38,14 @@ button, a, input, select { transition: background-color .2s ease, border-color .
 .ghana-weave { background-image: linear-gradient(45deg, rgba(255,255,255,.035) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.035) 75%), linear-gradient(45deg, rgba(255,255,255,.035) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.035) 75%); background-position: 0 0, 12px 12px; background-size: 24px 24px; }
 .marquee-track { animation: marquee 28s linear infinite; }
 .float-soft { animation: float-soft 5s ease-in-out infinite; }
+.bidscope-live-wallpaper { position: relative; isolation: isolate; overflow: hidden; background: #fdfbf4; }
+.bidscope-live-wallpaper::before { content: ""; position: fixed; inset: -18vmax; z-index: 0; pointer-events: none; opacity: .52; background: radial-gradient(circle at 18% 24%, rgba(22,128,94,.18), transparent 26%), radial-gradient(circle at 78% 18%, rgba(199,154,66,.14), transparent 24%), radial-gradient(circle at 72% 78%, rgba(83,138,113,.16), transparent 27%), linear-gradient(135deg, rgba(255,255,255,.68), rgba(239,245,238,.28)); transform: translate3d(-2%,0,0) scale(1.03); animation: bidscope-wallpaper-drift 22s ease-in-out infinite alternate; will-change: transform; }
+.bidscope-live-wallpaper > * { position: relative; z-index: 1; }
+.bidscope-floating-help { position: fixed; right: 22px; bottom: 22px; z-index: 60; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 17px; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; background: #0c513d; color: #fff; box-shadow: 0 12px 30px rgba(9,57,43,.22); font-size: .82rem; font-weight: 750; }
+.bidscope-floating-help:hover { transform: translateY(-2px); background: #083f30; box-shadow: 0 15px 34px rgba(9,57,43,.28); }
+.bidscope-floating-help:focus-visible { outline: 3px solid #d4af37; outline-offset: 3px; }
 @keyframes marquee { to { transform: translateX(-50%); } }
 @keyframes float-soft { 50% { transform: translateY(-7px) rotate(.4deg); } }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .marquee-track,.float-soft { animation: none; } * { transition: none !important; } }
+@keyframes bidscope-wallpaper-drift { to { transform: translate3d(3%,2%,0) scale(1.08) rotate(.35deg); } }
+@media (max-width: 640px) { .bidscope-floating-help { right: 14px; bottom: 14px; width: 48px; padding: 0; justify-content: center; } .bidscope-floating-help span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .marquee-track,.float-soft,.bidscope-live-wallpaper::before { animation: none; } * { transition: none !important; } }

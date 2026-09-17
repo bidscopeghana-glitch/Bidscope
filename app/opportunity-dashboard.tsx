@@ -12,6 +12,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { AuthNav, MemberNavLinks } from "@/components/procurement/auth-nav";
 import { CookieSettingsButton } from "@/components/legal/cookie-consent";
+import { FloatingHelpButton } from "@/components/procurement/site-shell";
 
 type Opportunity = { id: string; title: string; buyer: string; category: "Goods" | "Works" | "Services"; region: string; deadline: string; days: number; fit: number; procedure: string };
 type Intelligence = { active: number; closingThisWeek: number; addedRecently: number; sources: number };
@@ -71,7 +72,7 @@ export function OpportunityDashboard() {
 
   const infoItems = infoTab === "how" ? steps : promises;
 
-  return <main className="paper-noise min-h-screen bg-[var(--bidscope-cream)] text-[var(--bidscope-charcoal)]">
+  return <main className="bidscope-live-wallpaper min-h-screen text-[var(--bidscope-charcoal)]">
     <header className="sticky top-0 z-40 border-b border-[#084D33]/10 bg-[color:rgba(253,251,244,.92)] backdrop-blur-xl"><div className="mx-auto flex h-[72px] max-w-7xl items-center px-5 lg:px-8"><Brand />
       <nav className="ml-auto hidden items-center gap-2 md:flex"><MemberNavLinks mode="landing"/><Button asChild variant="ghost" className="rounded-full text-[#35554a]"><a href="/plans">Plans</a></Button><Button asChild variant="ghost" className="hidden rounded-full text-[#35554a] lg:inline-flex"><a href="#why">Why BidScope</a></Button><AuthNav/><Button onClick={() => setTrialOpen(true)} className="ml-2 h-11 rounded-full bg-[#116149] px-5 shadow-[0_8px_24px_rgba(17,97,73,.2)] hover:-translate-y-0.5 hover:bg-[#0c523d]">Get 1 month free <ArrowRight /></Button></nav>
       <div className="ml-auto flex items-center gap-1 md:hidden"><AuthNav/><Button variant="ghost" size="icon" onClick={() => setMobileMenu((value) => !value)} aria-label="Open navigation">{mobileMenu ? <X /> : <Menu />}</Button></div></div>
@@ -95,6 +96,7 @@ export function OpportunityDashboard() {
     <section className="px-5 py-14 lg:px-8 lg:py-16"><div className="relative mx-auto min-h-[420px] max-w-7xl overflow-hidden rounded-[32px] bg-[#17362d]"><Image src="/images/contract-win.webp" alt="A young Ghanaian entrepreneur celebrating a contract win" fill sizes="100vw" className="object-cover object-[70%_center]"/><div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(19,62,50,.98)_0%,rgba(19,62,50,.88)_42%,rgba(19,62,50,.14)_76%)]"/><div className="relative flex min-h-[420px] max-w-2xl flex-col justify-center p-8 text-white sm:p-12 lg:p-16"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#d2aa58]">Be ready when your moment comes</p><h2 className="serif mt-4 text-5xl font-medium leading-[1] tracking-[-.04em]">Preparation turns opportunity into progress.</h2><p className="mt-5 max-w-lg leading-7 text-white/65">BidScope helps you see relevant opportunities sooner. Awards always depend on the official procurement process.</p><Button onClick={() => setTrialOpen(true)} size="lg" className="mt-8 h-14 w-fit rounded-full bg-[#ef7650] px-7 text-base font-bold text-white shadow-xl hover:-translate-y-1 hover:bg-[#ff8761]">Reserve your free access <ArrowRight/></Button></div></div></section>
 
     <footer className="border-t border-white/10 bg-[var(--bidscope-green)]"><div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-10 text-sm text-white/70 xl:flex-row xl:items-center xl:justify-between lg:px-8"><div><Brand reversed/><p className="mt-3 text-xs tracking-[.08em] text-white/55">Where Opportunity Finds You.</p></div><p className="max-w-2xl leading-6">An independent information service—not affiliated with Ghana&apos;s Public Procurement Authority or GHANEPS. <a href="https://www.ghaneps.gov.gh/" target="_blank" rel="noreferrer" className="font-bold text-[#F1D77E] hover:underline">Visit the official portal ↗</a></p><nav aria-label="Legal and account links" className="flex shrink-0 flex-wrap gap-x-4 gap-y-2 text-xs"><a href="/plans" className="hover:text-white">Plans</a><a href="/privacy" className="hover:text-white">Privacy</a><a href="/terms" className="hover:text-white">Terms</a><a href="/cookies" className="hover:text-white">Cookies</a><CookieSettingsButton className="hover:text-white"/><span>© 2026 BidScope Ghana</span></nav></div></footer>
+    <FloatingHelpButton />
 
     <OpportunityDialog selected={selected} onClose={() => setSelected(null)} />
     <TrialDialog open={trialOpen} setOpen={setTrialOpen} status={status} setStatus={setStatus} message={message} onSubmit={handleSubmit} />

@@ -1,5 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -72,12 +73,20 @@ function Heading({
   title: string;
   description: string;
 }) {
+  const image = /award|billing|team|profile|readiness/i.test(title)
+    ? "/images/contract-win.webp"
+    : /alert|notification|document|setting/i.test(title)
+      ? "/images/ghana-supplier.webp"
+      : "/images/bidscope-hero.webp";
   return (
     <div className="cc-page-heading">
       <div>
         <p className="cc-eyebrow">BIDSCOPE WORKSPACE</p>
         <h1>{title}</h1>
         <p>{description}</p>
+      </div>
+      <div className="cc-page-heading-image" aria-hidden="true">
+        <Image src={image} alt="" fill sizes="(max-width: 768px) 96px, 180px" />
       </div>
     </div>
   );
