@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { supabaseRest } from "../supabase-rest.ts";
 import { deduplicationKeys } from "./deduplication.ts";
+import { enrichNormalizedOpportunity } from "./enrichment.ts";
 import { slugify, stableHash } from "./safety.ts";
 import type { NormalizedAward, NormalizedOpportunity, NormalizedProject, ProcurementSource } from "./types.ts";
 
@@ -39,6 +40,7 @@ async function findExistingSourceRecord(sourceId: string, externalId: string | n
 }
 
 export async function ingestNormalizedRecords(source: ProcurementSource, records: NormalizedOpportunity[], actorUserId?: string) {
+  records = records.map(enrichNormalizedOpportunity);
   const totals: IngestionTotals = { fetched: records.length, inserted: 0, updated: 0, duplicates: 0, failed: 0, errors: [] };
   const { data: previousRuns } = await supabaseRest<Array<{ records_fetched: number }>>(
     `source_sync_runs?select=records_fetched&source_id=eq.${source.id}&status=eq.SUCCEEDED&order=completed_at.desc&limit=1`,
