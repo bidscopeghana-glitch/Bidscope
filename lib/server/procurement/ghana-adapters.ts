@@ -38,7 +38,7 @@ async function pooledMap<T, R>(items: T[], concurrency: number, mapper: (item: T
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => { while (cursor < items.length) { const index = cursor++; output[index] = await mapper(items[index]); } }));
   return output;
 }
-async function pdfText(url: string) {
+export async function extractOfficialPdfText(url: string) {
   const { PDFParse } = await import("pdf-parse");
   const response = await fetchWithRetry(url, { headers: { Accept: "application/pdf", "User-Agent": "BidScopeGhana/1.0" } }, 2);
   const length = Number(response.headers.get("content-length") || 0); if (length > 12_000_000) throw new Error("Official tender PDF exceeds the safe extraction limit.");
@@ -71,7 +71,7 @@ export class BankOfGhanaAdapter extends GhanaAdapter {
       const link = String(row.link); try {
         const html = await (await fetchWithRetry(link, { headers: { Accept: "text/html", "User-Agent": "BidScopeGhana/1.0" } }, 2)).text();
         const documentUrl = htmlDocumentLinks(link, html)[0] || null;
-        const documentText = documentUrl ? await pdfText(documentUrl).catch(() => "") : "";
+        const documentText = documentUrl ? await extractOfficialPdfText(documentUrl).catch(() => "") : "";
         return { ...row, detailText: documentText || decode(html), documentUrl };
       } catch { return { ...row, detailText: "", documentUrl: null }; }
     });
@@ -87,10 +87,45 @@ export class BankOfGhanaAdapter extends GhanaAdapter {
   getOfficialUrl(raw: Raw) { return String(raw.link || "https://www.bog.gov.gh/notice/invitation-for-tenders/"); }
 }
 
-const ghanepsLabels = ["Name of Procuring Entity", "APP Reference Number", "Tender Unique ID", "Tender Title", "Description", "Requisition Number", "Procurement Type", "Grade Type", "Procurement Method", "Includes eCatalogue", "Commencement Type", "Procurement Technique", "Number of Stages", "Evaluation Mechanism", "Margin of Preference", "Framework Agreement Establishment", "Postqualification", "UNSPSC Codes", "Tender Participation Fees", "Payment Amount\\s*\\(GHS\\)", "Payment Terms and Method", "Bid Security Type", "Bid Security Amount Type", "Bid Security Amount\\s*\\(GHS\\)", "Contract Awarded in Lots", "Bid submission deadline date", "End of Clarification Period", "Bid Opening Date", "Date of Publication/Invitation", "Contract Notice Date"];
+const ghanepsLabels = [
+  { key: "Name of Procuring Entity", pattern: "Name of Procuring Entity" },
+  { key: "APP Reference Number", pattern: "APP Reference Number" },
+  { key: "Tender Unique ID", pattern: "Tender Unique ID" },
+  { key: "Tender Title", pattern: "Tender Title" },
+  { key: "Description", pattern: "Description" },
+  { key: "Requisition Number", pattern: "Requisition Number" },
+  { key: "Procurement Type", pattern: "Procurement Type" },
+  { key: "Grade Type", pattern: "Grade Type" },
+  { key: "Procurement Method", pattern: "Procurement Method" },
+  { key: "Includes eCatalogue", pattern: "Includes eCatalogue" },
+  { key: "Commencement Type", pattern: "Commencement Type" },
+  { key: "Procurement Technique", pattern: "Procurement Technique" },
+  { key: "Number of Stages", pattern: "Number of Stages" },
+  { key: "Evaluation Mechanism", pattern: "Evaluation Mechanism" },
+  { key: "Margin of Preference", pattern: "Margin of Preference" },
+  { key: "Framework Agreement Establishment", pattern: "Framework Agreement Establishment" },
+  { key: "Postqualification", pattern: "Postqualification" },
+  { key: "UNSPSC Codes", pattern: "UNSPSC Codes" },
+  { key: "Tender Participation Fees", pattern: "Tender Participation Fees" },
+  { key: "Payment Amount (GHS)", pattern: "Payment Amount\\s*\\(GHS\\)" },
+  { key: "Payment Terms and Method", pattern: "Payment Terms and Method" },
+  { key: "Bid Security Type", pattern: "Bid Security Type" },
+  { key: "Bid Security Amount Type", pattern: "Bid Security Amount Type" },
+  { key: "Bid Security Amount (GHS)", pattern: "Bid Security Amount\\s*\\(GHS\\)" },
+  { key: "Contract Awarded in Lots", pattern: "Contract Awarded in Lots" },
+  { key: "Bid submission deadline date", pattern: "Bid submission deadline date" },
+  { key: "End of Clarification Period", pattern: "End of Clarification Period" },
+  { key: "Bid Opening Date", pattern: "Bid Opening Date" },
+  { key: "Date of Publication/Invitation", pattern: "Date of Publication/Invitation" },
+  { key: "Contract Notice Date", pattern: "Contract Notice Date" },
+];
 export function parseGhanepsDetail(html: string) {
   const clean = decode(html); const fields: Record<string, string> = {};
-  for (let index = 0; index < ghanepsLabels.length; index += 1) { const label = ghanepsLabels[index]; const value = labelled(clean, label, ghanepsLabels.slice(index + 1)); if (value) fields[label.replace(/\\s\*|\\\(|\\\)/g, "").replace(/\s+/g," ").trim()] = value; }
+  for (let index = 0; index < ghanepsLabels.length; index += 1) {
+    const label = ghanepsLabels[index];
+    const value = labelled(clean, label.pattern, ghanepsLabels.slice(index + 1).map((item) => item.pattern));
+    if (value) fields[label.key] = value;
+  }
   return { clean, fields };
 }
 

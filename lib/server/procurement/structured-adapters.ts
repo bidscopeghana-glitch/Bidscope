@@ -2,7 +2,7 @@ import { z } from "zod";
 import { firstDate, normalize, text } from "./normalization.ts";
 import { enforceSourceRateLimit, fetchWithRetry } from "./safety.ts";
 import type { AdapterHealth, NormalizedOpportunity, ProcurementSourceAdapter } from "./types.ts";
-import { parseGhanepsDetail } from "./ghana-adapters.ts";
+import { extractOfficialPdfText, parseGhanepsDetail } from "./ghana-adapters.ts";
 
 type Raw = Record<string, unknown>;
 const RecordSchema = z.record(z.string(), z.unknown());
@@ -10,6 +10,14 @@ const RecordSchema = z.record(z.string(), z.unknown());
 function decode(value: string) { return text(value.replace(/&ndash;|&#8211;/g, "-").replace(/&mdash;|&#8212;/g, "—")); }
 function match(value: string, pattern: RegExp) { return decode(value.match(pattern)?.[1] || ""); }
 function absolute(base: string, value: string) { try { return new URL(value, base).toString(); } catch { return base; } }
+function section(value: string, number: number) { return value.match(new RegExp(`(?:^|\\s)${number}\\.\\s*([\\s\\S]*?)(?=\\s${number + 1}\\.\\s|$)`, "i"))?.[1]?.replace(/\s+/g, " ").trim() || null; }
+function ghanepsNoticeFacts(value: string) {
+  const scope = section(value, 2); const documentContents = section(value, 4); const eligibility = section(value, 5); const submission = section(value, 10); const security = section(value, 11);
+  const duration = value.match(/(?:completed|completion)\s+in\s+([^.;]+?(?:months?|weeks?|days?))/i)?.[1]?.trim() || null;
+  const email = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || null;
+  const phone = value.match(/\+?233\s*[- ]?\d[\d -]{7,}/)?.[0]?.replace(/\s+/g, " ").trim() || null;
+  return { scope, documentContents, eligibility, submission, security, duration, email, phone };
+}
 function sourceHealth(slug: string, fetcher: () => Promise<unknown[]>) {
   return async (): Promise<AdapterHealth> => { try { const rows = await fetcher(); return { ok: true, message: `Official source connected; ${rows.length} records returned in the verification page.`, checkedAt: new Date().toISOString() }; } catch (error) { return { ok: false, message: error instanceof Error ? error.message : `${slug} check failed`, checkedAt: new Date().toISOString() }; } };
 }
@@ -37,12 +45,17 @@ export class GhanepsAdapter extends BaseAdapter {
       const cells = [...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((cell) => cell[1]);
       const title = decode(cells[1] || ""); const buyer = decode(cells[2] || ""); const description = match(cells[3] || "", /title=["']([^"']+)/i) || decode(cells[3] || "");
       if (!title) continue;
-      out.push({ id: detail[2], title, buyer, description, deadline: decode(cells[4] || ""), method: decode(cells[5] || ""), sourceStatus: decode(cells[6] || ""), published: decode(cells[8] || ""), url: absolute(this.endpoint, detail[1]), rawHtml: row });
+      const notice = row.match(/href=["']([^"']*downloadNoticeForAdvSearch[^"']*resourceId=[^&"']+[^"']*)/i);
+      out.push({ id: detail[2], title, buyer, description, deadline: decode(cells[4] || ""), method: decode(cells[5] || ""), sourceStatus: decode(cells[6] || ""), published: decode(cells[8] || ""), url: absolute(this.endpoint, detail[1]), noticeUrl: notice ? absolute(this.endpoint, notice[1]) : null, rawHtml: row });
     }
     const enriched: Raw[] = [];
     for (let index = 0; index < out.length; index += 5) {
       const batch = await Promise.all(out.slice(index, index + 5).map(async (item) => {
-        try { const detailHtml = await (await fetchWithRetry(String(item.url), { headers: { Accept: "text/html", "User-Agent": "BidScopeGhana/1.0" } })).text(); return { ...item, detailHtml }; }
+        try {
+          const detailHtml = await (await fetchWithRetry(String(item.url), { headers: { Accept: "text/html", "User-Agent": "BidScopeGhana/1.0" } })).text();
+          const noticeText = item.noticeUrl ? await extractOfficialPdfText(String(item.noticeUrl)).catch(() => "") : "";
+          return { ...item, detailHtml, noticeText };
+        }
         catch { return item; }
       }));
       enriched.push(...batch);
@@ -51,8 +64,13 @@ export class GhanepsAdapter extends BaseAdapter {
   }
   async normaliseOpportunity(raw: Raw) {
     const detail = parseGhanepsDetail(String(raw.detailHtml || "")); const fields = detail.fields; const field = (...names: string[]) => names.map((name) => fields[name]).find(Boolean) || null;
-    const description = field("Description") || String(raw.description || ""); const fee = field("Payment AmountGHS", "Tender Participation Fees"); const security = field("Bid Security AmountGHS", "Bid Security Type");
-    return normalize({ title: field("Tender Title") || String(raw.title), summary: description.slice(0, 1200), description: detail.clean || description, buyer_name: field("Name of Procuring Entity") || String(raw.buyer || "Ghana public entity"), country: "Ghana", country_code: "GH", category: /works/i.test(field("Procurement Type") || "") ? "works" : /goods/i.test(field("Procurement Type") || "") ? "goods" : /consult/i.test(field("Procurement Type") || "") ? "consulting" : "services", procurement_method: field("Procurement Method") || String(raw.method || "") || null, contract_type: field("Procurement Type"), published_at: firstDate(field("Date of Publication/Invitation"), raw.published), deadline_at: firstDate(field("Bid submission deadline date"), raw.deadline), opening_at: firstDate(field("Bid Opening Date")), clarification_deadline_at: firstDate(field("End of Clarification Period")), source_name: "GHANEPS", source_type: "STRUCTURED_WEB", external_opportunity_id: String(raw.id), external_reference: field("Tender Unique ID", "APP Reference Number") || String(raw.id), official_source_url: String(raw.url), official_tender_url: String(raw.url), official_submission_url: String(raw.url), submission_platform: "GHANEPS", submission_method: field("Commencement Type"), requires_registration: true, registration_url: "https://www.ghaneps.gov.gh/epps/register.do", funding_source: "Government of Ghana", eligibility_country: "GH", procurement_codes: (field("UNSPSC Codes") || "").match(/\b\d{6,8}\b/g) || [], participation_fee_amount: fee ? Number(fee.replace(/[^\d.]/g, "")) || null : null, participation_fee_currency: fee ? "GHS" : null, bid_security_requirement: security, qualification_requirements: field("Grade Type", "Postqualification"), submission_instructions: "Submit through the official GHANEPS opportunity page and follow all published electronic submission instructions.", source_details: fields, raw_payload: raw });
+    const noticeText = text(raw.noticeText, 50_000); const notice = ghanepsNoticeFacts(noticeText); const shortDescription = field("Description") || String(raw.description || "");
+    const fee = field("Payment Amount (GHS)"); const securityAmount = field("Bid Security Amount (GHS)"); const securityType = field("Bid Security Amount Type");
+    const bidSecurity = [field("Bid Security Type"), securityAmount ? `${securityAmount}${/percent/i.test(securityType || "") ? "%" : " GHS"}` : null].filter(Boolean).join(" · ") || notice.security;
+    const qualification = [field("Grade Type") ? `Contractor grade: ${field("Grade Type")}.` : null, field("Postqualification") === "Yes" ? "Postqualification applies." : null, notice.eligibility].filter(Boolean).join(" ") || null;
+    const submission = notice.submission || "Submit through the official GHANEPS opportunity page and follow all published electronic submission instructions.";
+    const sourceDetails = { ...fields, ...(notice.scope ? { "Detailed scope": notice.scope } : {}), ...(notice.documentContents ? { "Tender document contents": notice.documentContents } : {}), ...(notice.duration ? { "Contract duration": notice.duration } : {}), ...(notice.eligibility ? { "Eligibility and qualification": notice.eligibility } : {}), "Official notice PDF": raw.noticeUrl || null };
+    return normalize({ title: field("Tender Title") || String(raw.title), summary: notice.scope || shortDescription, description: noticeText || shortDescription, buyer_name: field("Name of Procuring Entity") || String(raw.buyer || "Ghana public entity"), country: "Ghana", country_code: "GH", category: /works/i.test(field("Procurement Type") || "") ? "works" : /goods/i.test(field("Procurement Type") || "") ? "goods" : /consult/i.test(field("Procurement Type") || "") ? "consulting" : "services", procurement_method: field("Procurement Method") || String(raw.method || "") || null, contract_type: field("Procurement Type"), published_at: firstDate(field("Date of Publication/Invitation"), raw.published), deadline_at: firstDate(field("Bid submission deadline date"), raw.deadline), opening_at: firstDate(field("Bid Opening Date")), clarification_deadline_at: firstDate(field("End of Clarification Period")), source_name: "GHANEPS", source_type: "STRUCTURED_WEB", external_opportunity_id: String(raw.id), external_reference: field("Tender Unique ID", "APP Reference Number") || String(raw.id), official_source_url: String(raw.url), official_tender_url: String(raw.url), official_submission_url: String(raw.url), submission_platform: "GHANEPS", submission_method: "Electronic submission through the GHANEPS e-GP portal", requires_registration: true, registration_url: "https://www.ghaneps.gov.gh/epps/register.do", funding_source: /DACF/i.test(noticeText) ? "District Assemblies Common Fund (DACF)" : "Government of Ghana", eligibility_country: "GH", eligibility_text: notice.eligibility, documents_url: String(raw.noticeUrl || "") || null, procurement_codes: (field("UNSPSC Codes") || "").match(/\b\d{6,8}\b/g) || [], participation_fee_amount: fee ? Number(fee.replace(/[^\d.]/g, "")) || null : null, participation_fee_currency: fee ? "GHS" : null, bid_security_requirement: bidSecurity, bid_security_text: bidSecurity, qualification_requirements: qualification, submission_instructions: submission, contact_email: notice.email, contact_phone: notice.phone, source_details: sourceDetails, raw_payload: raw });
   }
   getOfficialUrl(raw: Raw) { return String(raw.url || this.endpoint); }
 }

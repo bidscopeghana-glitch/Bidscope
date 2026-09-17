@@ -91,6 +91,11 @@ export type NormalizedOpportunity = {
   lots: Array<Record<string, unknown>>;
   submission_instructions: string | null;
   qualification_requirements: string | null;
+  local_registration_required?: boolean | null;
+  local_partner_required?: boolean | null;
+  bid_security_text?: string | null;
+  required_certifications?: string[];
+  required_documents?: Array<Record<string, unknown>>;
   source_details: Record<string, unknown>;
   quality_score: number;
   rejection_reason: string | null;

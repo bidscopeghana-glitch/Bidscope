@@ -90,6 +90,13 @@ export async function ingestNormalizedRecords(source: ProcurementSource, records
         method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
         body: JSON.stringify({ opportunity_id: opportunityId, source_id: source.id, external_id: record.external_opportunity_id || stableHash(deduplicationKeys(record)), official_url: record.official_tender_url || record.official_source_url, submission_url: record.official_submission_url, source_resource_id: record.source_resource_id, document_fingerprint: record.document_fingerprint, is_preferred: !existingId, last_verified_at: record.last_verified_at }),
       });
+      if (record.documents_url) {
+        const extractedText = typeof record.raw_payload.noticeText === "string" ? record.raw_payload.noticeText.slice(0, 200_000) : null;
+        await supabaseRest("opportunity_documents?on_conflict=opportunity_id,url", {
+          method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify({ opportunity_id: opportunityId, title: `${record.source_name} official procurement notice`, document_type: "official_notice", url: record.documents_url, source_name: record.source_name, mime_type: /\.pdf(?:$|\?)/i.test(record.documents_url) || extractedText ? "application/pdf" : null, extracted_text: extractedText, processing_status: extractedText ? "indexed" : "pending", indexed_at: extractedText ? record.last_verified_at : null }),
+        });
+      }
       if (sameSourceId) totals.updated += 1;
       else if (existingId) totals.duplicates += 1;
       else totals.inserted += 1;
