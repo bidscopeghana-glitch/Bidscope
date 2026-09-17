@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, BookmarkCheck, BriefcaseBusiness, LockKeyhole, SearchCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { AuthPanel } from "./auth-panel";
+import { customerReturnPath } from "@/lib/auth-return";
 
 export const metadata: Metadata = {
   title: "Sign in or create an account | BidScope",
@@ -16,7 +17,8 @@ const benefits = [
   [BriefcaseBusiness, "Build a clearer bid pipeline", "Track decisions and prepare your business to respond."],
 ] as const;
 
-export default function SignInPage() {
+export default async function SignInPage({ searchParams }: { searchParams: Promise<Record<string,string|string[]|undefined>> }) {
+  const query = await searchParams;
   return (
     <main className="relative min-h-svh overflow-hidden bg-[#0b3c2f] text-[#17362d] lg:grid lg:grid-cols-[minmax(390px,46%)_1fr] lg:bg-[#f6f3e9]">
       <Image src="/images/bidscope-hero.webp" alt="" fill priority sizes="100vw" className="object-cover object-[63%_center] lg:hidden" />
@@ -85,7 +87,7 @@ export default function SignInPage() {
           <p className="mt-3 max-w-md text-[15px] leading-6 text-white/75 lg:text-base lg:leading-7 lg:text-[#64776f]">
             Sign in to continue, or create a free account in a few moments.
           </p>
-          <div className="mt-6"><AuthPanel /></div>
+          <div className="mt-6"><AuthPanel initialMode={query.mode === "sign-up" ? "sign-up" : "sign-in"} returnTo={customerReturnPath(query.next)} /></div>
         </div>
       </section>
     </main>

@@ -1,10 +1,12 @@
 import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { supabaseRest } from "@/lib/server/supabase-rest";
+import { requireUser } from "@/lib/server/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: Request, context: { params: Promise<{ slug: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
+    await requireUser(request);
     const { slug } = await context.params;
     const buyerQuery = new URLSearchParams({ select: "id,country_code,name,slug,entity_type,region,website,source_url,description,contact,created_at,updated_at", slug: `eq.${slug.slice(0, 220)}`, limit: "1" });
     const { data: buyers } = await supabaseRest<Array<{ id: string } & Record<string, unknown>>>(`procuring_entities?${buyerQuery}`);

@@ -436,9 +436,9 @@ function ReadinessPage() {
   );
 }
 const CURRENT_BILLING_PLAN_CODES = new Set([
-  "pro_monthly", "pro_annual",
-  "premium_monthly", "premium_annual",
-  "platinum_monthly", "platinum_annual",
+  "pro_launch_monthly", "pro_launch_annual",
+  "premium_launch_monthly", "premium_launch_annual",
+  "platinum_launch_monthly", "platinum_launch_annual",
 ]);
 
 function BillingPage() {
@@ -1450,52 +1450,133 @@ function Alerts() {
   );
 }
 function Help() {
+  type HelpReply = {
+    answer: string;
+    category: string;
+    routedToTenderEvaluation: boolean;
+    links: Array<{ label: string; href: string; primary?: boolean }>;
+  };
+  type Message = { role: "user" | "assistant"; content: string; reply?: HelpReply };
+  const suggestions = [
+    "How do I find opportunities for my business?",
+    "How do I create tender alerts?",
+    "Where can I compare plans?",
+    "How do I use AI Tender Evaluation?",
+  ];
+  const [question, setQuestion] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "assistant",
+      content:
+        "Hello — I’m the BidScope Help Assistant. I can guide you around opportunities, alerts, profiles, plans, bid tracking and professional services.",
+    },
+  ]);
+
+  const ask = async (value: string) => {
+    const clean = value.trim();
+    if (!clean || busy) return;
+    setQuestion("");
+    setError("");
+    setBusy(true);
+    setMessages((current) => [...current, { role: "user", content: clean }]);
+    try {
+      const response = await api<{ data: HelpReply }>("/api/ai/help", {
+        question: clean,
+        currentPath: window.location.pathname + window.location.search,
+      });
+      setMessages((current) => [
+        ...current,
+        { role: "assistant", content: response.data.answer, reply: response.data },
+      ]);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The Help Assistant could not respond.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <>
       <Heading
-        title="Help & support"
-        description="Make confident procurement decisions with a clear understanding of the evidence."
+        title="BidScope Help Assistant"
+        description="Get help using your workspace, finding features and choosing the correct procurement tool."
       />
-      <section className="cc-editor">
-        <h2>From discovery to submission</h2>
-        {[
-          [
-            "Discover",
-            "Search live notices or browse procurement plans separately. Save relevant opportunities.",
-          ],
-          [
-            "Understand & qualify",
-            "Read the official requirements. Match percentages measure profile alignment, not a guarantee of eligibility.",
-          ],
-          [
-            "Prepare",
-            "Track a bid to manage your checklist, documents, questions, deadlines and notes.",
-          ],
-          [
-            "Submit & learn",
-            "Submit through the issuing authority. Record your reference and outcome in BidScope.",
-          ],
-        ].map(([title, text]) => (
-          <div className="cc-help-topic" key={title}>
-            <h3>{title}</h3>
-            <p>{text}</p>
+      <div className="cc-help-layout">
+        <section className="cc-help-chat" aria-label="BidScope Help Assistant conversation">
+          <div className="cc-help-chat-head">
+            <div><span className="cc-help-status" /> <strong>Product help</strong></div>
+            <span>Not tender analysis</span>
           </div>
-        ))}
-        <h2>Understanding source labels</h2>
-        <p>
-          Official source information is published by the authority. BidScope
-          analysis uses indexed records and profile matching rules. AI
-          interpretation explains available material and should be checked
-          against cited documents.
-        </p>
-        <Link href="/terms" className="cc-text-link">
-          Terms of service
-        </Link>{" "}
-        ·{" "}
-        <Link href="/privacy" className="cc-text-link">
-          Privacy policy
-        </Link>
-      </section>
+          <div className="cc-help-messages" aria-live="polite">
+            {messages.map((message, index) => (
+              <article className={`cc-help-message ${message.role}`} key={`${message.role}-${index}`}>
+                <span>{message.role === "assistant" ? "BidScope" : "You"}</span>
+                <p>{message.content}</p>
+                {!!message.reply?.links.length && (
+                  <div className="cc-help-links">
+                    {message.reply.links.map((link) => (
+                      <Link className={`cc-button ${link.primary ? "primary" : ""}`} href={link.href} key={link.href}>
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {message.reply?.routedToTenderEvaluation && (
+                  <small>AI Tender Evaluation is a paid feature. Your active plan and usage allowance apply.</small>
+                )}
+              </article>
+            ))}
+            {busy && <div className="cc-help-thinking"><span />Checking the best place to help you…</div>}
+          </div>
+          {messages.length === 1 && (
+            <div className="cc-help-suggestions">
+              {suggestions.map((suggestion) => (
+                <button className="cc-button" disabled={busy} key={suggestion} onClick={() => void ask(suggestion)}>
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
+          <form className="cc-help-composer" onSubmit={(event) => { event.preventDefault(); void ask(question); }}>
+            <label htmlFor="help-question">How can we help?</label>
+            <div>
+              <textarea
+                id="help-question"
+                maxLength={1000}
+                rows={2}
+                required
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder="Ask how to use BidScope, manage alerts, plans, your profile or bid workflow…"
+              />
+              <button className="cc-button primary" disabled={busy || question.trim().length < 2}>Send</button>
+            </div>
+          </form>
+          {error && <p role="alert" className="cc-error">{error}</p>}
+        </section>
+        <aside className="cc-help-aside">
+          <section>
+            <p className="cc-eyebrow">USE THE RIGHT TOOL</p>
+            <h2>Need tender details?</h2>
+            <p>Requirements, eligibility, documents, risks and bid/no-bid advice belong in the paid, source-grounded Tender Evaluation workspace.</p>
+            <Link className="cc-button primary" href="/customer/ai">Open AI Tender Evaluation</Link>
+          </section>
+          <section>
+            <h2>Popular destinations</h2>
+            <Link href="/customer/discover">Search opportunities</Link>
+            <Link href="/customer/alerts">Manage alerts</Link>
+            <Link href="/customer/profile">Business profile</Link>
+            <Link href="/customer/billing">Plans and billing</Link>
+            <Link href="/services">Professional services</Link>
+          </section>
+          <section className="cc-help-legal">
+            <Link href="/terms">Terms of service</Link>
+            <Link href="/privacy">Privacy policy</Link>
+          </section>
+        </aside>
+      </div>
     </>
   );
 }

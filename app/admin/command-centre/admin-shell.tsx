@@ -14,6 +14,7 @@ const navigation=[
   ["Customers & access","/admin/command-centre#customers",UsersRound],
   ["Procurement sources","/admin/command-centre/procurement-data/sources",Database],
   ["Subscriptions & revenue","/admin/command-centre/subscriptions-revenue",CreditCard],
+  ["Custom services","/admin/command-centre/services",ContactRound],
   ["Alerts & AI","/admin/command-centre/alerts-ai",BellRing],
   ["AI control centre","/admin/ai",BrainCircuit],
   ["Outreach","/admin/outreach",ContactRound],

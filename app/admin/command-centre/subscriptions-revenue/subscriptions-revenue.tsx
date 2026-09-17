@@ -8,7 +8,7 @@ type Plan={code:string;name:string;amount_minor:number|null;provider_plan_code:s
 type Subscription={id:string;organization:{name:string};plan_code:string;status:string;current_period_ends_at:string|null;provider:string};
 type Organization={id:string;name:string;region:string|null};
 type Data={provider:{configured:boolean;mode:string};productionActivation:string;plans:Plan[];metrics:Record<string,number>;subscriptions:Subscription[];organizations:Organization[]};
-const currentPlanCodes=new Set(["pro_monthly","pro_annual","premium_monthly","premium_annual","platinum_monthly","platinum_annual"]);
+const currentPlanCodes=new Set(["pro_launch_monthly","pro_launch_annual","premium_launch_monthly","premium_launch_annual","platinum_launch_monthly","platinum_launch_annual"]);
 const isoDate=(date:Date)=>date.toISOString().slice(0,10);
 
 export function SubscriptionsRevenue(){

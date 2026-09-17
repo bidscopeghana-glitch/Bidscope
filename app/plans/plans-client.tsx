@@ -11,13 +11,14 @@ const packages = [
   {
     id: "pro", name: "Pro", eyebrow: "Discover & monitor",
     summary: "For businesses that need reliable opportunity discovery and daily monitoring.",
-    monthly: 500, annual: 5000, monthlyCode: "pro_monthly", annualCode: "pro_annual", featured: false,
+    monthly: 150, annual: 1500, monthlyCode: "pro_launch_monthly", annualCode: "pro_launch_annual", featured: false,
     features: [
       "Live Ghana and eligible international opportunities",
       "Unlimited website access and keyword search",
       "Official tender details, links, awards and archive",
       "Personalised opportunity matching and Best Match",
       "Daily email alerts and immediate in-app alerts",
+      "Tender amendment monitoring and deadline reminders",
       "10 Tender Watches, 25 buyer follows and 100 saved opportunities",
       "30 AI checks per month",
     ],
@@ -25,7 +26,7 @@ const packages = [
   {
     id: "premium", name: "Premium", eyebrow: "Qualify & decide",
     summary: "For serious bidders who need deeper intelligence before committing resources.",
-    monthly: 1000, annual: 10000, monthlyCode: "premium_monthly", annualCode: "premium_annual", featured: true,
+    monthly: 300, annual: 3000, monthlyCode: "premium_launch_monthly", annualCode: "premium_launch_annual", featured: true,
     features: [
       "Everything in Pro",
       "Bid / No-Bid and eligibility analysis",
@@ -39,7 +40,7 @@ const packages = [
   {
     id: "platinum", name: "Platinum", eyebrow: "Prepare & collaborate",
     summary: "For organisations managing a larger, repeatable bidding operation.",
-    monthly: 1500, annual: 15000, monthlyCode: "platinum_monthly", annualCode: "platinum_annual", featured: false,
+    monthly: 600, annual: 6000, monthlyCode: "platinum_launch_monthly", annualCode: "platinum_launch_annual", featured: false,
     features: [
       "Everything in Premium",
       "Full bid workspace, pipeline, documents and deadlines",
@@ -92,7 +93,7 @@ export function PlansClient() {
         <div className="mx-auto max-w-6xl text-center">
           <p className="text-xs font-bold uppercase tracking-[.18em] text-[#8ce0bd]">Clear plans for every bidding stage</p>
           <h1 className="serif mx-auto mt-4 max-w-4xl text-4xl leading-[1.02] tracking-[-.04em] sm:text-6xl">Start with opportunities. Upgrade for intelligence.</h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/72">Public notices stay accessible. Paid plans help your business monitor, qualify and prepare for the opportunities worth pursuing.</p>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/72">Browse opportunity previews, then create an account to review the details. Paid plans help your business monitor, qualify and prepare for the opportunities worth pursuing.</p>
           <div className="mx-auto mt-8 inline-flex rounded-full border border-white/15 bg-white/8 p-1" aria-label="Billing period" role="group">
             <button aria-pressed={cycle === "monthly"} className={`rounded-full px-5 py-2.5 text-sm font-bold transition ${cycle === "monthly" ? "bg-white text-[#17362d]" : "text-white/75"}`} onClick={() => setCycle("monthly")}>Monthly</button>
             <button aria-pressed={cycle === "annual"} className={`rounded-full px-5 py-2.5 text-sm font-bold transition ${cycle === "annual" ? "bg-[#d0a344] text-[#17362d]" : "text-white/75"}`} onClick={() => setCycle("annual")}>Annual · 2 months included</button>
@@ -100,10 +101,12 @@ export function PlansClient() {
         </div>
       </section>
 
+      <div className="mx-auto max-w-7xl px-5 pt-8 text-center"><p className="leading-7">Need a company profile, tender review, research brief or tailored preparation support?</p><Link href="/services" className="mt-3 inline-block font-bold text-[#116149] underline">Explore separately priced custom services</Link><p className="mt-3 text-sm text-[#61736a]">New-customer offers. Existing subscriptions retain their agreed renewal price. Custom services are not included in any subscription.</p></div>
       <section className="mx-auto grid max-w-7xl gap-5 px-5 py-10 md:grid-cols-3">
         {packages.map((plan) => {
           const code = cycle === "annual" ? plan.annualCode : plan.monthlyCode;
-          const price = cycle === "annual" ? plan.annual : plan.monthly;
+          const configured = livePlans.find(item => item.code === code);
+          const price = configured?.amount_minor != null ? configured.amount_minor / 100 : cycle === "annual" ? plan.annual : plan.monthly;
           const ready = liveCodes.has(code);
           return (
             <article key={plan.id} className={`relative flex min-h-full flex-col rounded-[26px] border p-6 ${plan.featured ? "border-[#185e46] bg-white shadow-[0_24px_70px_rgba(20,65,51,.15)]" : "border-[#17362d]/10 bg-white"}`}>

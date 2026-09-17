@@ -4,17 +4,20 @@ import { CheckCircle2, CircleAlert, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { storeSession } from "@/lib/client/session";
+import { customerReturnPath } from "@/lib/auth-return";
 
 export default function GoogleAuthCallbackPage() {
   const [state, setState] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("Completing your secure sign-in…");
   const router = useRouter();
   const callbackHash = useRef<string | null>(null);
+  const callbackQuery = useRef<string | null>(null);
 
   useEffect(() => {
     callbackHash.current ??= window.location.hash.slice(1);
     const hash = new URLSearchParams(callbackHash.current);
-    const query = new URLSearchParams(window.location.search);
+    callbackQuery.current ??= window.location.search;
+    const query = new URLSearchParams(callbackQuery.current);
     const accessToken = hash.get("access_token");
     const error = hash.get("error_description") || query.get("error_description") || hash.get("error") || query.get("error");
 
@@ -46,7 +49,7 @@ export default function GoogleAuthCallbackPage() {
     void recordConsent.then(() => {
       setState("success");
       setMessage("You are signed in. Opening your BidScope workspace…");
-      redirect = window.setTimeout(() => router.replace("/customer"), 700);
+      redirect = window.setTimeout(() => router.replace(customerReturnPath(query.get("next"))), 700);
     }).catch((consentError) => {
       setState("error");
       setMessage(consentError instanceof Error ? consentError.message : "Your legal consent could not be recorded.");
