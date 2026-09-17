@@ -62,6 +62,17 @@ export class GhanepsAdapter extends BaseAdapter {
     }
     return enriched;
   }
+  async fetchOpportunityById(id: string) {
+    if (!/^\d{4,20}$/.test(id)) return null;
+    const url = `https://www.ghaneps.gov.gh/epps/cft/prepareViewCfTWS.do?resourceId=${encodeURIComponent(id)}`;
+    const noticeUrl = `https://www.ghaneps.gov.gh/epps/cft/downloadNoticeForAdvSearch.do?resourceId=${encodeURIComponent(id)}`;
+    const [detailHtml, noticeText] = await Promise.all([
+      fetchWithRetry(url, { headers: { Accept: "text/html", "User-Agent": "BidScopeGhana/1.0" } }).then((response) => response.text()),
+      extractOfficialPdfText(noticeUrl).catch(() => ""),
+    ]);
+    const parsed = parseGhanepsDetail(detailHtml).fields;
+    return { id, url, noticeUrl, detailHtml, noticeText, title: parsed["Tender Title"] || "GHANEPS opportunity", buyer: parsed["Name of Procuring Entity"] || "Ghana public entity" };
+  }
   async normaliseOpportunity(raw: Raw) {
     const detail = parseGhanepsDetail(String(raw.detailHtml || "")); const fields = detail.fields; const field = (...names: string[]) => names.map((name) => fields[name]).find(Boolean) || null;
     const noticeText = text(raw.noticeText, 50_000); const notice = ghanepsNoticeFacts(noticeText); const shortDescription = field("Description") || String(raw.description || "");
