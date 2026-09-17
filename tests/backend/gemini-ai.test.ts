@@ -8,7 +8,7 @@ const providers=readFileSync(new URL("../../lib/server/ai/providers.ts",import.m
 test("BidScope AI uses a server-only Gemini Auth key",()=>{
   assert.match(providers,/process\.env\.GOOGLE_GEMINI_API_KEY\|\|process\.env\.GEMINI_API_KEY/);
   assert.match(providers,/"x-goog-api-key":key/);
-  assert.match(providers,/gemini-2\.5-flash/);
+  assert.match(providers,/gemini-3\.6-flash/);
   assert.doesNotMatch(providers,/\?key=/);
 });
 
