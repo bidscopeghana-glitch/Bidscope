@@ -559,8 +559,8 @@ function BillingPage() {
           ) : billing.error ? (
             <p className="cc-error">{billing.error}</p>
           ) : (
-            <section className="cc-editor cc-billing-summary">
-              <p className="cc-eyebrow">CURRENT PLAN</p>
+            <section className="cc-editor cc-billing-summary cc-current-plan-card">
+              <p className="cc-eyebrow">✨ CURRENT PLAN · SUBSCRIPTION</p>
               <h2>
                 {entitlement?.plan?.name || "BidScope Free"}
               </h2>
