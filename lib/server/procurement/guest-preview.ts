@@ -4,6 +4,7 @@ export type GuestOpportunityInput = {
   slug: string; title: string; summary?: string | null; buyer_name?: string | null; source_name?: string | null;
   country?: string | null; country_code?: string | null; region?: string | null; sector?: string | null;
   category?: string | null; published_at?: string | null; deadline_at?: string | null; status?: string | null;
+  estimated_value?: number | null; currency?: string | null; contract_type?: string | null; procurement_method?: string | null;
 };
 
 function escapePattern(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
@@ -25,7 +26,7 @@ export function guestOpportunityPreview(input: GuestOpportunityInput) {
   return {
     slug: input.slug,
     title: redactGuestText(input.title, hiddenTerms, 180) || "Public procurement opportunity",
-    // Never serialize imported summaries: they can contain unstructured contacts and application instructions.
+    summary: redactGuestText(input.summary, hiddenTerms, 360) || "A public-sector opportunity is available in this category. Create an account to review the verified scope and requirements.",
     teaser: "Create an account to review the available scope, buyer, requirements, source documents and application route.",
     country: input.country || null,
     country_code: input.country_code || null,
@@ -35,6 +36,14 @@ export function guestOpportunityPreview(input: GuestOpportunityInput) {
     published_at: input.published_at || null,
     deadline_at: input.deadline_at || null,
     status: input.status || "OPEN",
+    estimated_value: input.estimated_value ?? null,
+    currency: input.currency || null,
+    contract_type: input.contract_type || null,
+    procurement_method: input.procurement_method || null,
+    buyer_type: "Public-sector organisation",
+    documents_available: false,
+    intelligence_available: false,
+    bidscope_reference: `BS-${input.country_code || "INT"}-${input.slug.slice(0, 8).toUpperCase()}`,
     access: "preview" as const,
     locked: ["buyer", "source", "reference", "full_scope", "eligibility", "requirements", "documents", "contacts", "application_route"],
   };

@@ -1,11 +1,14 @@
-import { apiErrorResponse } from "@/lib/server/api-error";
+import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { pagination, safeSearchTerm, totalFromContentRange } from "@/lib/server/query";
 import { supabaseRest } from "@/lib/server/supabase-rest";
+import { canViewTenderSource } from "@/lib/server/tender-access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const access=await canViewTenderSource(request);
+    if(!access.allowed)throw new ApiError(402,"Buyer intelligence requires an active BidScope subscription.","subscription_required");
     const incoming = new URL(request.url).searchParams;
     const { page, pageSize, offset } = pagination(incoming);
     const search = safeSearchTerm(incoming.get("q"));
@@ -23,4 +26,3 @@ export async function GET(request: Request) {
     return apiErrorResponse(error);
   }
 }
-

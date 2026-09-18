@@ -3,12 +3,15 @@ import { requireOrganizationMember, requireUser } from "@/lib/server/auth";
 import { bidTrackingSchema } from "@/lib/server/schemas";
 import { supabaseRest } from "@/lib/server/supabase-rest";
 import {primaryOrganization,requireEntitlement} from "@/lib/server/entitlements";
+import {tenderAccessForUser} from "@/lib/server/tender-access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
     const { user } = await requireUser(request);
+    const access=await tenderAccessForUser(user);
+    if(!access.allowed)throw new ApiError(402,"The bid workspace requires an active BidScope subscription.","subscription_required");
     const organizationId = new URL(request.url).searchParams.get("organizationId");
     if (organizationId) await requireOrganizationMember(user.id, organizationId);
     const query = new URLSearchParams({ select: "*,opportunity:procurement_opportunities(id,slug,bidscope_reference,title,buyer_name,deadline_at,status,source_name,external_reference)", user_id: `eq.${user.id}`, order: "updated_at.desc" });
@@ -21,6 +24,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const { user } = await requireUser(request);
+    const access=await tenderAccessForUser(user);
+    if(!access.allowed)throw new ApiError(402,"The bid workspace requires an active BidScope subscription.","subscription_required");
     const input = bidTrackingSchema.parse(await request.json());
     const billingOrganization=input.organizationId||(await primaryOrganization(user.id))?.organization_id;
     if(!billingOrganization)throw new ApiError(400,"Create a business profile before using the bid workspace.","profile_required");

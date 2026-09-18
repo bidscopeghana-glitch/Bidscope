@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("live and award data endpoints enforce member authentication", async () => {
+test("live and award data endpoints enforce subscription access", async () => {
   const opportunities = await readFile(new URL("../../app/api/opportunities/route.ts", import.meta.url), "utf8");
   const awards = await readFile(new URL("../../app/api/awards/route.ts", import.meta.url), "utf8");
-  assert.match(opportunities, /view"\) === "live"\) await requireUser\(request\)/);
-  assert.match(awards, /await requireUser\(request\)/);
+  assert.match(opportunities, /canViewTenderSource\(request\)/);
+  assert.match(opportunities, /view"\) === "live" && !authenticated/);
+  assert.match(awards, /canViewTenderSource\(request\)/);
+  assert.match(awards, /subscription_required/);
 });
 
 test("legacy member pages redirect to the authenticated customer shell", async () => {

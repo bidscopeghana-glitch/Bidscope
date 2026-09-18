@@ -1,12 +1,13 @@
 import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { supabaseRest } from "@/lib/server/supabase-rest";
-import { requireUser } from "@/lib/server/auth";
+import { canViewTenderSource } from "@/lib/server/tender-access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
-    await requireUser(request);
+    const access=await canViewTenderSource(request);
+    if(!access.allowed)throw new ApiError(402,"Buyer intelligence requires an active BidScope subscription.","subscription_required");
     const { slug } = await context.params;
     const buyerQuery = new URLSearchParams({ select: "id,country_code,name,slug,entity_type,region,website,source_url,description,contact,created_at,updated_at", slug: `eq.${slug.slice(0, 220)}`, limit: "1" });
     const { data: buyers } = await supabaseRest<Array<{ id: string } & Record<string, unknown>>>(`procuring_entities?${buyerQuery}`);

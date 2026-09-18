@@ -1,14 +1,16 @@
 import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
-import { requireUser } from "@/lib/server/auth";
 import { getSubmissionDestination } from "@/lib/server/procurement/submission";
 import { supabaseRest } from "@/lib/server/supabase-rest";
+import { canViewTenderSource } from "@/lib/server/tender-access";
 
 export const dynamic = "force-dynamic";
 type Opportunity = { id: string; source_id: string | null; source_name: string; official_submission_url: string | null; official_tender_url: string | null; official_source_url: string };
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
-    const { user } = await requireUser(request); const { slug: opportunityId } = await context.params;
+    const access = await canViewTenderSource(request);
+    if (!access.allowed || !access.user) throw new ApiError(402, "An active BidScope subscription is required to open the official application route.", "subscription_required");
+    const user = access.user; const { slug: opportunityId } = await context.params;
     const { data } = await supabaseRest<Opportunity[]>(`procurement_opportunities?select=id,source_id,source_name,official_submission_url,official_tender_url,official_source_url&id=eq.${encodeURIComponent(opportunityId)}&limit=1`);
     const opportunity = data[0]; if (!opportunity) throw new ApiError(404, "Opportunity not found.", "not_found");
     const submission = getSubmissionDestination(opportunity); const now = new Date().toISOString();
@@ -20,4 +22,3 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     return Response.json({ data: submission });
   } catch (error) { return apiErrorResponse(error); }
 }
-

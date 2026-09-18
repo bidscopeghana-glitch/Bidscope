@@ -1,12 +1,13 @@
-import { apiErrorResponse } from "@/lib/server/api-error";
+import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { pagination } from "@/lib/server/query";
-import { requireUser } from "@/lib/server/auth";
+import { canViewTenderSource } from "@/lib/server/tender-access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    await requireUser(request);
+    const access=await canViewTenderSource(request);
+    if(!access.allowed)throw new ApiError(402,"Contract award intelligence requires an active BidScope subscription.","subscription_required");
     const incoming = new URL(request.url).searchParams;
     const { page, pageSize, offset } = pagination(incoming);
     const endpoint = new URL(process.env.WORLD_BANK_AWARDS_API_URL || "https://datacatalogapi.worldbank.org/dexapps/fone/api/apiservice?datasetId=DS00005&resourceId=RS00005&type=json");

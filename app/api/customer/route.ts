@@ -4,6 +4,8 @@ import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { supabaseRest, supabaseRpc } from "@/lib/server/supabase-rest";
 import { pagination } from "@/lib/server/query";
 import {getEntitlement,getPlanLimit,primaryOrganization,requireEntitlement,requireUserResourceCapacity} from "@/lib/server/entitlements";
+import {guestOpportunityPreview,type GuestOpportunityInput} from "@/lib/server/procurement/guest-preview";
+import {tenderAccessForUser} from "@/lib/server/tender-access";
 
 export const dynamic = "force-dynamic";
 const uuid = z.string().uuid();
@@ -33,10 +35,14 @@ export async function GET(request:Request) {
     const resource=params.get("resource")||"pulse";
     if(resource==="discover") {
       const {page,pageSize}=pagination(params); const filters=filtersSchema.parse(Object.fromEntries([...params].filter(([,v])=>v!=="")));
-      const {data}=await supabaseRpc("customer_discover",{p_user:user.id,filters,page_number:page,page_size:pageSize});
-      return Response.json(data);
+      const access=await tenderAccessForUser(user);
+      if(!access.allowed)for(const key of ["buyer","source","funding","contractType","procurementMethod"] as const)delete filters[key];
+      const {data}=await supabaseRpc<{data:Array<GuestOpportunityInput&Record<string,unknown>>;pagination:Record<string,unknown>}>("customer_discover",{p_user:user.id,filters,page_number:page,page_size:pageSize});
+      if(access.allowed)return Response.json(data,{headers:{"Cache-Control":"private, no-store",Vary:"Authorization"}});
+      const previews=data.data.map(item=>({...guestOpportunityPreview(item),access:"member_preview" as const,match:item.match}));
+      return Response.json({...data,data:previews},{headers:{"Cache-Control":"private, no-store",Vary:"Authorization"}});
     }
-    if(resource==="pulse") {const {data}=await supabaseRpc("customer_pulse",{p_user:user.id});return Response.json({data});}
+    if(resource==="pulse") {const {data}=await supabaseRpc<Record<string,unknown>>("customer_pulse",{p_user:user.id});const access=await tenderAccessForUser(user);return Response.json({data:access.allowed?data:{...data,buyers:[]}},{headers:{"Cache-Control":"private, no-store",Vary:"Authorization"}});}
     if(resource==="preferences" || resource==="searches" || resource==="preparation") {
       const table={preferences:"customer_preferences",searches:"customer_saved_searches",preparation:"customer_bid_preparation"}[resource];
       const q=new URLSearchParams({select:"*",user_id:`eq.${user.id}`,limit:resource==="searches"?"100":"1"});

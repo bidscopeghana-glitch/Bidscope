@@ -3,6 +3,7 @@ import { requireOrganizationMember, requireUser } from "@/lib/server/auth";
 import { savedOpportunitySchema } from "@/lib/server/schemas";
 import { supabaseRest } from "@/lib/server/supabase-rest";
 import {requireResourceCapacity} from "@/lib/server/entitlements";
+import {canViewTenderSource} from "@/lib/server/tender-access";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ export async function GET(request: Request) {
     const organizationId = new URL(request.url).searchParams.get("organizationId");
     if (!organizationId) throw new ApiError(400, "organizationId is required.", "validation_error");
     await requireOrganizationMember(user.id, organizationId);
+    const access=await canViewTenderSource(request);
+    if(!access.allowed)throw new ApiError(402,"Saved tender details require an active BidScope subscription.","subscription_required");
     const query = new URLSearchParams({
       select: "notes,pipeline_stage,created_at,updated_at,opportunity:procurement_opportunities(*,buyer:procuring_entities(id,name,slug))",
       organization_id: `eq.${organizationId}`,

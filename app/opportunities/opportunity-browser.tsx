@@ -36,7 +36,7 @@ export function OpportunityBrowser() {
     <section className="bg-[#103f32] text-white"><div className="mx-auto max-w-7xl px-5 py-12 sm:px-8">
       <p className="text-sm font-bold uppercase tracking-[.16em] text-[#8bd7b7]">Explore the opportunity</p>
       <h1 className="serif mt-4 max-w-4xl text-4xl leading-tight sm:text-6xl">Discover what fits.<br/>Unlock the details.</h1>
-      <p className="mt-5 max-w-2xl text-lg leading-8 text-white/75">Browse a snapshot of open opportunities. Create an account to review the available tender information, official sources and application routes.</p>
+      <p className="mt-5 max-w-2xl text-lg leading-8 text-white/75">Browse a snapshot of open opportunities. Subscribe to unlock verified tender information, official sources and application routes.</p>
       <div className="mt-6 flex flex-wrap gap-4"><Link href="/sign-in?mode=sign-up" className="rounded-full bg-white px-6 py-3 font-bold text-[#103f32]">Create free account</Link><Link href="/plans" className="rounded-full border border-white/30 px-6 py-3 font-semibold">Compare plans</Link></div>
     </div></section>
     <section className="mx-auto max-w-7xl px-5 py-8 sm:px-8">

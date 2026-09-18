@@ -3,24 +3,27 @@ import { pagination, safeSearchTerm, totalFromContentRange } from "@/lib/server/
 import { supabaseRest } from "@/lib/server/supabase-rest";
 import { requireUser } from "@/lib/server/auth";
 import { guestOpportunityPreview, type GuestOpportunityInput } from "@/lib/server/procurement/guest-preview";
+import { canViewTenderSource } from "@/lib/server/tender-access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
     const incoming = new URL(request.url).searchParams;
-    const authenticated = request.headers.has("authorization");
-    if (authenticated || incoming.get("view") === "live") await requireUser(request);
+    const access = await canViewTenderSource(request);
+    const authenticated = access.authenticated;
+    const fullAccess = access.allowed;
+    if (incoming.get("view") === "live" && !authenticated) await requireUser(request);
     const { page, pageSize, offset } = pagination(incoming);
     const query = new URLSearchParams({
-      select: "slug,title,summary,buyer_name,country,country_code,region,sector,category,published_at,deadline_at,status,source_name",
+      select: "slug,title,summary,buyer_name,country,country_code,region,sector,category,published_at,deadline_at,status,source_name,estimated_value,currency,contract_type,procurement_method",
       published_at: "not.is.null",
       source_removed_at: "is.null",
       status: incoming.get("stage") === "upcoming" ? "eq.UPCOMING" : incoming.get("stage") === "awarded" ? "eq.AWARDED" : "in.(OPEN,CLOSING_SOON)",
       order: incoming.get("sort") === "newest" ? "published_at.desc.nullslast" : "deadline_at.asc.nullslast",
       limit: String(pageSize), offset: String(offset),
     });
-    if (authenticated) query.set("select", "*,sources:opportunity_sources(id,official_url,submission_url,is_preferred,last_verified_at,source:procurement_sources(id,name,slug,organisation,integration_type,trust_level))");
+    if (fullAccess) query.set("select", "*,sources:opportunity_sources(id,official_url,submission_url,is_preferred,last_verified_at,source:procurement_sources(id,name,slug,organisation,integration_type,trust_level))");
     const stage = incoming.get("stage");
     if (stage !== "upcoming" && stage !== "awarded") {
       query.append("deadline_at", `gt.${new Date().toISOString()}`);
@@ -35,7 +38,7 @@ export async function GET(request: Request) {
     if (authenticated) Object.assign(directFilters, {buyer:"buyer_name",source:"source_name",fundingSource:"funding_source",contractType:"contract_type",noticeType:"contract_type",procurementMethod:"procurement_method",eligibility:"eligibility_country",project:"source_resource_id"});
     for (const [parameter, column] of Object.entries(directFilters)) {
       const value = safeSearchTerm(incoming.get(parameter), 160);
-      if (value) query.set(column, `ilike.*${value}*`);
+      if (value && (fullAccess || !["buyer_name","source_name","funding_source","contract_type","procurement_method","eligibility_country","source_resource_id"].includes(column))) query.set(column, `ilike.*${value}*`);
     }
     const minimumValue = Number(incoming.get("minimumValue"));
     const maximumValue = Number(incoming.get("maximumValue"));
@@ -49,6 +52,6 @@ export async function GET(request: Request) {
     else if(scopeOr||searchOr)query.set("or",`(${scopeOr||searchOr})`);
 
     const { data, response } = await supabaseRest<GuestOpportunityInput[]>(`procurement_opportunities?${query}`, { count: "exact" });
-    return Response.json({ data: authenticated ? data : data.map(guestOpportunityPreview), access: authenticated ? "member" : "preview", pagination: { page, pageSize, total: totalFromContentRange(response.headers.get("content-range")) } }, { headers: { "Cache-Control": "private, no-store", Vary: "Authorization" } });
+    return Response.json({ data: fullAccess ? data : data.map(guestOpportunityPreview), access: fullAccess ? "subscriber" : authenticated ? "member_preview" : "preview", pagination: { page, pageSize, total: totalFromContentRange(response.headers.get("content-range")) } }, { headers: { "Cache-Control": "private, no-store", Vary: "Authorization" } });
   } catch (error) { return apiErrorResponse(error); }
 }
