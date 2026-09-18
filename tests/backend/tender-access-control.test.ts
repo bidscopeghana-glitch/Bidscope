@@ -53,3 +53,9 @@ test("paid feature flags exist and source access is admin-overridable", () => {
   assert.match(gate, /adminOverride/);
   assert.match(gate, /tier === "PREMIUM"/);
 });
+
+test("CSV export is disabled at the API boundary", () => {
+  const route = read("app/api/customer/export/route.ts");
+  assert.match(route, /csv_export_disabled/);
+  assert.doesNotMatch(read("components/customer/opportunities.tsx"), /Export CSV/);
+});
