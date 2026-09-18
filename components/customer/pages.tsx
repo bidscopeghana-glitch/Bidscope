@@ -465,6 +465,24 @@ function billingPackageImage(paymentKind: string) {
   return "/images/payment-card.webp";
 }
 
+function billingTransactionLabel(code: string) {
+  const labels: Record<string, string> = {
+    pro_launch_monthly: "BidScope Pro · Monthly",
+    pro_launch_annual: "BidScope Pro · Annual",
+    premium_launch_monthly: "BidScope Premium Team · Monthly",
+    premium_launch_annual: "BidScope Premium Team · Annual",
+    platinum_launch_monthly: "BidScope Platinum Team · Monthly",
+    platinum_launch_annual: "BidScope Platinum Team · Annual",
+    pro_momo_30: "BidScope Pro · Mobile Money · 30 days",
+    pro_momo_365: "BidScope Pro · Mobile Money · 365 days",
+    premium_momo_30: "BidScope Premium Team · Mobile Money · 30 days",
+    premium_momo_365: "BidScope Premium Team · Mobile Money · 365 days",
+    platinum_momo_30: "BidScope Platinum Team · Mobile Money · 30 days",
+    platinum_momo_365: "BidScope Platinum Team · Mobile Money · 365 days",
+  };
+  return labels[code] || code.replaceAll("_", " ");
+}
+
 function BillingPage() {
   const { organization, toast } = useAccount();
   const plans = useData<{
@@ -682,20 +700,22 @@ function BillingPage() {
               </p>
             )}
           </section>
-          <section className="cc-editor">
+          <section className="cc-editor cc-payment-history">
             <h2>Payment history</h2>
             {billing.data?.data.transactions.length ? (
               billing.data.data.transactions.map((tx) => (
-                <div className="cc-document-row" key={tx.id}>
-                  <span>
-                    <strong>{tx.billing_plan_code.replaceAll("_", " ")}</strong>
-                    <small className="block">
+                <div className="cc-payment-row" key={tx.id}>
+                  <span className="cc-payment-icon">{tx.payment_kind === "NON_RENEWING" ? "📱" : "💳"}</span>
+                  <span className="cc-payment-main">
+                    <strong>{billingTransactionLabel(tx.billing_plan_code)}</strong>
+                    <small>
                       {new Date(tx.created_at).toLocaleDateString()} ·{" "}
                       {tx.payment_kind.replaceAll("_", " ")}
                     </small>
                   </span>
-                  <span>
-                    {money(tx.amount_minor, tx.currency)} · {tx.status}
+                  <span className="cc-payment-total">
+                    <strong>{money(tx.amount_minor, tx.currency)}</strong>
+                    <small className={`cc-payment-status ${tx.status.toLowerCase()}`}>{tx.status}</small>
                   </span>
                 </div>
               ))
