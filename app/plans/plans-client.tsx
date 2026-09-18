@@ -21,6 +21,7 @@ const packages = [
       "Tender amendment monitoring and deadline reminders",
       "10 Tender Watches, 25 buyer follows and 100 saved opportunities",
       "30 AI checks per month",
+      "Mobile Money option available as non-renewing 30-day or annual access",
     ],
   },
   {
@@ -35,6 +36,7 @@ const packages = [
       "CSV opportunity exports and multi-recipient alerts",
       "Shared workspace with 50 Tender Watches, 100 buyer follows and 500 saved opportunities",
       "300 AI analyses per month",
+      "Mobile Money option available as non-renewing 30-day or annual access",
     ],
   },
   {
@@ -48,6 +50,7 @@ const packages = [
       "Up to 5 workspace seats, 5 alert recipients and role-based collaboration",
       "200 Tender Watches, 500 buyer follows and 2,000 saved opportunities",
       "1,200 AI analyses per month",
+      "Mobile Money option available as non-renewing 30-day or annual access",
     ],
   },
 ] as const;

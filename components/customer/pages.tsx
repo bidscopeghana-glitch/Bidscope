@@ -448,6 +448,9 @@ const CURRENT_BILLING_PLAN_CODES = new Set([
   "pro_launch_monthly", "pro_launch_annual",
   "premium_launch_monthly", "premium_launch_annual",
   "platinum_launch_monthly", "platinum_launch_annual",
+  "pro_momo_30", "pro_momo_365",
+  "premium_momo_30", "premium_momo_365",
+  "platinum_momo_30", "platinum_momo_365",
 ]);
 
 function BillingPage() {
@@ -615,7 +618,7 @@ function BillingPage() {
             <h2>Packages and billing options</h2>
             <p className="cc-quiet">
               Choose the level of monitoring, intelligence and bid preparation
-              your business needs. Card plans renew automatically until cancelled.
+              your business needs. Card plans renew automatically until cancelled. Mobile Money options are one-time access for the selected period and never auto-renew.
             </p>
             <div className="cc-plan-options">
               {displayedPackages.map((plan) => (

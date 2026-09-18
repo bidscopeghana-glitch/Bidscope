@@ -6,7 +6,7 @@ import {paystackConfigurationStatus,reconcilePendingPaystack} from "@/lib/server
 import {supabaseRest} from "@/lib/server/supabase-rest";
 
 export const dynamic="force-dynamic";
-const configurablePlanCodes=["pro_monthly","pro_annual","premium_monthly","premium_annual","platinum_monthly","platinum_annual","pro_launch_monthly","pro_launch_annual","premium_launch_monthly","premium_launch_annual","platinum_launch_monthly","platinum_launch_annual"] as const;
+const configurablePlanCodes=["pro_monthly","pro_annual","premium_monthly","premium_annual","platinum_monthly","platinum_annual","pro_launch_monthly","pro_launch_annual","premium_launch_monthly","premium_launch_annual","platinum_launch_monthly","platinum_launch_annual","pro_momo_30","pro_momo_365","premium_momo_30","premium_momo_365","platinum_momo_30","platinum_momo_365"] as const;
 async function count(path:string){const{response}=await supabaseRest<unknown[]>(path,{count:"exact"});return Number(response.headers.get("content-range")?.split("/")[1]||0);}
 function minor(input:string){if(!/^\d+(\.\d{1,2})?$/.test(input))throw new ApiError(400,"Enter a valid amount with no more than two decimal places.","invalid_price");const[whole,fraction=""]=input.split(".");return BigInt(whole)*BigInt(100)+BigInt((fraction+"00").slice(0,2));}
 
