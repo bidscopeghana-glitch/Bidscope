@@ -460,6 +460,12 @@ function billingPackageBenefits(name: string) {
   return ["Everything in Premium Team for up to 5 users", "Full bid workspace, pipeline, documents and deadlines", "Advanced monitoring, role-based collaboration and 1,200 AI analyses"];
 }
 
+function billingPackageImage(paymentKind: string, name: string) {
+  if (paymentKind === "NON_RENEWING") return "/images/ghana-supplier.webp";
+  if (name.toLowerCase().includes("platinum")) return "/images/contract-win.webp";
+  return "/images/bidscope-hero.webp";
+}
+
 function BillingPage() {
   const { organization, toast } = useAccount();
   const plans = useData<{
@@ -630,7 +636,7 @@ function BillingPage() {
               <div className="cc-billing-channel-heading"><div><p className="cc-eyebrow">CARD SUBSCRIPTIONS</p><h3>Automatic renewal</h3><p>Monthly and annual plans renew securely by card until cancelled.</p></div><span>RECURRING · CARD ONLY</span></div>
               <div className="cc-plan-options">
               {recurringPackages.map((plan) => (
-                  <article key={plan.code}>
+                  <article key={plan.code} style={{ backgroundImage: `linear-gradient(120deg, rgba(255,255,255,.96) 8%, rgba(255,255,255,.88) 58%, rgba(231,244,237,.68)), url(${billingPackageImage(plan.payment_kind, plan.name)})`, backgroundSize: "cover", backgroundPosition: "center" }}>
                     <div className="cc-plan-title"><strong>{plan.name}</strong><span className="cc-plan-badge">Card renewal</span></div>
                     <span>{money(plan.amount_minor, plan.currency)}</span>
                     <p className="cc-quiet">{plan.description}</p>
@@ -659,7 +665,7 @@ function BillingPage() {
               <div className="cc-billing-channel-heading"><div><p className="cc-eyebrow">MOBILE MONEY ACCESS</p><h3>Pay once, use for your chosen period</h3><p>Mobile Money is separate from recurring subscriptions and never auto-renews.</p></div><span>ONE-TIME · NO RENEWAL</span></div>
               <div className="cc-plan-options">
               {momoPackages.map((plan) => (
-                <article key={plan.code}>
+                <article key={plan.code} style={{ backgroundImage: `linear-gradient(120deg, rgba(255,253,247,.96) 8%, rgba(255,253,247,.87) 58%, rgba(255,244,216,.68)), url(${billingPackageImage(plan.payment_kind, plan.name)})`, backgroundSize: "cover", backgroundPosition: "center" }}>
                   <div className="cc-plan-title"><strong>{plan.name}</strong><span className="cc-plan-badge momo">Mobile Money</span></div>
                   <span>{money(plan.amount_minor, plan.currency)}</span>
                   <p className="cc-quiet">{plan.description}</p>
