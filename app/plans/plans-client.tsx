@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Check, Minus, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 type BillingCycle = "monthly" | "annual";
 type LivePlan = { code: string; enabled: boolean; activation_status: string; amount_minor: number | null };
@@ -105,7 +106,13 @@ export function PlansClient() {
       </section>
 
       <div className="mx-auto max-w-7xl px-5 pt-8 text-center"><p className="leading-7">Need a company profile, tender review, research brief or tailored preparation support?</p><Link href="/services" className="mt-3 inline-block font-bold text-[#116149] underline">Explore separately priced custom services</Link><p className="mt-3 text-sm text-[#61736a]">New-customer offers. Existing subscriptions retain their agreed renewal price. Custom services are not included in any subscription.</p></div>
-      <section className="mx-auto grid max-w-7xl gap-5 px-5 py-10 md:grid-cols-3">
+      <section className="mx-auto max-w-7xl px-5 pt-10">
+        <div className="mb-5 flex items-center gap-4 rounded-[22px] border border-[#17362d]/10 bg-white p-5 shadow-sm">
+          <div className="hidden h-16 w-24 overflow-hidden rounded-xl sm:block"><Image src="/images/ghana-supplier.webp" alt="Ghanaian team reviewing procurement information" width={192} height={128} className="h-full w-full object-cover" /></div>
+          <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#16805e]">Recurring card subscriptions</p><h2 className="serif mt-1 text-2xl text-[#17362d]">Automatic renewal, continuous intelligence.</h2><p className="mt-1 text-sm text-[#63766d]">Pay securely by card. Your access renews monthly or annually until you cancel.</p></div>
+        </div>
+      </section>
+      <section className="mx-auto grid max-w-7xl gap-5 px-5 pb-10 md:grid-cols-3">
         {packages.map((plan) => {
           const code = cycle === "annual" ? plan.annualCode : plan.monthlyCode;
           const configured = livePlans.find(item => item.code === code);
@@ -122,9 +129,9 @@ export function PlansClient() {
                 <span className="ml-1 text-sm text-[#6c7c74]">/{cycle === "annual" ? "year" : "month"}</span>
                 {cycle === "annual" && price > 0 && <p className="mt-1 text-xs text-[#6c7c74]">Equivalent to {money(Math.round(price / 12))} per month</p>}
               </div>
-              <ul className="mt-6 flex-1 space-y-3">
+              <div className="mt-6 rounded-2xl bg-[#f0f7f1] p-4"><p className="text-xs font-bold uppercase tracking-[.14em] text-[#116149]">What you get</p><ul className="mt-3 space-y-3">
                 {plan.features.map((feature) => <li className="flex gap-2.5 text-sm leading-5 text-[#38594e]" key={feature}><Check className="mt-0.5 shrink-0 text-[#16805e]" size={16}/><span>{feature}</span></li>)}
-              </ul>
+              </ul></div>
               <Link className={`mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-sm font-bold ${plan.featured ? "bg-[#185e46] text-white" : "border border-[#17362d]/18 text-[#17362d]"}`} href="/customer/billing">
                 {ready ? `Choose ${plan.name}` : "Preview package"}<ArrowRight size={16}/>
               </Link>
@@ -132,6 +139,22 @@ export function PlansClient() {
             </article>
           );
         })}
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 pb-12">
+        <div className="mb-5 flex items-center gap-4 rounded-[22px] border border-[#d0a344]/35 bg-[#fffaf0] p-5 shadow-sm">
+          <div className="hidden h-16 w-24 overflow-hidden rounded-xl sm:block"><Image src="/images/contract-win.webp" alt="Business celebrating a contract win" width={192} height={128} className="h-full w-full object-cover" /></div>
+          <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#9a7420]">Mobile Money · one-time access</p><h2 className="serif mt-1 text-2xl text-[#17362d]">Flexible access without auto-renewal.</h2><p className="mt-1 text-sm text-[#63766d]">Pay once with Mobile Money for 30 days or a full year. Renew manually whenever you choose.</p></div>
+        </div>
+        <div className="grid gap-5 md:grid-cols-3">
+          {packages.map((plan) => <article key={`${plan.id}-momo`} className="flex flex-col rounded-[26px] border border-[#d0a344]/35 bg-[#fffdf7] p-6 shadow-[0_16px_45px_rgba(120,90,30,.08)]">
+            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.15em] text-[#9a7420]">Mobile Money</p><h2 className="serif mt-2 text-3xl">{plan.name}</h2></div><span className="rounded-full bg-[#f5e9c7] px-3 py-1 text-[11px] font-bold text-[#765816]">No auto-renewal</span></div>
+            <p className="mt-3 text-sm leading-6 text-[#63766d]">{plan.summary}</p>
+            <div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-xl border border-[#d0a344]/30 bg-white p-3"><p className="text-[11px] font-bold uppercase text-[#8b6d28]">30 days</p><strong className="mt-1 block text-xl">{money(plan.monthly)}</strong></div><div className="rounded-xl border border-[#d0a344]/30 bg-white p-3"><p className="text-[11px] font-bold uppercase text-[#8b6d28]">365 days</p><strong className="mt-1 block text-xl">{money(plan.annual)}</strong></div></div>
+            <div className="mt-5 flex-1 rounded-2xl bg-[#fff4d8] p-4"><p className="text-xs font-bold uppercase tracking-[.14em] text-[#765816]">Included benefits</p><ul className="mt-3 space-y-2">{plan.features.slice(0, 5).map((feature) => <li className="flex gap-2 text-sm leading-5 text-[#5d512f]" key={feature}><Check className="mt-0.5 shrink-0 text-[#b48829]" size={16}/><span>{feature}</span></li>)}</ul></div>
+            <Link className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#d0a344] px-5 text-sm font-bold text-[#17362d]" href="/customer/billing">Choose Mobile Money <ArrowRight size={16}/></Link>
+          </article>)}
+        </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-5 pb-12">

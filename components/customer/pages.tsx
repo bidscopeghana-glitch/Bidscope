@@ -453,6 +453,13 @@ const CURRENT_BILLING_PLAN_CODES = new Set([
   "platinum_momo_30", "platinum_momo_365",
 ]);
 
+function billingPackageBenefits(name: string) {
+  const lower = name.toLowerCase();
+  if (lower.includes("pro")) return ["Live Ghana and eligible international opportunities", "Unlimited search, official links and daily alerts", "Personalised matching, 10 Tender Watches and 30 AI checks"];
+  if (lower.includes("premium")) return ["Everything in Pro for up to 3 workspace users", "Bid / No-Bid, eligibility and readiness intelligence", "Shared alerts, buyer intelligence and 300 AI analyses"];
+  return ["Everything in Premium Team for up to 5 users", "Full bid workspace, pipeline, documents and deadlines", "Advanced monitoring, role-based collaboration and 1,200 AI analyses"];
+}
+
 function BillingPage() {
   const { organization, toast } = useAccount();
   const plans = useData<{
@@ -509,6 +516,8 @@ function BillingPage() {
   const displayedPackages = currentPackages.length
     ? currentPackages
     : plans.data?.data.filter((plan) => plan.tier === "PREMIUM") || [];
+  const recurringPackages = displayedPackages.filter((plan) => plan.payment_kind === "RECURRING_CARD");
+  const momoPackages = displayedPackages.filter((plan) => plan.payment_kind === "NON_RENEWING");
   async function checkout(code: string) {
     if (!organization) return;
     try {
@@ -616,20 +625,18 @@ function BillingPage() {
           )}
           <section className="cc-editor">
             <h2>Packages and billing options</h2>
-            <p className="cc-quiet">
-              Choose the level of monitoring, intelligence and bid preparation
-              your business needs. Card plans renew automatically until cancelled. Mobile Money options are one-time access for the selected period and never auto-renew.
-            </p>
-            <div className="cc-plan-options">
-              {displayedPackages.map((plan) => (
+            <p className="cc-quiet">Choose the level of monitoring, intelligence and bid preparation your business needs.</p>
+            <div className="cc-billing-channel cc-billing-channel-card">
+              <div className="cc-billing-channel-heading"><div><p className="cc-eyebrow">CARD SUBSCRIPTIONS</p><h3>Automatic renewal</h3><p>Monthly and annual plans renew securely by card until cancelled.</p></div><span>RECURRING · CARD ONLY</span></div>
+              <div className="cc-plan-options">
+              {recurringPackages.map((plan) => (
                   <article key={plan.code}>
-                    <strong>{plan.name}</strong>
+                    <div className="cc-plan-title"><strong>{plan.name}</strong><span className="cc-plan-badge">Card renewal</span></div>
                     <span>{money(plan.amount_minor, plan.currency)}</span>
                     <p className="cc-quiet">{plan.description}</p>
+                    <div className="cc-plan-benefits"><strong>What you get</strong><ul>{billingPackageBenefits(plan.name).map((benefit) => <li key={benefit}>✓ {benefit}</li>)}</ul></div>
                     <small>
-                      {plan.payment_kind === "RECURRING_CARD"
-                          ? `${plan.billing_interval} · CARD · AUTOMATIC RENEWAL`
-                          : "MOBILE MONEY · MANUAL RENEWAL"}
+                      {plan.billing_interval} · CARD · AUTOMATIC RENEWAL
                     </small>
                     <button
                       className="cc-button primary"
@@ -646,6 +653,22 @@ function BillingPage() {
                     </button>
                   </article>
                 ))}
+              </div>
+            </div>
+            <div className="cc-billing-channel cc-billing-channel-momo">
+              <div className="cc-billing-channel-heading"><div><p className="cc-eyebrow">MOBILE MONEY ACCESS</p><h3>Pay once, use for your chosen period</h3><p>Mobile Money is separate from recurring subscriptions and never auto-renews.</p></div><span>ONE-TIME · NO RENEWAL</span></div>
+              <div className="cc-plan-options">
+              {momoPackages.map((plan) => (
+                <article key={plan.code}>
+                  <div className="cc-plan-title"><strong>{plan.name}</strong><span className="cc-plan-badge momo">Mobile Money</span></div>
+                  <span>{money(plan.amount_minor, plan.currency)}</span>
+                  <p className="cc-quiet">{plan.description}</p>
+                  <div className="cc-plan-benefits"><strong>What you get</strong><ul>{billingPackageBenefits(plan.name).map((benefit) => <li key={benefit}>✓ {benefit}</li>)}</ul></div>
+                  <small>ONE-TIME ACCESS · MANUAL RENEWAL · MOBILE MONEY</small>
+                  <button className="cc-button primary" disabled={!plan.enabled || plan.activation_status === "PRICING_CONFIGURATION_REQUIRED"} onClick={() => void checkout(plan.code)}>{plan.enabled ? "Continue to Mobile Money checkout" : "Price not configured"}</button>
+                </article>
+              ))}
+              </div>
             </div>
             {plans.data?.productionActivation !== "LIVE" && (
               <p className="cc-configuration-note">
