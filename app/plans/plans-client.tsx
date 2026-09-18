@@ -10,7 +10,7 @@ type LivePlan = { code: string; enabled: boolean; activation_status: string; amo
 
 const packages = [
   {
-    id: "pro", name: "Pro", eyebrow: "Discover & monitor",
+    id: "pro", name: "Pro", eyebrow: "Discover & monitor", image: "/images/ghana-supplier.webp",
     summary: "For businesses that need reliable opportunity discovery and daily monitoring.",
     monthly: 150, annual: 1500, monthlyCode: "pro_launch_monthly", annualCode: "pro_launch_annual", featured: false,
     features: [
@@ -26,7 +26,7 @@ const packages = [
     ],
   },
   {
-    id: "premium", name: "Premium Team", eyebrow: "Qualify & collaborate",
+    id: "premium", name: "Premium Team", eyebrow: "Qualify & collaborate", image: "/images/bidscope-hero.webp",
     summary: "For small bidding teams that need deeper intelligence and shared decision-making.",
     monthly: 350, annual: 3500, monthlyCode: "premium_launch_monthly", annualCode: "premium_launch_annual", featured: true,
     features: [
@@ -41,7 +41,7 @@ const packages = [
     ],
   },
   {
-    id: "platinum", name: "Platinum Team", eyebrow: "Prepare & scale",
+    id: "platinum", name: "Platinum Team", eyebrow: "Prepare & scale", image: "/images/contract-win.webp",
     summary: "For established procurement teams running a repeatable bidding operation.",
     monthly: 750, annual: 7500, monthlyCode: "platinum_launch_monthly", annualCode: "platinum_launch_annual", featured: false,
     features: [
@@ -108,8 +108,8 @@ export function PlansClient() {
       <div className="mx-auto max-w-7xl px-5 pt-8 text-center"><p className="leading-7">Need a company profile, tender review, research brief or tailored preparation support?</p><Link href="/services" className="mt-3 inline-block font-bold text-[#116149] underline">Explore separately priced custom services</Link><p className="mt-3 text-sm text-[#61736a]">New-customer offers. Existing subscriptions retain their agreed renewal price. Custom services are not included in any subscription.</p></div>
       <section className="mx-auto max-w-7xl px-5 pt-10">
         <div className="mb-5 flex items-center gap-4 rounded-[22px] border border-[#17362d]/10 bg-white p-5 shadow-sm">
-          <div className="hidden h-16 w-24 overflow-hidden rounded-xl sm:block"><Image src="/images/ghana-supplier.webp" alt="Ghanaian team reviewing procurement information" width={192} height={128} className="h-full w-full object-cover" /></div>
-          <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#16805e]">Recurring card subscriptions</p><h2 className="serif mt-1 text-2xl text-[#17362d]">Automatic renewal, continuous intelligence.</h2><p className="mt-1 text-sm text-[#63766d]">Pay securely by card. Your access renews monthly or annually until you cancel.</p></div>
+          <div className="hidden h-16 w-24 overflow-hidden rounded-xl sm:block"><Image src="/images/contract-win.webp" alt="Secure card payment for a contract intelligence subscription" width={192} height={128} className="h-full w-full object-cover" /></div>
+          <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#16805e]">Recurring card subscriptions</p><h2 className="serif mt-1 text-2xl text-[#17362d]">Automatic renewal, continuous intelligence.</h2><p className="mt-1 text-sm text-[#63766d]">Pay securely by Visa, Mastercard or another supported card. Your access renews monthly or annually until you cancel.</p></div>
         </div>
       </section>
       <section className="mx-auto grid max-w-7xl gap-5 px-5 pb-10 md:grid-cols-3">
@@ -119,7 +119,7 @@ export function PlansClient() {
           const price = configured?.amount_minor != null ? configured.amount_minor / 100 : cycle === "annual" ? plan.annual : plan.monthly;
           const ready = liveCodes.has(code);
           return (
-            <article key={plan.id} className={`relative flex min-h-full flex-col rounded-[26px] border p-6 ${plan.featured ? "border-[#185e46] bg-white shadow-[0_24px_70px_rgba(20,65,51,.15)]" : "border-[#17362d]/10 bg-white"}`}>
+            <article key={plan.id} className={`relative flex min-h-full flex-col overflow-hidden rounded-[26px] border p-6 ${plan.featured ? "border-[#185e46] bg-white shadow-[0_24px_70px_rgba(20,65,51,.15)]" : "border-[#17362d]/10 bg-white"}`} style={{ backgroundImage: `linear-gradient(120deg, rgba(255,255,255,.97) 10%, rgba(255,255,255,.88) 62%, rgba(239,247,242,.72)), url(${plan.image})`, backgroundSize: "cover", backgroundPosition: "center" }}>
               {plan.featured && <span className="absolute right-5 top-5 inline-flex items-center gap-1 rounded-full bg-[#e3f3eb] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#116149]"><Sparkles size={12}/>Best value</span>}
               <p className="text-xs font-bold uppercase tracking-[.15em] text-[#5e766d]">{plan.eyebrow}</p>
               <h2 className="serif mt-3 text-3xl">{plan.name}</h2>
@@ -143,11 +143,11 @@ export function PlansClient() {
 
       <section className="mx-auto max-w-7xl px-5 pb-12">
         <div className="mb-5 flex items-center gap-4 rounded-[22px] border border-[#d0a344]/35 bg-[#fffaf0] p-5 shadow-sm">
-          <div className="hidden h-16 w-24 overflow-hidden rounded-xl sm:block"><Image src="/images/contract-win.webp" alt="Business celebrating a contract win" width={192} height={128} className="h-full w-full object-cover" /></div>
-          <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#9a7420]">Mobile Money · one-time access</p><h2 className="serif mt-1 text-2xl text-[#17362d]">Flexible access without auto-renewal.</h2><p className="mt-1 text-sm text-[#63766d]">Pay once with Mobile Money for 30 days or a full year. Renew manually whenever you choose.</p></div>
+          <div className="hidden h-16 w-24 overflow-hidden rounded-xl sm:block"><Image src="/images/ghana-supplier.webp" alt="Ghanaian business team using mobile money" width={192} height={128} className="h-full w-full object-cover" /></div>
+          <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#9a7420]">Mobile Money · one-time access</p><h2 className="serif mt-1 text-2xl text-[#17362d]">Flexible access without auto-renewal.</h2><p className="mt-1 text-sm text-[#63766d]">Pay once with MTN MoMo, Telecel Cash or AirtelTigo Money where supported. Renew manually whenever you choose.</p></div>
         </div>
         <div className="grid gap-5 md:grid-cols-3">
-          {packages.map((plan) => <article key={`${plan.id}-momo`} className="flex flex-col rounded-[26px] border border-[#d0a344]/35 bg-[#fffdf7] p-6 shadow-[0_16px_45px_rgba(120,90,30,.08)]">
+          {packages.map((plan) => <article key={`${plan.id}-momo`} className="relative flex flex-col overflow-hidden rounded-[26px] border border-[#d0a344]/35 bg-[#fffdf7] p-6 shadow-[0_16px_45px_rgba(120,90,30,.08)]" style={{ backgroundImage: `linear-gradient(120deg, rgba(255,253,247,.97) 12%, rgba(255,253,247,.88) 58%, rgba(255,244,216,.72)), url(${plan.image})`, backgroundSize: "cover", backgroundPosition: "center" }}>
             <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.15em] text-[#9a7420]">Mobile Money</p><h2 className="serif mt-2 text-3xl">{plan.name}</h2></div><span className="rounded-full bg-[#f5e9c7] px-3 py-1 text-[11px] font-bold text-[#765816]">No auto-renewal</span></div>
             <p className="mt-3 text-sm leading-6 text-[#63766d]">{plan.summary}</p>
             <div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-xl border border-[#d0a344]/30 bg-white p-3"><p className="text-[11px] font-bold uppercase text-[#8b6d28]">30 days</p><strong className="mt-1 block text-xl">{money(plan.monthly)}</strong></div><div className="rounded-xl border border-[#d0a344]/30 bg-white p-3"><p className="text-[11px] font-bold uppercase text-[#8b6d28]">365 days</p><strong className="mt-1 block text-xl">{money(plan.annual)}</strong></div></div>
