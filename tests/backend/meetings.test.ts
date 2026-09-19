@@ -40,3 +40,20 @@ test("meeting UI uses BidScope branding and supports explicit invitation respons
   assert.match(room,/import\("@daily-co\/daily-js"\)/);
   assert.doesNotMatch(workspace,/>Daily</);
 });
+
+test("external tenders cannot enter the managed meeting workflow",()=>{
+  const detail=read("components/customer/detail.tsx");
+  const route=read("app/api/meetings/route.ts");
+  assert.doesNotMatch(detail,/customer\/meetings\?schedule=1&opportunity=/);
+  assert.match(detail,/External tender/);
+  assert.match(detail,/Apply on official portal/);
+  assert.match(route,/external_tender_meeting_not_allowed/);
+});
+
+test("buyer meeting navigation stays inside the procurement workspace",()=>{
+  const procurement=read("components/procurement/procurement-meetings.tsx");
+  const shell=read("components/procurement/buyer-workspace.tsx");
+  assert.match(procurement,/href={`\/procurement\/meetings\/\$\{m\.id\}`}/);
+  assert.doesNotMatch(procurement,/href="\/customer\/meetings"/);
+  assert.match(shell,/<ProcurementMeetings meetingId={identifier}/);
+});

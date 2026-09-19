@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CalendarDays, Plus, Video } from "lucide-react";
 import { api, invalidate, useData } from "@/components/customer/data";
+import { MeetingsWorkspace } from "@/components/meetings/meetings-workspace";
 
 type Meeting = {
   id: string;
@@ -16,7 +17,12 @@ type Meeting = {
   procurement_tender_id?: string | null;
   procurement_meeting_type?: string | null;
 };
-export function ProcurementMeetings() {
+export function ProcurementMeetings({ meetingId }: { meetingId?: string }) {
+  if (meetingId) return <MeetingsWorkspace meetingId={meetingId} />;
+  return <ProcurementMeetingList />;
+}
+
+function ProcurementMeetingList() {
   const params = useSearchParams(),
     [open, setOpen] = useState(params.has("tender")),
     [busy, setBusy] = useState(false),
@@ -85,9 +91,9 @@ export function ProcurementMeetings() {
             <Plus size={15} />
             Schedule meeting
           </button>
-          <Link className="pw-button" href="/customer/meetings">
-            Open full meeting calendar
-          </Link>
+          <a className="pw-button" href="#procurement-calendar">
+            Open procurement calendar
+          </a>
         </div>
       </div>
       {message && (
@@ -95,7 +101,7 @@ export function ProcurementMeetings() {
           {message}
         </p>
       )}
-      <section className="pw-card mt-5">
+      <section className="pw-card mt-5" id="procurement-calendar">
         <h2>Upcoming procurement events</h2>
         {result.loading ? (
           <p>Loading meetings…</p>
@@ -113,7 +119,7 @@ export function ProcurementMeetings() {
             .map((m) => (
               <Link
                 className="pw-row"
-                href={`/customer/meetings/${m.id}`}
+                href={`/procurement/meetings/${m.id}`}
                 key={m.id}
               >
                 <span>

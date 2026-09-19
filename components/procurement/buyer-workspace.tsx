@@ -259,7 +259,7 @@ export function ProcurementPage({
       ) : section === "evaluations" ? (
         <Evaluations />
       ) : section === "meetings" ? (
-        <ProcurementMeetings />
+        <ProcurementMeetings meetingId={identifier} />
       ) : section === "suppliers" ? (
         <Suppliers />
       ) : section === "reports" ? (
@@ -1814,7 +1814,7 @@ function Meetings() {
         title="Procurement meetings"
         description="Supplier interviews, presentations, clarifications, negotiations and committee meetings reuse BidScope Meet."
         action={
-          <Link className="pw-button gold" href="/customer/meetings?schedule=1">
+          <Link className="pw-button gold" href="/procurement/meetings">
             Schedule meeting
           </Link>
         }
@@ -1825,7 +1825,7 @@ function Meetings() {
           Procurement meetings use the existing secure Daily or Google Meet
           connection, attendance records, reminders, notes and action items.
         </p>
-        <Link className="pw-button primary" href="/customer/meetings">
+        <Link className="pw-button primary" href="/procurement/meetings">
           Open BidScope Meet
         </Link>
       </section>

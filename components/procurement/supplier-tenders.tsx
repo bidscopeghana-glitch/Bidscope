@@ -154,7 +154,7 @@ function SupplierTenderMarketplace() {
           <div className="cc-document-list">
             {result.data.data.map((t) => (
               <Link
-                className="cc-document-row"
+                className="cc-document-row cc-bidscope-tender-row"
                 key={t.id}
                 href={`/customer/bidscope-tenders/${t.id}`}
               >
@@ -167,9 +167,9 @@ function SupplierTenderMarketplace() {
                   </small>
                 </span>
                 <span>
-                  <b>BidScope Tender</b>
+                  <b>BidScope Managed</b>
                   <small>
-                    Closes{" "}
+                    Submit securely inside BidScope · Closes{" "}
                     {new Date(t.submission_deadline).toLocaleString("en-GB")}
                   </small>
                 </span>
