@@ -24,15 +24,33 @@ export async function POST(request: Request) {
   try {
     const { accessToken } = await requireUser(request);
     const input = organizationSchema.parse(await request.json());
-    const { data } = await supabaseRpc<unknown>("create_organization_with_owner", {
+    const { data } = await supabaseRpc<{ id: string } | Array<{ id: string }>>("create_organization_with_owner", {
       organization_name: input.name,
       organization_slug: input.slug,
       organization_sectors: input.sectors,
       organization_region: input.region || null,
     }, accessToken);
-    return Response.json({ data }, { status: 201 });
+    const created = Array.isArray(data) ? data[0] : data;
+    if (!created?.id) throw new Error("The organisation was created without an identifier.");
+
+    const buyer = input.accountType === "buyer";
+    const [{ data: organizations }] = await Promise.all([
+      supabaseRest<Array<Record<string, unknown>>>(`organizations?id=eq.${created.id}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({
+          can_bid: !buyer,
+          can_procure: buyer,
+          organization_type: buyer ? "procuring_organisation" : "supplier",
+        }),
+      }),
+      supabaseRest(`organization_members?organization_id=eq.${created.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ procurement_role: buyer ? "organization_owner" : "bid_team_member" }),
+      }),
+    ]);
+    return Response.json({ data: organizations[0] || created }, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
-

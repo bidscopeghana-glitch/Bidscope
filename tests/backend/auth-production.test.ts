@@ -58,3 +58,18 @@ test("administrator control is restricted to the builder identity and database f
   assert.match(session,/requireSuperAdmin\(request\)/);
   assert.match(shell,/\/api\/admin\/session/);
 });
+
+test("sign-up account type configures the correct organisation workspace", () => {
+  const panel = read("app/sign-in/auth-panel.tsx");
+  const password = read("app/api/auth/password/route.ts");
+  const organizations = read("app/api/organizations/route.ts");
+  const profile = read("components/customer/pages.tsx");
+  assert.match(panel, /Choose your account type/);
+  assert.match(panel, /Seller \/ Supplier account/);
+  assert.match(panel, /Buyer \/ Procuring Organisation account/);
+  assert.match(password, /customer\/profile\?onboarding=\$\{usageMode\}/);
+  assert.match(organizations, /can_bid: !buyer/);
+  assert.match(organizations, /can_procure: buyer/);
+  assert.match(profile, /accountType/);
+  assert.match(profile, /\/procurement\/settings\?onboarding=buyer/);
+});

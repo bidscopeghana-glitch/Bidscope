@@ -3,7 +3,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   api,
   date,
@@ -100,6 +100,9 @@ function Heading({
 function BusinessProfile() {
   const { organization, profile, toast } = useAccount();
   const [busy, setBusy] = useState(false);
+  const params = useSearchParams();
+  const router = useRouter();
+  const accountType = params.get("onboarding") === "buyer" ? "buyer" : "seller";
   const lists = [
     ["sectors", "Sectors"],
     ["services", "Services"],
@@ -145,10 +148,16 @@ function BusinessProfile() {
                   .map((v) => v.trim())
                   .filter(Boolean),
                 region: f.get("region") || null,
+                accountType,
               });
               toast(
-                "Business created. Add the rest of your capabilities below.",
+                accountType === "buyer"
+                  ? "Buyer account created. Complete verification before publishing tenders."
+                  : "Seller account created. Your opportunity workspace is ready.",
               );
+              invalidate();
+              router.replace(accountType === "buyer" ? "/procurement/settings?onboarding=buyer" : "/customer");
+              return;
             } else {
               await api("/api/customer", {
                 resource: "business",

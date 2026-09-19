@@ -19,6 +19,7 @@ export const organizationSchema = z.object({
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80),
   sectors: z.array(shortText(80)).max(20).default([]),
   region: z.string().trim().max(120).nullable().optional(),
+  accountType: z.enum(["seller", "buyer"]).default("seller"),
 });
 
 export const savedOpportunitySchema = z.object({

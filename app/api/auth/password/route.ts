@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const email = body.email?.trim().toLowerCase();
     const password = body.password || "";
     const fullName = body.fullName?.trim();
-    const usageMode = body.usageMode === "buyer" ? "buyer" : "supplier";
+    const usageMode = body.usageMode === "buyer" || body.usageMode === "supplier" ? body.usageMode : null;
 
     if (action !== "sign-in" && action !== "sign-up") {
       return NextResponse.json({ error: "Choose sign in or create account." }, { status: 400 });
@@ -38,6 +38,9 @@ export async function POST(request: Request) {
     if (action === "sign-up" && body.legalAccepted !== true) {
       return NextResponse.json({ error: "You must accept the Terms of Service and acknowledge the Privacy and Cookie Policies to create an account." }, { status: 400 });
     }
+    if (action === "sign-up" && !usageMode) {
+      return NextResponse.json({ error: "Choose a Seller / Supplier account or a Buyer account." }, { status: 400 });
+    }
 
     const { url, publicKey } = supabaseConfiguration();
     if (!publicKey) {
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || requestUrl.origin).replace(/\/$/, "");
     const endpoint = action === "sign-in"
       ? `${url}/auth/v1/token?grant_type=password`
-      : `${url}/auth/v1/signup?redirect_to=${encodeURIComponent(`${siteUrl}/auth/callback?next=${encodeURIComponent(usageMode === "buyer" ? "/procurement/settings?onboarding=buyer" : "/customer/profile?onboarding=supplier")}`)}`;
+      : `${url}/auth/v1/signup?redirect_to=${encodeURIComponent(`${siteUrl}/auth/callback?next=${encodeURIComponent(`/customer/profile?onboarding=${usageMode}`)}`)}`;
 
     const response = await fetch(endpoint, {
       method: "POST",

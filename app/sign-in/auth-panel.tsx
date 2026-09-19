@@ -15,7 +15,7 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
-  const [usageMode, setUsageMode] = useState<"supplier" | "buyer">("supplier");
+  const [usageMode, setUsageMode] = useState<"supplier" | "buyer" | null>(null);
   const router = useRouter();
 
   function chooseMode(next: Mode) {
@@ -31,6 +31,11 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
     const form = event.currentTarget;
     const values = new FormData(form);
     const password = String(values.get("password") || "");
+    if (mode === "sign-up" && !usageMode) {
+      setState("error");
+      setMessage("Choose a Seller / Supplier account or a Buyer account.");
+      return;
+    }
     if (mode === "sign-up" && password !== String(values.get("confirmPassword") || "")) {
       setState("error");
       setMessage("Your passwords do not match.");
@@ -59,7 +64,7 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
       storeSession({ accessToken: result.accessToken, refreshToken: result.refreshToken, expiresIn: result.expiresIn });
       setState("success");
       setMessage(mode === "sign-up" ? "Your account is ready. Opening BidScope…" : "Welcome back. Opening BidScope…");
-      window.setTimeout(() => router.replace(mode === "sign-up" ? (usageMode === "buyer" ? "/procurement/settings?onboarding=buyer" : "/customer/profile?onboarding=supplier") : returnTo), 500);
+      window.setTimeout(() => router.replace(mode === "sign-up" ? `/customer/profile?onboarding=${usageMode}` : returnTo), 500);
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Please try again.");
@@ -99,7 +104,7 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
       </div>
 
       <form onSubmit={submit} className="mt-6 grid gap-4">
-        {mode === "sign-up" && <><Field label="Full name" name="fullName" type="text" autoComplete="name" placeholder="Your full name" /><fieldset className="grid gap-2"><legend className="mb-2 text-sm font-bold text-[#315b4e]">How will you use BidScope?</legend><div className="grid gap-3 sm:grid-cols-2"><button type="button" aria-pressed={usageMode==="supplier"} onClick={()=>setUsageMode("supplier")} className={`rounded-2xl border p-4 text-left transition ${usageMode==="supplier"?"border-[#116149] bg-[#e8f3ed] shadow-sm":"border-[#17362d]/12 bg-white hover:border-[#116149]/40"}`}><BriefcaseBusiness size={20} className="text-[#116149]"/><strong className="mt-3 block text-sm text-[#17362d]">Supplier</strong><span className="mt-1 block text-xs leading-5 text-[#61736a]">Find opportunities, prepare bids, submit to BidScope tenders, manage your bid team and track outcomes.</span></button><button type="button" aria-pressed={usageMode==="buyer"} onClick={()=>setUsageMode("buyer")} className={`rounded-2xl border p-4 text-left transition ${usageMode==="buyer"?"border-[#b68b2c] bg-[#fbf3dc] shadow-sm":"border-[#17362d]/12 bg-white hover:border-[#b68b2c]/40"}`}><Building2 size={20} className="text-[#8c681d]"/><strong className="mt-3 block text-sm text-[#17362d]">Buyer / Procuring Organisation</strong><span className="mt-1 block text-xs leading-5 text-[#61736a]">Create tenders, receive bids, compare suppliers, conduct interviews and award contracts.</span></button></div></fieldset></>}
+        {mode === "sign-up" && <><Field label="Full name" name="fullName" type="text" autoComplete="name" placeholder="Your full name" /><fieldset id="account-type" aria-required="true" className="grid gap-2"><legend className="mb-2 text-sm font-bold text-[#315b4e]">Choose your account type</legend><div className="grid gap-3 sm:grid-cols-2"><button type="button" aria-pressed={usageMode==="supplier"} onClick={()=>setUsageMode("supplier")} className={`rounded-2xl border p-4 text-left transition ${usageMode==="supplier"?"border-[#116149] bg-[#e8f3ed] shadow-sm":"border-[#17362d]/12 bg-white hover:border-[#116149]/40"}`}><BriefcaseBusiness size={20} className="text-[#116149]"/><strong className="mt-3 block text-sm text-[#17362d]">Seller / Supplier account</strong><span className="mt-1 block text-xs leading-5 text-[#61736a]">Find opportunities, prepare bids, submit to BidScope tenders, manage your bid team and track outcomes.</span></button><button type="button" aria-pressed={usageMode==="buyer"} onClick={()=>setUsageMode("buyer")} className={`rounded-2xl border p-4 text-left transition ${usageMode==="buyer"?"border-[#b68b2c] bg-[#fbf3dc] shadow-sm":"border-[#17362d]/12 bg-white hover:border-[#b68b2c]/40"}`}><Building2 size={20} className="text-[#8c681d]"/><strong className="mt-3 block text-sm text-[#17362d]">Buyer / Procuring Organisation account</strong><span className="mt-1 block text-xs leading-5 text-[#61736a]">Create tenders, receive bids, compare suppliers, conduct interviews and award contracts.</span></button></div><p className="text-xs leading-5 text-[#61736a]">Your choice prepares the correct workspace. Buyer accounts must be verified before publishing a tender.</p></fieldset></>}
         <Field label="Email address" name="email" type="email" autoComplete="email" placeholder="you@company.com" />
         <label className="grid gap-2 text-sm font-bold text-[#315b4e]">
           <span className="flex items-center justify-between">Password{mode === "sign-in" && <button type="button" onClick={requestPasswordReset} disabled={busy} className="text-xs font-bold text-[#116149] hover:underline disabled:opacity-60">Forgot password?</button>}</span>
@@ -123,7 +128,7 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
 
       <div className="my-5 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[.12em] text-[#89958f] before:h-px before:flex-1 before:bg-[#17362d]/10 after:h-px after:flex-1 after:bg-[#17362d]/10">or continue with</div>
 
-      <a href={mode === "sign-up" && !legalAccepted ? "#legal-consent" : `/api/auth/google?intent=${mode}&legalAccepted=${legalAccepted}&usageMode=${usageMode}&next=${encodeURIComponent(mode === "sign-up" ? (usageMode === "buyer" ? "/procurement/settings?onboarding=buyer" : "/customer/profile?onboarding=supplier") : returnTo)}`} onClick={(event) => { if (mode === "sign-up" && !legalAccepted) { event.preventDefault(); setState("error"); setMessage("Accept the legal terms above before signing up with Google."); } }} aria-disabled={mode === "sign-up" && !legalAccepted} className={`group flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-[#17362d]/15 bg-white px-4 text-sm font-bold text-[#17362d] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#116149]/30 ${mode === "sign-up" && !legalAccepted ? "cursor-not-allowed opacity-60" : "hover:-translate-y-0.5 hover:border-[#116149]/30 hover:shadow-md"}`}>
+      <a href={mode === "sign-up" && (!usageMode || !legalAccepted) ? (!usageMode ? "#account-type" : "#legal-consent") : `/api/auth/google?intent=${mode}&legalAccepted=${legalAccepted}&usageMode=${usageMode}&next=${encodeURIComponent(mode === "sign-up" ? `/customer/profile?onboarding=${usageMode}` : returnTo)}`} onClick={(event) => { if (mode === "sign-up" && !usageMode) { event.preventDefault(); setState("error"); setMessage("Choose a Seller / Supplier account or a Buyer account."); } else if (mode === "sign-up" && !legalAccepted) { event.preventDefault(); setState("error"); setMessage("Accept the legal terms above before signing up with Google."); } }} aria-disabled={mode === "sign-up" && (!usageMode || !legalAccepted)} className={`group flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-[#17362d]/15 bg-white px-4 text-sm font-bold text-[#17362d] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#116149]/30 ${mode === "sign-up" && (!usageMode || !legalAccepted) ? "cursor-not-allowed opacity-60" : "hover:-translate-y-0.5 hover:border-[#116149]/30 hover:shadow-md"}`}>
         <span aria-hidden="true" className="grid size-7 place-items-center rounded-full border border-[#17362d]/10 bg-white font-extrabold text-[#4285f4] shadow-sm">G</span>
         {mode === "sign-up" ? "Sign up with Google" : "Sign in with Google"}
       </a>
