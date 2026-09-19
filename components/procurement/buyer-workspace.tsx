@@ -4,12 +4,18 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import {
   ArrowLeftRight,
+  ArrowUpRight,
+  Award,
   BarChart3,
   BriefcaseBusiness,
   Building2,
+  CalendarClock,
   ClipboardCheck,
+  Clock3,
   FilePlus2,
   FileText,
+  Gavel,
+  Inbox,
   LayoutDashboard,
   Menu,
   MessageCircleQuestion,
@@ -17,6 +23,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Sparkles,
   Users,
   Video,
   UploadCloud,
@@ -223,10 +230,13 @@ export function ProcurementShell({ children }: { children: React.ReactNode }) {
               <span>SECURE PROCUREMENT WORKSPACE</span>
             </div>
           </div>
-          <Link href="/procurement/create" className="pw-button primary">
-            <Plus size={15} />
-            Create tender
-          </Link>
+          <div className="pw-topbar-actions">
+            <span className="pw-secure"><ShieldCheck size={14} /> Verified workspace</span>
+            <Link href="/procurement/create" className="pw-button primary">
+              <Plus size={15} />
+              Create tender
+            </Link>
+          </div>
         </header>
         <main className="pw-main">{children}</main>
         <footer className="pw-footer">
@@ -325,10 +335,16 @@ function Heading({
 }) {
   return (
     <div className="pw-hero">
-      <p className="pw-eyebrow">{eyebrow}</p>
-      <h1>{title}</h1>
-      <p>{description}</p>
-      {action && <div className="pw-actions mt-5">{action}</div>}
+      <div className="pw-hero-copy">
+        <p className="pw-eyebrow">{eyebrow}</p>
+        <h1>{title}</h1>
+        <p>{description}</p>
+        {action && <div className="pw-actions mt-5">{action}</div>}
+      </div>
+      <div className="pw-hero-mark" aria-hidden="true">
+        <span><Sparkles size={14} /> BidScope Buyer</span>
+        <strong>Procurement, with clarity.</strong>
+      </div>
     </div>
   );
 }
@@ -421,13 +437,14 @@ function Dashboard() {
       />
       <div className="pw-grid">
         {[
-          ["Active tenders", c.activeTenders],
-          ["Bids received", c.bidsReceived],
-          ["Awaiting evaluation", c.awaitingEvaluation],
-          ["Interviews this week", c.interviewsThisWeek],
-          ["Pending awards", c.pendingAwards],
-        ].map(([label, value]) => (
-          <div className="pw-stat" key={label}>
+          { label: "Active tenders", value: c.activeTenders, Icon: Gavel, tone: "emerald" },
+          { label: "Bids received", value: c.bidsReceived, Icon: Inbox, tone: "teal" },
+          { label: "Awaiting evaluation", value: c.awaitingEvaluation, Icon: ClipboardCheck, tone: "navy" },
+          { label: "Interviews this week", value: c.interviewsThisWeek, Icon: CalendarClock, tone: "amber" },
+          { label: "Pending awards", value: c.pendingAwards, Icon: Award, tone: "gold" },
+        ].map(({ label, value, Icon, tone }) => (
+          <div className={`pw-stat ${tone}`} key={label}>
+            <div className="pw-stat-top"><span className="pw-stat-icon"><Icon size={18} /></span><ArrowUpRight size={15} /></div>
             <strong>{value}</strong>
             <span>{label}</span>
           </div>
@@ -435,7 +452,7 @@ function Dashboard() {
       </div>
       <div className="pw-layout">
         <section className="pw-card">
-          <h2>Tender activity</h2>
+          <div className="pw-card-heading"><span><Gavel size={18} /><h2>Tender activity</h2></span><Link href="/procurement/tenders">View all <ArrowUpRight size={13} /></Link></div>
           {d.recent.length ? (
             <div className="pw-list">
               {d.recent.map((t) => (
@@ -458,7 +475,7 @@ function Dashboard() {
           )}
         </section>
         <aside className="pw-card">
-          <h2>Pending actions</h2>
+          <div className="pw-card-heading"><span><Clock3 size={18} /><h2>Pending actions</h2></span></div>
           {d.actions.length ? (
             <div className="pw-list">
               {d.actions.map((a, i) => (
@@ -474,7 +491,7 @@ function Dashboard() {
           ) : (
             <p>No urgent procurement actions.</p>
           )}
-          <h2 className="mt-7">Upcoming events</h2>
+          <div className="pw-card-heading mt-7"><span><CalendarClock size={18} /><h2>Upcoming events</h2></span></div>
           {d.upcoming.length ? (
             d.upcoming.map((m) => (
               <div className="pw-row" key={m.id}>
@@ -492,7 +509,7 @@ function Dashboard() {
       </div>
       <div className="pw-layout mt-5">
         <section className="pw-card">
-          <h2>Recent bid submissions</h2>
+          <div className="pw-card-heading"><span><Inbox size={18} /><h2>Recent bid submissions</h2></span><Link href="/procurement/bids">Open inbox <ArrowUpRight size={13} /></Link></div>
           {d.submissions.length ? (
             <div className="pw-list">
               {d.submissions.map((bid) => {
@@ -513,7 +530,7 @@ function Dashboard() {
           )}
         </section>
         <section className="pw-card">
-          <h2>Recently closed tenders</h2>
+          <div className="pw-card-heading"><span><Award size={18} /><h2>Recently closed tenders</h2></span></div>
           {d.recent.filter((tender) => ["closed", "evaluation", "shortlisted", "interviews", "pending_award", "awarded"].includes(tender.status)).length ? (
             <div className="pw-list">
               {d.recent

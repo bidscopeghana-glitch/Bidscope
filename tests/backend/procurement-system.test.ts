@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import {
   bidInputSchema,
   tenderInputSchema,
@@ -214,4 +214,24 @@ test("seller navigation does not offer tender publishing", () => {
   );
   assert.doesNotMatch(shell, /Post a Tender/);
   assert.doesNotMatch(shell, /\/post-tender/);
+});
+
+test("buyer workspace uses a lightweight premium visual system", () => {
+  const css = readFileSync(
+    new URL("../../app/procurement/procurement.css", import.meta.url),
+    "utf8",
+  );
+  const workspace = readFileSync(
+    new URL("../../components/procurement/buyer-workspace.tsx", import.meta.url),
+    "utf8",
+  );
+  const artwork = new URL(
+    "../../public/images/buyer-procurement-boardroom.webp",
+    import.meta.url,
+  );
+  assert.match(css, /buyer-procurement-boardroom\.webp/);
+  assert.match(css, /\.pw-stat-icon/);
+  assert.match(workspace, /pw-hero-mark/);
+  assert.match(workspace, /pw-card-heading/);
+  assert.ok(statSync(artwork).size < 100_000, "buyer banner must remain under 100 KB");
 });
