@@ -63,8 +63,20 @@ export function ProcurementBidInbox() {
       tenderId ? `/api/procurement?resource=awards&tenderId=${tenderId}` : null,
     ),
     [selected, setSelected] = useState<string[]>([]),
+    [query, setQuery] = useState(""),
+    [statusFilter, setStatusFilter] = useState("all"),
+    [sort, setSort] = useState("submitted"),
+    [showCompare, setShowCompare] = useState(false),
     [message, setMessage] = useState("");
   const tender = detail.data?.data;
+  const visibleBids = [...(result.data?.data || [])]
+    .filter((bid) => statusFilter === "all" || bid.status === statusFilter)
+    .filter((bid) => (bid.supplier?.name || "").toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => {
+      if (sort === "price") return (a.bid_price ?? Number.MAX_SAFE_INTEGER) - (b.bid_price ?? Number.MAX_SAFE_INTEGER);
+      if (sort === "supplier") return (a.supplier?.name || "").localeCompare(b.supplier?.name || "");
+      return Date.parse(b.submitted_at || "") - Date.parse(a.submitted_at || "");
+    });
   async function decide(
     bid: Bid,
     decision:
@@ -92,13 +104,29 @@ export function ProcurementBidInbox() {
   async function award(bid: Bid) {
     const value = window.prompt("Contract value", String(bid.bid_price || ""));
     if (value == null || Number.isNaN(Number(value))) return;
+    let lotIds: string[] = [];
+    if (tender?.award_structure === "lots") {
+      const available = (tender.lots || []).map((lot) => lot.lot_number).join(", ");
+      const chosen = window.prompt(
+        `Enter the lot number(s) to award, separated by commas. Available: ${available}`,
+      );
+      if (!chosen) return;
+      const numbers = chosen.split(",").map((item) => item.trim()).filter(Boolean);
+      lotIds = (tender.lots || [])
+        .filter((lot) => numbers.includes(lot.lot_number))
+        .map((lot) => lot.id);
+      if (lotIds.length !== new Set(numbers).size) {
+        setMessage("Choose only valid lot numbers from this tender.");
+        return;
+      }
+    }
     try {
       await api("/api/procurement", {
         action: "award",
         tenderId: bid.tender_id,
         bidId: bid.id,
         supplierOrganizationId: bid.supplier_organization_id,
-        lotIds: [],
+        lotIds,
         contractValue: Number(value),
         currency: bid.currency,
         awardDate: new Date().toISOString().slice(0, 10),
@@ -110,7 +138,7 @@ export function ProcurementBidInbox() {
       setMessage(
         tender?.approval_required
           ? "Award recommendation sent for approval."
-          : "Award recommendation created.",
+          : "Award recommendation approved and ready for finalisation.",
       );
       invalidate();
     } catch (e) {
@@ -150,7 +178,20 @@ export function ProcurementBidInbox() {
         approve,
         note: note || undefined,
       });
-      setMessage(approve ? "Award finalised." : "Award rejected.");
+      setMessage(approve ? "Award approved and ready for finalisation." : "Award rejected.");
+      invalidate();
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  }
+  async function finalizeAwards() {
+    if (!tender || !window.confirm("Finalise all approved awards and notify every bidder? This closes the tender.")) return;
+    try {
+      await api("/api/procurement", {
+        action: "finalize_awards",
+        tenderId: tender.id,
+      });
+      setMessage("Awards finalised. Winning and unsuccessful suppliers were notified.");
       invalidate();
     } catch (error) {
       setMessage((error as Error).message);
@@ -198,8 +239,8 @@ export function ProcurementBidInbox() {
         <section className="pw-card mt-5">
           <h2>Award recommendations</h2>
           <p>
-            Final approval is a human decision. BidScope records the approver,
-            timestamp and outcome for the audit trail.
+            Approval and finalisation are separate human decisions. BidScope records
+            the approver, timestamp and outcome for the audit trail.
           </p>
           {awards.data.data.map((award) => (
             <div className="pw-row" key={award.id}>
@@ -218,7 +259,7 @@ export function ProcurementBidInbox() {
                     className="pw-button primary"
                     onClick={() => void approveAward(award.id, true)}
                   >
-                    Approve award
+                    Approve recommendation
                   </button>
                   <button
                     className="pw-button"
@@ -230,6 +271,14 @@ export function ProcurementBidInbox() {
               )}
             </div>
           ))}
+          {awards.data.data.some((award) => award.approval_status === "approved") &&
+            !awards.data.data.some((award) => award.approval_status === "pending") &&
+            tender?.status !== "awarded" && (
+              <button className="pw-button gold mt-5" onClick={() => void finalizeAwards()}>
+                <Trophy size={14} />
+                Finalise approved awards
+              </button>
+            )}
         </section>
       )}
       {!tenderId ? (
@@ -262,6 +311,43 @@ export function ProcurementBidInbox() {
       ) : (
         <>
           <section className="pw-card mt-5">
+            <div className="grid gap-3 md:grid-cols-4">
+              <label className="text-sm font-bold">
+                Search supplier
+                <input
+                  className="mt-2 w-full rounded-xl border bg-white p-3"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Supplier name"
+                />
+              </label>
+              <label className="text-sm font-bold">
+                Status
+                <select className="mt-2 w-full rounded-xl border bg-white p-3" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  <option value="all">All statuses</option>
+                  {[...new Set((result.data?.data || []).map((bid) => bid.status))].map((status) => (
+                    <option key={status} value={status}>{status.replaceAll("_", " ")}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm font-bold">
+                Sort by
+                <select className="mt-2 w-full rounded-xl border bg-white p-3" value={sort} onChange={(event) => setSort(event.target.value)}>
+                  <option value="submitted">Newest submitted</option>
+                  <option value="price">Lowest price</option>
+                  <option value="supplier">Supplier name</option>
+                </select>
+              </label>
+              <button
+                className="pw-button primary self-end"
+                disabled={selected.length < 2}
+                onClick={() => setShowCompare(true)}
+              >
+                Compare selected ({selected.length})
+              </button>
+            </div>
+          </section>
+          <section className="pw-card mt-5">
             <table className="pw-table">
               <thead>
                 <tr>
@@ -275,7 +361,7 @@ export function ProcurementBidInbox() {
                 </tr>
               </thead>
               <tbody>
-                {result.data.data.map((b) => (
+                {visibleBids.map((b) => (
                   <tr key={b.id}>
                     <td>
                       <input
@@ -358,7 +444,7 @@ export function ProcurementBidInbox() {
               </tbody>
             </table>
           </section>
-          {selected.length > 1 && (
+          {selected.length > 1 && showCompare && (
             <section className="pw-card pw-compare mt-5">
               <h2>Compare selected bids</h2>
               <p>

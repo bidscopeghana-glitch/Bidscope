@@ -49,6 +49,16 @@ export function EvaluationsWorkspace() {
   const result = useData<{ data: EvaluationData }>(
       "/api/procurement?resource=evaluations",
     ),
+    team = useData<{
+      data: {
+        canManage: boolean;
+        members: Array<{
+          user_id: string;
+          procurement_role: string;
+          profile: { email: string; full_name: string } | null;
+        }>;
+      };
+    }>("/api/team"),
     [tenderId, setTenderId] = useState(""),
     [bidId, setBidId] = useState(""),
     [message, setMessage] = useState(""),
@@ -124,6 +134,26 @@ export function EvaluationsWorkspace() {
       setBusy(false);
     }
   }
+  async function assign(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await api("/api/procurement", {
+        action: "assign_evaluator",
+        tenderId: form.get("tenderId"),
+        evaluatorUserId: form.get("userId"),
+        assignmentRole: form.get("assignmentRole"),
+        bidId: null,
+        criterionId: null,
+        lotId: null,
+      });
+      setMessage("Evaluator assigned and notified.");
+      invalidate();
+      event.currentTarget.reset();
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  }
   return (
     <>
       <div className="pw-hero">
@@ -167,6 +197,43 @@ export function EvaluationsWorkspace() {
           </label>
         </div>
       </section>
+      {team.data?.data.canManage && (
+        <section className="pw-card mt-5">
+          <h2>Assign an evaluator</h2>
+          <p>Assignments grant access only to the selected tender. Bid-, lot- and criterion-specific assignments remain enforceable through the API.</p>
+          <form className="pw-fields" onSubmit={assign}>
+            <label>
+              Tender
+              <select required name="tenderId" defaultValue="">
+                <option value="">Choose tender</option>
+                {data.tenders.map((tender) => <option key={tender.id} value={tender.id}>{tender.title}</option>)}
+              </select>
+            </label>
+            <label>
+              Team member
+              <select required name="userId" defaultValue="">
+                <option value="">Choose member</option>
+                {team.data.data.members.map((member) => (
+                  <option key={member.user_id} value={member.user_id}>
+                    {member.profile?.full_name || member.profile?.email || "Workspace member"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Evaluation role
+              <select name="assignmentRole" defaultValue="evaluator">
+                <option value="evaluator">Evaluator</option>
+                <option value="technical_evaluator">Technical evaluator</option>
+                <option value="commercial_evaluator">Commercial evaluator</option>
+                <option value="approver">Approver</option>
+                <option value="auditor">Auditor</option>
+              </select>
+            </label>
+            <button className="pw-button primary">Assign and notify</button>
+          </form>
+        </section>
+      )}
       {bidId && (
         <form className="pw-form mt-5" onSubmit={submit}>
           {criteria.map((c) => (

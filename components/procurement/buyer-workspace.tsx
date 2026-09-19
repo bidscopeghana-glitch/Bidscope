@@ -22,7 +22,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { api, invalidate, useData } from "@/components/customer/data";
+import { api, downloadAuthenticatedFile, invalidate, uploadAuthenticatedFile, useData } from "@/components/customer/data";
 import { useBidScopeSession } from "@/components/procurement/auth-nav";
 import { EvaluationsWorkspace } from "@/components/procurement/evaluations-workspace";
 import { ProcurementBidInbox } from "@/components/procurement/bid-inbox";
@@ -37,6 +37,7 @@ type Capabilities = {
     can_procure: boolean;
   };
   role: string;
+  membershipRole: string;
   canManage: boolean;
   verification: { status: string; verification_notes?: string | null };
 };
@@ -51,12 +52,17 @@ type Tender = {
   location: string | null;
   currency: string;
   estimated_budget: number | null;
+  issue_date?: string | null;
   submission_deadline: string;
   clarification_deadline: string | null;
   status: string;
   award_structure: string;
   bid_opening_model: string;
   visibility: string;
+  questions_allowed?: boolean;
+  withdrawal_allowed?: boolean;
+  supplier_identity_visible_before_opening?: boolean;
+  approval_required?: boolean;
   eligibility_requirements?: string;
   technical_requirements?: string;
   commercial_requirements?: string;
@@ -71,6 +77,10 @@ type Tender = {
     lot_number: string;
     title: string;
     description: string;
+    quantity?: number | null;
+    budget?: number | null;
+    requirements?: string;
+    evaluation_criteria?: unknown[];
   }>;
   requirements?: Array<{
     id: string;
@@ -93,6 +103,10 @@ type Tender = {
     score_min: number;
     score_max: number;
     guidance: string;
+    description?: string;
+    mandatory?: boolean;
+    section?: DraftCriterion["section"];
+    lot_id?: string | null;
   }>;
   tenderDocuments?: Array<{
     id: string;
@@ -275,7 +289,7 @@ function CapabilityGate({ children }: { children: React.ReactNode }) {
           Create tenders, receive bids, compare suppliers, conduct interviews
           and award contracts — all from one workspace.
         </p>
-        {cap.canManage ? (
+        {["owner", "admin"].includes(cap.membershipRole) ? (
           <button
             className="pw-button primary"
             onClick={async () => {
@@ -476,6 +490,46 @@ function Dashboard() {
           )}
         </aside>
       </div>
+      <div className="pw-layout mt-5">
+        <section className="pw-card">
+          <h2>Recent bid submissions</h2>
+          {d.submissions.length ? (
+            <div className="pw-list">
+              {d.submissions.map((bid) => {
+                const tender = d.recent.find((item) => item.id === bid.tender_id);
+                return (
+                  <Link href={`/procurement/bids?tender=${bid.tender_id}`} key={bid.id}>
+                    <strong>{tender?.title || "Tender bid"}</strong>
+                    <small>
+                      {bid.status.replaceAll("_", " ")}
+                      {bid.submitted_at ? ` · ${new Date(bid.submitted_at).toLocaleString("en-GB")}` : ""}
+                    </small>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p>No bid submissions have arrived yet.</p>
+          )}
+        </section>
+        <section className="pw-card">
+          <h2>Recently closed tenders</h2>
+          {d.recent.filter((tender) => ["closed", "evaluation", "shortlisted", "interviews", "pending_award", "awarded"].includes(tender.status)).length ? (
+            <div className="pw-list">
+              {d.recent
+                .filter((tender) => ["closed", "evaluation", "shortlisted", "interviews", "pending_award", "awarded"].includes(tender.status))
+                .map((tender) => (
+                  <Link href={`/procurement/tenders/${tender.id}`} key={tender.id}>
+                    <strong>{tender.title}</strong>
+                    <small>{tender.status.replaceAll("_", " ")}</small>
+                  </Link>
+                ))}
+            </div>
+          ) : (
+            <p>No tenders have closed yet.</p>
+          )}
+        </section>
+      </div>
     </>
   );
 }
@@ -568,11 +622,25 @@ function TenderList() {
   );
 }
 
-type DraftLot = { lotNumber: string; title: string; description: string };
+type DraftLot = {
+  lotNumber: string;
+  title: string;
+  description: string;
+  quantity: number | null;
+  budget: number | null;
+  requirements: string;
+  evaluationCriteria: unknown[];
+};
 type DraftCriterion = {
   name: string;
+  description: string;
   criterionType: "scored" | "pass_fail" | "text";
   weight: number | null;
+  scoreMin: number;
+  scoreMax: number;
+  guidance: string;
+  mandatory: boolean;
+  lotNumber: string | null;
   section:
     | "general"
     | "technical"
@@ -589,32 +657,87 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
     [criteria, setCriteria] = useState<DraftCriterion[]>([
       {
         name: "Price",
+        description: "Commercial value and price completeness",
         criterionType: "scored",
         weight: 30,
+        scoreMin: 0,
+        scoreMax: 10,
+        guidance: "Score the complete commercial offer against the published basis.",
+        mandatory: false,
+        lotNumber: null,
         section: "commercial",
       },
       {
         name: "Technical quality",
+        description: "Technical compliance and quality",
         criterionType: "scored",
         weight: 40,
+        scoreMin: 0,
+        scoreMax: 10,
+        guidance: "Score only against the published technical requirements.",
+        mandatory: false,
+        lotNumber: null,
         section: "technical",
       },
       {
         name: "Experience",
+        description: "Relevant delivery experience",
         criterionType: "scored",
         weight: 20,
+        scoreMin: 0,
+        scoreMax: 10,
+        guidance: "Use the experience evidence included in the bid.",
+        mandatory: false,
+        lotNumber: null,
         section: "experience",
       },
       {
         name: "Delivery",
+        description: "Delivery plan and timescale",
         criterionType: "scored",
         weight: 10,
+        scoreMin: 0,
+        scoreMax: 10,
+        guidance: "Assess the proposed delivery plan.",
+        mandatory: false,
+        lotNumber: null,
         section: "delivery",
       },
     ]);
   const existing = useData<{ data: Tender }>(
     tenderId ? `/api/procurement?resource=tender&id=${tenderId}` : null,
   );
+  useEffect(() => {
+    const tender = existing.data?.data;
+    if (!tenderId || !tender) return;
+    // The remote draft is the authoritative initial value for these dynamic rows.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLots(
+      (tender.lots || []).map((lot) => ({
+        lotNumber: lot.lot_number,
+        title: lot.title,
+        description: lot.description,
+        quantity: lot.quantity ?? null,
+        budget: lot.budget ?? null,
+        requirements: lot.requirements || "",
+        evaluationCriteria: lot.evaluation_criteria || [],
+      })),
+    );
+    setCriteria(
+      (tender.criteria || []).map((criterion) => ({
+        name: criterion.name,
+        description: criterion.description || "",
+        criterionType: criterion.criterion_type as DraftCriterion["criterionType"],
+        weight: criterion.weight,
+        scoreMin: criterion.score_min,
+        scoreMax: criterion.score_max,
+        guidance: criterion.guidance,
+        mandatory: Boolean(criterion.mandatory),
+        lotNumber: tender.lots?.find((lot) => lot.id === criterion.lot_id)?.lot_number || null,
+        section: criterion.section || "general",
+      })),
+    );
+  }, [existing.data?.data, tenderId]);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -666,13 +789,7 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
           withdrawalAllowed: f.get("withdrawalAllowed") === "on",
           approvalRequired: f.get("approvalRequired") === "on",
           publishAwardPublicly: false,
-          lots: lots.map((l) => ({
-            ...l,
-            quantity: null,
-            budget: null,
-            requirements: "",
-            evaluationCriteria: [],
-          })),
+          lots,
           requirements: [
             ...csv("eligibilityList").map((title, i) => ({
               section: "eligibility",
@@ -696,16 +813,7 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
             acceptedMimeTypes: [],
             displayOrder: i,
           })),
-          criteria: criteria.map((c, i) => ({
-            ...c,
-            description: "",
-            scoreMin: 0,
-            scoreMax: 10,
-            guidance: "",
-            mandatory: false,
-            displayOrder: i,
-            lotNumber: null,
-          })),
+          criteria: criteria.map((c, i) => ({ ...c, displayOrder: i })),
         },
       });
       invalidate();
@@ -717,13 +825,15 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
     }
   }
   const defaults = existing.data?.data;
+  const localDateTime = (value?: string | null) =>
+    value ? new Date(value).toISOString().slice(0, 16) : "";
   return (
     <>
       <Heading
         title={tenderId ? "Edit tender draft" : "Create a BidScope Tender"}
         description="Build a structured, auditable procurement. Every field is stored as procurement data—not a decorative PDF form."
       />
-      <form className="pw-form mt-5" onSubmit={save}>
+      <form className="pw-form mt-5" key={defaults?.id || "new"} onSubmit={save}>
         <section className="pw-form-section">
           <h2>1. Tender identity</h2>
           <p>Give suppliers enough context to assess the opportunity.</p>
@@ -825,15 +935,15 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
           <div className="pw-fields">
             <label>
               Issue date/time
-              <input type="datetime-local" name="issueDate" />
+              <input type="datetime-local" name="issueDate" defaultValue={localDateTime(defaults?.issue_date)} />
             </label>
             <label>
               Clarification deadline
-              <input type="datetime-local" name="clarificationDeadline" />
+              <input type="datetime-local" name="clarificationDeadline" defaultValue={localDateTime(defaults?.clarification_deadline)} />
             </label>
             <label>
               Submission deadline
-              <input required type="datetime-local" name="submissionDeadline" />
+              <input required type="datetime-local" name="submissionDeadline" defaultValue={localDateTime(defaults?.submission_deadline)} />
             </label>
             <label>
               Expected award date
@@ -859,13 +969,14 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
           <div className="pw-fields">
             <label className="wide">
               Eligibility overview
-              <textarea rows={4} name="eligibilityRequirements" />
+              <textarea rows={4} name="eligibilityRequirements" defaultValue={defaults?.eligibility_requirements || ""} />
             </label>
             <label>
               Eligibility checklist
               <textarea
                 rows={7}
                 name="eligibilityList"
+                defaultValue={(defaults?.requirements || []).filter((item) => item.section === "eligibility").map((item) => item.title).join("\n")}
                 placeholder="Valid business registration&#10;Tax clearance certificate"
               />
             </label>
@@ -874,32 +985,34 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
               <textarea
                 rows={7}
                 name="technicalList"
+                defaultValue={(defaults?.requirements || []).filter((item) => item.section === "technical").map((item) => item.title).join("\n")}
                 placeholder="Technical methodology&#10;Relevant project experience"
               />
             </label>
             <label className="wide">
               Technical requirements
-              <textarea rows={4} name="technicalRequirements" />
+              <textarea rows={4} name="technicalRequirements" defaultValue={defaults?.technical_requirements || ""} />
             </label>
             <label>
               Commercial requirements
-              <textarea rows={4} name="commercialRequirements" />
+              <textarea rows={4} name="commercialRequirements" defaultValue={defaults?.commercial_requirements || ""} />
             </label>
             <label>
               Delivery requirements
-              <textarea rows={4} name="deliveryRequirements" />
+              <textarea rows={4} name="deliveryRequirements" defaultValue={defaults?.delivery_requirements || ""} />
             </label>
             <label className="wide">
               Required documents
               <textarea
                 rows={6}
                 name="requiredDocuments"
+                defaultValue={(defaults?.requiredDocuments || []).map((item) => item.name).join("\n")}
                 placeholder="Certificate of incorporation&#10;Tax clearance&#10;Technical proposal"
               />
             </label>
             <label className="wide">
               Terms and conditions
-              <textarea rows={6} name="termsAndConditions" />
+              <textarea rows={6} name="termsAndConditions" defaultValue={defaults?.terms_and_conditions || ""} />
             </label>
           </div>
         </section>
@@ -928,7 +1041,7 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
                   type="radio"
                   name="awardStructure"
                   value={v}
-                  defaultChecked={v === "single"}
+                  defaultChecked={v === (defaults?.award_structure || "single")}
                 />
                 <strong>{t}</strong>
                 <small>{b}</small>
@@ -976,6 +1089,34 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
                   }
                 />
               </label>
+              <label>
+                Quantity
+                <input
+                  type="number"
+                  min="0"
+                  value={lot.quantity ?? ""}
+                  onChange={(e) => setLots((items) => items.map((item, index) => index === i ? { ...item, quantity: e.target.value ? Number(e.target.value) : null } : item))}
+                />
+              </label>
+              <label>
+                Lot budget
+                <input
+                  type="number"
+                  min="0"
+                  value={lot.budget ?? ""}
+                  onChange={(e) => setLots((items) => items.map((item, index) => index === i ? { ...item, budget: e.target.value ? Number(e.target.value) : null } : item))}
+                />
+              </label>
+              <label className="wide">
+                Lot-specific requirements
+                <textarea
+                  value={lot.requirements}
+                  onChange={(e) => setLots((items) => items.map((item, index) => index === i ? { ...item, requirements: e.target.value } : item))}
+                />
+              </label>
+              <button type="button" className="pw-button" onClick={() => setLots((items) => items.filter((_, index) => index !== i))}>
+                Remove lot
+              </button>
             </div>
           ))}
           <button
@@ -984,7 +1125,7 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
             onClick={() =>
               setLots((x) => [
                 ...x,
-                { lotNumber: String(x.length + 1), title: "", description: "" },
+                { lotNumber: String(x.length + 1), title: "", description: "", quantity: null, budget: null, requirements: "", evaluationCriteria: [] },
               ])
             }
           >
@@ -1009,7 +1150,7 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
                   type="radio"
                   name="bidOpeningModel"
                   value={v}
-                  defaultChecked={v === "sealed"}
+                  defaultChecked={v === (defaults?.bid_opening_model || "sealed")}
                 />
                 <strong>{t}</strong>
                 <small>{b}</small>
@@ -1019,7 +1160,7 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
           <div className="pw-fields mt-5">
             <label>
               Visibility
-              <select name="visibility">
+              <select name="visibility" defaultValue={defaults?.visibility || "open"}>
                 <option value="open">Open to eligible suppliers</option>
                 <option value="invite_only">Invite only</option>
                 <option value="open_preferred">
@@ -1028,22 +1169,23 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
               </select>
             </label>
             <label className="pw-check">
-              <input type="checkbox" name="questionsAllowed" defaultChecked />
+              <input type="checkbox" name="questionsAllowed" defaultChecked={defaults?.questions_allowed ?? true} />
               Allow supplier questions
             </label>
             <label className="pw-check">
-              <input type="checkbox" name="withdrawalAllowed" defaultChecked />
+              <input type="checkbox" name="withdrawalAllowed" defaultChecked={defaults?.withdrawal_allowed ?? true} />
               Allow withdrawal before deadline
             </label>
             <label className="pw-check">
               <input
                 type="checkbox"
                 name="supplierIdentityVisibleBeforeOpening"
+                defaultChecked={defaults?.supplier_identity_visible_before_opening ?? false}
               />
               Reveal supplier identity before bid opening
             </label>
             <label className="pw-check">
-              <input type="checkbox" name="approvalRequired" />
+              <input type="checkbox" name="approvalRequired" defaultChecked={defaults?.approval_required ?? false} />
               Require award approval
             </label>
           </div>
@@ -1142,6 +1284,39 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
                   ))}
                 </select>
               </label>
+              <label className="wide">
+                Description
+                <textarea
+                  value={criterion.description}
+                  onChange={(e) => setCriteria((items) => items.map((item, index) => index === i ? { ...item, description: e.target.value } : item))}
+                />
+              </label>
+              <label>
+                Minimum score
+                <input type="number" value={criterion.scoreMin} onChange={(e) => setCriteria((items) => items.map((item, index) => index === i ? { ...item, scoreMin: Number(e.target.value) } : item))} />
+              </label>
+              <label>
+                Maximum score
+                <input type="number" value={criterion.scoreMax} onChange={(e) => setCriteria((items) => items.map((item, index) => index === i ? { ...item, scoreMax: Number(e.target.value) } : item))} />
+              </label>
+              <label>
+                Applies to lot
+                <select value={criterion.lotNumber || ""} onChange={(e) => setCriteria((items) => items.map((item, index) => index === i ? { ...item, lotNumber: e.target.value || null } : item))}>
+                  <option value="">All tender lots</option>
+                  {lots.map((lot) => <option key={lot.lotNumber} value={lot.lotNumber}>{lot.lotNumber} · {lot.title || "Untitled lot"}</option>)}
+                </select>
+              </label>
+              <label className="pw-check">
+                <input type="checkbox" checked={criterion.mandatory} onChange={(e) => setCriteria((items) => items.map((item, index) => index === i ? { ...item, mandatory: e.target.checked } : item))} />
+                Mandatory criterion
+              </label>
+              <label className="wide">
+                Evaluator guidance
+                <textarea value={criterion.guidance} onChange={(e) => setCriteria((items) => items.map((item, index) => index === i ? { ...item, guidance: e.target.value } : item))} />
+              </label>
+              <button type="button" className="pw-button" onClick={() => setCriteria((items) => items.filter((_, index) => index !== i))}>
+                Remove criterion
+              </button>
             </div>
           ))}
           <button
@@ -1152,8 +1327,14 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
                 ...x,
                 {
                   name: "",
+                  description: "",
                   criterionType: "scored",
                   weight: 0,
+                  scoreMin: 0,
+                  scoreMax: 10,
+                  guidance: "",
+                  mandatory: false,
+                  lotNumber: null,
                   section: "general",
                 },
               ])
@@ -1200,6 +1381,44 @@ function TenderDetail({ id }: { id: string }) {
       setMessage((e as Error).message);
     }
   }
+  async function changeDeadline() {
+    const current = new Date(t.submission_deadline).toISOString().slice(0, 16);
+    const next = window.prompt("New submission deadline (local date and time)", current);
+    if (!next) return;
+    const parsed = new Date(next);
+    if (Number.isNaN(parsed.getTime())) {
+      setMessage("Enter a valid deadline.");
+      return;
+    }
+    const clarification = window.prompt(
+      "Optional clarification deadline (local date and time)",
+      t.clarification_deadline ? new Date(t.clarification_deadline).toISOString().slice(0, 16) : "",
+    );
+    try {
+      await api("/api/procurement", {
+        action: "update_deadline",
+        tenderId: t.id,
+        submissionDeadline: parsed.toISOString(),
+        clarificationDeadline: clarification ? new Date(clarification).toISOString() : null,
+      });
+      setMessage("Deadline updated and participating suppliers notified.");
+      invalidate();
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  }
+  async function cancelTender() {
+    const reason = window.prompt("Reason for cancelling this tender");
+    if (!reason) return;
+    if (!window.confirm("Cancel this tender and notify participating suppliers?")) return;
+    try {
+      await api("/api/procurement", { action: "cancel_tender", tenderId: t.id, reason });
+      setMessage("Tender cancelled and participating suppliers notified.");
+      invalidate();
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  }
   return (
     <>
       <Heading
@@ -1230,6 +1449,16 @@ function TenderDetail({ id }: { id: string }) {
             >
               View bids
             </Link>
+            {!['awarded', 'cancelled', 'archived'].includes(t.status) && (
+              <button className="pw-button" onClick={() => void changeDeadline()}>
+                Change deadline
+              </button>
+            )}
+            {!['awarded', 'cancelled', 'archived'].includes(t.status) && (
+              <button className="pw-button" onClick={() => void cancelTender()}>
+                Cancel tender
+              </button>
+            )}
           </>
         }
       />
@@ -1332,17 +1561,7 @@ function TenderDetail({ id }: { id: string }) {
               form.set("kind", "tender");
               form.set("entityId", t.id);
               try {
-                const response = await fetch("/api/procurement/documents", {
-                  method: "POST",
-                  body: form,
-                });
-                const body = (await response.json()) as {
-                  error?: { message?: string };
-                };
-                if (!response.ok)
-                  throw new Error(
-                    body.error?.message || "Document upload failed.",
-                  );
+                await uploadAuthenticatedFile("/api/procurement/documents", form);
                 setMessage("Tender document uploaded securely.");
                 invalidate();
                 formElement.reset();
@@ -1364,10 +1583,14 @@ function TenderDetail({ id }: { id: string }) {
         </div>
         {t.tenderDocuments?.length ? (
           t.tenderDocuments.map((document) => (
-            <a
+            <button
+              type="button"
               className="pw-row"
               key={document.id}
-              href={`/api/procurement/documents?kind=tender&id=${document.id}`}
+              onClick={() => void downloadAuthenticatedFile(
+                `/api/procurement/documents?kind=tender&id=${document.id}`,
+                document.original_filename,
+              )}
             >
               <span>
                 <strong>{document.original_filename}</strong>
@@ -1377,7 +1600,7 @@ function TenderDetail({ id }: { id: string }) {
                 </small>
               </span>
               <b>Download</b>
-            </a>
+            </button>
           ))
         ) : (
           <p>No tender documents uploaded yet.</p>
@@ -1722,6 +1945,29 @@ function Reports() {
   );
 }
 function Team() {
+  const result = useData<{
+    data: {
+      organizationId: string | null;
+      canManage: boolean;
+      members: Array<{
+        user_id: string;
+        role: string;
+        procurement_role: string;
+        profile: { email: string; full_name: string } | null;
+      }>;
+    };
+  }>("/api/team");
+  const [message, setMessage] = useState("");
+  const roles = [
+    "procurement_manager",
+    "procurement_officer",
+    "evaluator",
+    "technical_expert",
+    "finance_evaluator",
+    "approver",
+    "viewer",
+    "bid_team_member",
+  ];
   return (
     <>
       <Heading
@@ -1735,8 +1981,51 @@ function Team() {
           team workspace. Evaluator access remains tender-specific.
         </p>
         <Link className="pw-button primary" href="/customer/team">
-          Open team management
+          Invite or remove team members
         </Link>
+        {message && <p className="pw-notice mt-4">{message}</p>}
+        {result.loading ? (
+          <p className="mt-5">Loading procurement roles…</p>
+        ) : result.error ? (
+          <ErrorState message={result.error} />
+        ) : (
+          <div className="mt-5">
+            {result.data?.data.members.map((member) => (
+              <div className="pw-row" key={member.user_id}>
+                <span>
+                  <strong>{member.profile?.full_name || member.profile?.email || "Workspace member"}</strong>
+                  <small>{member.profile?.email} · workspace {member.role}</small>
+                </span>
+                {member.role === "owner" ? (
+                  <span className="pw-badge">organisation owner</span>
+                ) : (
+                  <select
+                    aria-label={`Procurement role for ${member.profile?.email || "member"}`}
+                    disabled={!result.data?.data.canManage}
+                    value={member.procurement_role}
+                    onChange={async (event) => {
+                      if (!result.data?.data.organizationId) return;
+                      try {
+                        await api("/api/team", {
+                          action: "set_procurement_role",
+                          organizationId: result.data.data.organizationId,
+                          userId: member.user_id,
+                          procurementRole: event.target.value,
+                        });
+                        setMessage("Procurement role updated.");
+                        invalidate();
+                      } catch (error) {
+                        setMessage((error as Error).message);
+                      }
+                    }}
+                  >
+                    {roles.map((role) => <option key={role} value={role}>{role.replaceAll("_", " ")}</option>)}
+                  </select>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </>
   );
@@ -1779,7 +2068,7 @@ function ProcurementSettings() {
             id="cap-procure"
           />
         </div>
-        {d.canManage && (
+        {["owner", "admin"].includes(d.membershipRole) && (
           <button
             className="pw-button primary mt-4"
             onClick={async () => {
@@ -1805,6 +2094,7 @@ function ProcurementSettings() {
         )}
       </section>
       <VerificationPanel
+        organizationId={d.organizationId}
         status={d.verification.status}
         message={message}
         setMessage={setMessage}
@@ -1813,10 +2103,12 @@ function ProcurementSettings() {
   );
 }
 function VerificationPanel({
+  organizationId,
   status,
   message,
   setMessage,
 }: {
+  organizationId: string;
   status: string;
   message: string;
   setMessage: (v: string) => void;
@@ -1825,6 +2117,22 @@ function VerificationPanel({
     event.preventDefault();
     const f = new FormData(event.currentTarget);
     try {
+      const files = f.getAll("verificationFiles").filter(
+        (item): item is File => item instanceof File && item.size > 0,
+      );
+      if (!files.length)
+        throw new Error("Upload at least one official verification document.");
+      const documentPaths: string[] = [];
+      for (const file of files) {
+        const upload = new FormData();
+        upload.set("kind", "verification");
+        upload.set("entityId", organizationId);
+        upload.set("file", file);
+        const result = await uploadAuthenticatedFile<{
+          data: { path: string };
+        }>("/api/procurement/documents", upload);
+        documentPaths.push(result.data.path);
+      }
       await api("/api/procurement", {
         action: "submit_verification",
         verification: {
@@ -1833,10 +2141,7 @@ function VerificationPanel({
           officialCompanyEmail: f.get("officialCompanyEmail"),
           contactPerson: f.get("contactPerson"),
           organizationType: f.get("organizationType") || null,
-          documentPaths: String(f.get("documentPaths") || "")
-            .split("\n")
-            .map((v) => v.trim())
-            .filter(Boolean),
+          documentPaths,
         },
       });
       setMessage("Buyer verification submitted for review.");
@@ -1883,12 +2188,17 @@ function VerificationPanel({
             />
           </label>
           <label>
-            Verification document references
-            <textarea
-              name="documentPaths"
-              rows={4}
-              placeholder="One secure document reference per line"
+            Official verification documents
+            <input
+              required
+              multiple
+              type="file"
+              name="verificationFiles"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
             />
+            <small>
+              Upload registration evidence or another official organisation document. Files stay private.
+            </small>
           </label>
           <button className="pw-button primary">Submit for verification</button>
         </form>

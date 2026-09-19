@@ -41,7 +41,13 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           can_bid: !buyer,
           can_procure: buyer,
-          organization_type: buyer ? "procuring_organisation" : "supplier",
+          organization_type: input.organizationType || (buyer ? "procuring_organisation" : "supplier"),
+          registration_number: input.registrationNumber,
+          company_email: input.companyEmail,
+          procurement_contact: input.contactPerson,
+          services: input.services,
+          products: input.products,
+          expected_procurement_categories: input.expectedProcurementCategories,
         }),
       }),
       supabaseRest(`organization_members?organization_id=eq.${created.id}`, {

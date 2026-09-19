@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { requireUser } from "@/lib/server/auth";
 import {
+  bidsAreOpen,
   procurementContext,
   requireTenderManager,
   tenderById,
@@ -10,6 +11,7 @@ import {
   supabaseConfiguration,
   supabaseRest,
 } from "@/lib/server/supabase-rest";
+import { tenderAccessForUser } from "@/lib/server/tender-access";
 
 export const dynamic = "force-dynamic";
 const bucket = "procurement-private",
@@ -155,9 +157,27 @@ export async function POST(request: Request) {
       });
       return Response.json({ data: { id, name: file.name } }, { status: 201 });
     }
+    if (kind === "verification") {
+      if (
+        !context.organization.can_procure ||
+        !["owner", "admin"].includes(context.membershipRole) ||
+        entityId !== context.organizationId
+      )
+        throw new ApiError(
+          403,
+          "Only an organisation owner or administrator can upload buyer verification evidence.",
+          "verification_upload_forbidden",
+        );
+      const path = `verifications/${context.organizationId}/${id}-${safe}`;
+      await store(path, file);
+      return Response.json(
+        { data: { id, name: file.name, path } },
+        { status: 201 },
+      );
+    }
     throw new ApiError(
       400,
-      "Choose a tender or bid document destination.",
+      "Choose a tender, bid or verification document destination.",
       "invalid_document_kind",
     );
   } catch (error) {
@@ -195,6 +215,17 @@ export async function GET(request: Request) {
       const tender = await tenderById(doc.tender_id),
         context = await procurementContext(user);
       const isBuyer = tender.organization_id === context.organizationId;
+      if (!isBuyer) {
+        const access = await tenderAccessForUser(user);
+        if (!context.organization.can_bid || !access.allowed)
+          throw new ApiError(
+            403,
+            "An eligible subscribed supplier account is required to download this document.",
+            "document_forbidden",
+          );
+        if (!["scheduled", "live", "closing_soon", "closed", "evaluation", "shortlisted", "interviews", "pending_award", "awarded"].includes(tender.status))
+          throw new ApiError(404, "Document not found.", "document_not_found");
+      }
       if (doc.visibility === "buyer_team")
         await requireTenderManager(user, tender.id);
       else if (!isBuyer && doc.visibility === "bidders") {
@@ -241,8 +272,15 @@ export async function GET(request: Request) {
         bid = bids[0],
         context = await procurementContext(user);
       if (!bid) throw new ApiError(404, "Bid not found.", "bid_not_found");
-      if (bid.supplier_organization_id !== context.organizationId)
-        await requireTenderManager(user, bid.tender_id);
+      if (bid.supplier_organization_id !== context.organizationId) {
+        const { tender } = await requireTenderManager(user, bid.tender_id);
+        if (!bidsAreOpen(tender))
+          throw new ApiError(
+            403,
+            "Sealed bid documents cannot be opened before the submission deadline.",
+            "sealed_until_deadline",
+          );
+      }
       path = doc.storage_path;
       name = doc.original_filename;
       mime = doc.mime_type;

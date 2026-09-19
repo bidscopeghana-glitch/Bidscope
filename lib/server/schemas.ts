@@ -17,9 +17,31 @@ const sourceConfigurationSchema = z.record(z.string(), z.unknown()).superRefine(
 export const organizationSchema = z.object({
   name: shortText(160),
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80),
-  sectors: z.array(shortText(80)).max(20).default([]),
-  region: z.string().trim().max(120).nullable().optional(),
+  sectors: z.array(shortText(80)).min(1).max(20),
+  region: shortText(120),
   accountType: z.enum(["seller", "buyer"]).default("seller"),
+  registrationNumber: shortText(160),
+  companyEmail: z.string().trim().toLowerCase().email().max(320),
+  contactPerson: shortText(160),
+  organizationType: z.string().trim().max(120).nullable().optional(),
+  services: z.array(shortText(160)).max(30).default([]),
+  products: z.array(shortText(160)).max(30).default([]),
+  expectedProcurementCategories: z.array(shortText(160)).max(30).default([]),
+}).superRefine((value, context) => {
+  if (value.accountType === "seller" && !value.services.length && !value.products.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Add at least one product or service your business offers.",
+      path: ["services"],
+    });
+  }
+  if (value.accountType === "buyer" && !value.expectedProcurementCategories.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Add at least one expected procurement category.",
+      path: ["expectedProcurementCategories"],
+    });
+  }
 });
 
 export const savedOpportunitySchema = z.object({

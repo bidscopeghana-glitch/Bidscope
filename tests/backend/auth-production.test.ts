@@ -73,3 +73,14 @@ test("sign-up account type configures the correct organisation workspace", () =>
   assert.match(profile, /accountType/);
   assert.match(profile, /\/procurement\/settings\?onboarding=buyer/);
 });
+
+test("organisation onboarding captures buyer and supplier operational fields", () => {
+  const schemas = read("lib/server/schemas.ts");
+  const organizations = read("app/api/organizations/route.ts");
+  assert.match(schemas, /registrationNumber/);
+  assert.match(schemas, /companyEmail/);
+  assert.match(schemas, /contactPerson/);
+  assert.match(schemas, /expectedProcurementCategories/);
+  assert.match(organizations, /expected_procurement_categories/);
+  assert.match(organizations, /procurement_contact/);
+});

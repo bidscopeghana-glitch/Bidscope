@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { BadgeCheck, Building2, FileCheck2, ShieldAlert } from "lucide-react";
-import { api, invalidate, useData } from "@/components/customer/data";
+import { api, downloadAuthenticatedFile, invalidate, useData } from "@/components/customer/data";
 
 type Verification = {
   id: string;
@@ -133,7 +133,20 @@ export default function BuyerVerificationPage() {
                 <dt className="text-[#718078]">Contact</dt>
                 <dd>{item.contact_person}</dd>
                 <dt className="text-[#718078]">Documents</dt>
-                <dd>{item.document_paths.length}</dd>
+                <dd className="flex flex-wrap gap-2">
+                  {item.document_paths.length ? item.document_paths.map((_, index) => (
+                    <button
+                      className="font-bold text-[#116149] underline"
+                      key={index}
+                      onClick={() => void downloadAuthenticatedFile(
+                        `/api/admin/buyer-verifications/documents?verificationId=${item.id}&index=${index}`,
+                        `verification-${item.organization_name}-${index + 1}`,
+                      )}
+                    >
+                      Document {index + 1}
+                    </button>
+                  )) : "None"}
+                </dd>
                 <dt className="text-[#718078]">Submitted</dt>
                 <dd>
                   {item.submitted_at

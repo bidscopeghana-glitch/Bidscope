@@ -23,7 +23,7 @@ export async function GET(request:Request){
     if(!membership)return Response.json({data:{organizationId:null,members:[],invitations:[],used:0,limit:0,canManage:false}});
     const entitlement=await getEntitlement(membership.organization_id,user);
     const[{data:members},{data:invitations},counts]=await Promise.all([
-      supabaseRest<Array<{user_id:string;role:string;created_at:string}>>(`organization_members?select=user_id,role,created_at&organization_id=eq.${membership.organization_id}&order=created_at.asc`),
+      supabaseRest<Array<{user_id:string;role:string;procurement_role:string;created_at:string}>>(`organization_members?select=user_id,role,procurement_role,created_at&organization_id=eq.${membership.organization_id}&order=created_at.asc`),
       supabaseRest<Array<{id:string;email:string;role:string;status:string;expires_at:string;created_at:string}>>(`organization_invitations?select=id,email,role,status,expires_at,created_at&organization_id=eq.${membership.organization_id}&status=eq.pending&order=created_at.desc`),
       usage(membership.organization_id),
     ]);
@@ -40,6 +40,7 @@ export async function POST(request:Request){
     const body=z.discriminatedUnion("action",[
       z.object({action:z.literal("invite"),organizationId:z.string().uuid(),email:z.string().trim().toLowerCase().email().max(320),role:z.enum(["admin","member"]).default("member")}),
       z.object({action:z.literal("accept"),token:z.string().min(32).max(256)}),
+      z.object({action:z.literal("set_procurement_role"),organizationId:z.string().uuid(),userId:z.string().uuid(),procurementRole:z.enum(["procurement_manager","procurement_officer","evaluator","technical_expert","finance_evaluator","approver","viewer","bid_team_member"])}),
     ]).parse(await request.json());
     if(body.action==="accept"){
       const tokenHash=hash(body.token);
@@ -53,6 +54,14 @@ export async function POST(request:Request){
       await supabaseRest("organization_members?on_conflict=organization_id,user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({organization_id:invitation.organization_id,user_id:user.id,role:invitation.role})});
       await supabaseRest(`organization_invitations?id=eq.${invitation.id}`,{method:"PATCH",body:JSON.stringify({status:"accepted",accepted_by:user.id,accepted_at:new Date().toISOString()})});
       return Response.json({data:{accepted:true}});
+    }
+    if(body.action==="set_procurement_role"){
+      const membership=await requireOrganizationMember(user.id,body.organizationId);
+      if(!["owner","admin"].includes(membership.role))throw new ApiError(403,"Only workspace owners and administrators can assign procurement roles.","forbidden");
+      const{data:target}=await supabaseRest<unknown[]>(`organization_members?select=user_id&organization_id=eq.${body.organizationId}&user_id=eq.${body.userId}&limit=1`);
+      if(!target.length)throw new ApiError(404,"Workspace member not found.","not_found");
+      await supabaseRest(`organization_members?organization_id=eq.${body.organizationId}&user_id=eq.${body.userId}`,{method:"PATCH",body:JSON.stringify({procurement_role:body.procurementRole})});
+      return Response.json({data:{saved:true}});
     }
     const membership=await requireOrganizationMember(user.id,body.organizationId);
     if(!["owner","admin"].includes(membership.role))throw new ApiError(403,"Only workspace owners and administrators can invite teammates.","forbidden");

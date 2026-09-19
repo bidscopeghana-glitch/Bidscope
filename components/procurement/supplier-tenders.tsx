@@ -15,7 +15,7 @@ import {
   Send,
   UploadCloud,
 } from "lucide-react";
-import { api, invalidate, useData } from "@/components/customer/data";
+import { api, downloadAuthenticatedFile, invalidate, uploadAuthenticatedFile, useData } from "@/components/customer/data";
 
 type Tender = {
   id: string;
@@ -298,10 +298,14 @@ function SupplierTenderDetail({ id }: { id: string }) {
           <div className="mt-6">
             <h2>Tender documents</h2>
             {t.tenderDocuments.map((document) => (
-              <a
+              <button
+                type="button"
                 className="cc-document-row"
                 key={document.id}
-                href={`/api/procurement/documents?kind=tender&id=${document.id}`}
+                onClick={() => void downloadAuthenticatedFile(
+                  `/api/procurement/documents?kind=tender&id=${document.id}`,
+                  document.original_filename,
+                )}
               >
                 <span>
                   <strong>{document.original_filename}</strong>
@@ -311,7 +315,7 @@ function SupplierTenderDetail({ id }: { id: string }) {
                   </small>
                 </span>
                 <b>Download</b>
-              </a>
+              </button>
             ))}
           </div>
         )}
@@ -554,17 +558,7 @@ function BidDocuments({
               form.set("requiredDocumentId", required.id);
               setBusy(true);
               try {
-                const response = await fetch("/api/procurement/documents", {
-                  method: "POST",
-                  body: form,
-                });
-                const body = (await response.json()) as {
-                  error?: { message?: string };
-                };
-                if (!response.ok)
-                  throw new Error(
-                    body.error?.message || "Document upload failed.",
-                  );
+                await uploadAuthenticatedFile("/api/procurement/documents", form);
                 invalidate();
                 onMessage(`${required.name} uploaded securely.`);
               } catch (error) {

@@ -147,8 +147,24 @@ function BusinessProfile() {
                   .split(",")
                   .map((v) => v.trim())
                   .filter(Boolean),
-                region: f.get("region") || null,
+                region: String(f.get("region") || ""),
                 accountType,
+                registrationNumber: String(f.get("registration") || ""),
+                companyEmail: String(f.get("companyEmail") || ""),
+                contactPerson: String(f.get("contactPerson") || ""),
+                organizationType: String(f.get("organizationType") || "") || null,
+                services: String(f.get("services") || "")
+                  .split(",")
+                  .map((v) => v.trim())
+                  .filter(Boolean),
+                products: String(f.get("products") || "")
+                  .split(",")
+                  .map((v) => v.trim())
+                  .filter(Boolean),
+                expectedProcurementCategories: String(f.get("expectedProcurementCategories") || "")
+                  .split(",")
+                  .map((v) => v.trim())
+                  .filter(Boolean),
               });
               toast(
                 accountType === "buyer"
@@ -234,10 +250,39 @@ function BusinessProfile() {
           <label>
             Registration number
             <input
+              required={!organization}
               name="registration"
               defaultValue={organization?.registration_number || ""}
             />
           </label>
+          <label>
+            Company email
+            <input
+              required={!organization}
+              type="email"
+              name="companyEmail"
+              defaultValue={organization?.company_email || ""}
+            />
+          </label>
+          <label>
+            {accountType === "buyer" ? "Procurement contact" : "Contact person"}
+            <input
+              required={!organization}
+              name="contactPerson"
+              defaultValue={organization?.procurement_contact || profile?.full_name || ""}
+            />
+          </label>
+          {accountType === "buyer" && (
+            <label>
+              Organisation type
+              <input
+                required={!organization}
+                name="organizationType"
+                defaultValue={organization?.organization_type || ""}
+                placeholder="Company, NGO, public authority…"
+              />
+            </label>
+          )}
           <label>
             Website
             <input
@@ -269,18 +314,30 @@ function BusinessProfile() {
           </label>
           <label>
             Main operating region
-            <input name="region" defaultValue={organization?.region || ""} />
+            <input required={!organization} name="region" defaultValue={organization?.region || ""} />
           </label>
           {lists.map(([key, label]) => (
             <label key={key}>
               {label}
               <input
+                required={!organization && key === "sectors"}
                 name={key}
                 defaultValue={organization?.[key]?.join(", ") || ""}
                 placeholder="Separate with commas"
               />
             </label>
           ))}
+          {accountType === "buyer" && (
+            <label>
+              Expected procurement categories
+              <input
+                required={!organization}
+                name="expectedProcurementCategories"
+                defaultValue={organization?.expected_procurement_categories?.join(", ") || ""}
+                placeholder="Construction, IT, logistics…"
+              />
+            </label>
+          )}
           <label>
             Minimum preferred contract value
             <input

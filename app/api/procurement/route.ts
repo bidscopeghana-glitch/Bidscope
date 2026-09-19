@@ -500,9 +500,9 @@ export async function GET(request: Request) {
         );
       const [
         { data: tenders },
-        { data: bids },
-        { data: criteria },
-        { data: evaluations },
+        { data: allBids },
+        { data: allCriteria },
+        { data: allEvaluations },
       ] = await Promise.all([
         supabaseRest<Array<Record<string, unknown>>>(
           `procurement_tenders?select=id,title,status,submission_deadline,bid_opening_model,bids_opened_at,organization_id&id=in.(${ids.join(",")})`,
@@ -517,6 +517,28 @@ export async function GET(request: Request) {
           `bid_evaluations?select=*&tender_id=in.(${ids.join(",")})`,
         ),
       ]);
+      const bids = context.canManage
+          ? allBids
+          : allBids.filter((bid) =>
+              assigned.some(
+                (assignment) =>
+                  assignment.tender_id === bid.tender_id &&
+                  (!assignment.bid_id || assignment.bid_id === bid.id),
+              ),
+            ),
+        criteria = context.canManage
+          ? allCriteria
+          : allCriteria.filter((criterion) =>
+              assigned.some(
+                (assignment) =>
+                  assignment.tender_id === criterion.tender_id &&
+                  (!assignment.criterion_id || assignment.criterion_id === criterion.id) &&
+                  (!assignment.lot_id || assignment.lot_id === criterion.lot_id),
+              ),
+            ),
+        evaluations = context.canManage
+          ? allEvaluations
+          : allEvaluations.filter((evaluation) => evaluation.evaluator_user_id === user.id);
       const profiles = await organisationProfiles(
           bids.map((b) => String(b.supplier_organization_id)),
         ),
@@ -632,6 +654,17 @@ const actionSchema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("publish_tender"), tenderId: uuid }),
   z.object({ action: z.literal("open_bids"), tenderId: uuid }),
+  z.object({
+    action: z.literal("update_deadline"),
+    tenderId: uuid,
+    submissionDeadline: z.string().datetime({ offset: true }),
+    clarificationDeadline: z.string().datetime({ offset: true }).nullable().optional(),
+  }),
+  z.object({
+    action: z.literal("cancel_tender"),
+    tenderId: uuid,
+    reason: z.string().trim().min(5).max(3000),
+  }),
   z.object({ action: z.literal("save_bid"), bid: bidInputSchema }),
   z.object({
     action: z.literal("withdraw_bid"),
@@ -741,6 +774,10 @@ const actionSchema = z.discriminatedUnion("action", [
     note: z.string().trim().max(3000).optional(),
   }),
   z.object({
+    action: z.literal("finalize_awards"),
+    tenderId: uuid,
+  }),
+  z.object({
     action: z.literal("report_tender"),
     tenderId: uuid,
     reason: z.string().trim().min(5).max(3000),
@@ -753,10 +790,10 @@ export async function POST(request: Request) {
       input = actionSchema.parse(await request.json()),
       context = await procurementContext(user);
     if (input.action === "capabilities") {
-      if (!context.canManage)
+      if (!["owner", "admin"].includes(context.membershipRole))
         throw new ApiError(
           403,
-          "Only organisation owners or procurement managers can change capabilities.",
+          "Only organisation owners or administrators can change capabilities.",
           "forbidden",
         );
       if (!input.canBid && !input.canProcure)
@@ -1061,6 +1098,105 @@ export async function POST(request: Request) {
       });
       return Response.json({ data: { openedAt: at } });
     }
+    if (input.action === "update_deadline") {
+      const { tender } = await requireTenderManager(user, input.tenderId);
+      if (["awarded", "cancelled", "archived"].includes(tender.status))
+        throw new ApiError(409, "This tender deadline can no longer be changed.", "invalid_tender_transition");
+      const deadline = Date.parse(input.submissionDeadline);
+      if (deadline <= Date.now())
+        throw new ApiError(400, "Choose a future submission deadline.", "invalid_deadline");
+      if (input.clarificationDeadline && Date.parse(input.clarificationDeadline) > deadline)
+        throw new ApiError(400, "The clarification deadline must not be after the submission deadline.", "invalid_deadline");
+      const before = {
+        submissionDeadline: tender.submission_deadline,
+        clarificationDeadline: tender.clarification_deadline,
+      };
+      await supabaseRest(`procurement_tenders?id=eq.${tender.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          submission_deadline: input.submissionDeadline,
+          clarification_deadline: input.clarificationDeadline || null,
+          ...(tender.status === "closing_soon" ? { status: "live" } : {}),
+        }),
+      });
+      const [{ data: parties }, { data: invitees }] = await Promise.all([
+        supabaseRest<Array<{ supplier_organization_id: string }>>(
+          `supplier_bids?select=supplier_organization_id&tender_id=eq.${tender.id}`,
+        ),
+        supabaseRest<Array<{ supplier_organization_id: string }>>(
+          `tender_invitations?select=supplier_organization_id&tender_id=eq.${tender.id}&status=neq.revoked`,
+        ),
+      ]);
+      await Promise.all(
+        [...new Set([...parties, ...invitees].map((row) => row.supplier_organization_id))].map((organizationId) =>
+          notifyOrganisation(organizationId, {
+            type: "deadline",
+            title: "Tender deadline changed",
+            message: `${tender.title} now closes ${new Date(input.submissionDeadline).toLocaleString("en-GB")}.`,
+            relatedEntityType: "procurement_tender",
+            relatedEntityId: tender.id,
+            relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+            priority: "urgent",
+            frequencyOverride: "instant",
+            dedupeKey: `deadline-change-${tender.id}-${input.submissionDeadline}`,
+          }),
+        ),
+      );
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "tender_deadline_changed",
+        entityType: "procurement_tender",
+        entityId: tender.id,
+        before,
+        after: { submissionDeadline: input.submissionDeadline, clarificationDeadline: input.clarificationDeadline || null },
+      });
+      return Response.json({ data: { status: "updated" } });
+    }
+    if (input.action === "cancel_tender") {
+      const { tender } = await requireTenderManager(user, input.tenderId);
+      if (["awarded", "cancelled", "archived"].includes(tender.status))
+        throw new ApiError(409, "This tender cannot be cancelled from its current state.", "invalid_tender_transition");
+      await supabaseRest(`procurement_tenders?id=eq.${tender.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "cancelled", cancellation_reason: input.reason }),
+      });
+      const [{ data: parties }, { data: invitees }] = await Promise.all([
+        supabaseRest<Array<{ supplier_organization_id: string }>>(
+          `supplier_bids?select=supplier_organization_id&tender_id=eq.${tender.id}`,
+        ),
+        supabaseRest<Array<{ supplier_organization_id: string }>>(
+          `tender_invitations?select=supplier_organization_id&tender_id=eq.${tender.id}&status=neq.revoked`,
+        ),
+      ]);
+      await Promise.all(
+        [...new Set([...parties, ...invitees].map((row) => row.supplier_organization_id))].map((organizationId) =>
+          notifyOrganisation(organizationId, {
+            type: "system",
+            title: "Tender cancelled",
+            message: `${tender.title} was cancelled. ${input.reason}`,
+            relatedEntityType: "procurement_tender",
+            relatedEntityId: tender.id,
+            relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+            priority: "urgent",
+            frequencyOverride: "instant",
+            dedupeKey: `tender-cancelled-${tender.id}`,
+          }),
+        ),
+      );
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "tender_cancelled",
+        entityType: "procurement_tender",
+        entityId: tender.id,
+        before: { status: tender.status },
+        after: { status: "cancelled", reason: input.reason },
+      });
+      return Response.json({ data: { status: "cancelled" } });
+    }
     if (input.action === "save_bid") {
       const entitlement = await tenderAccessForUser(user);
       if (!entitlement.allowed)
@@ -1360,6 +1496,17 @@ export async function POST(request: Request) {
         });
       } else {
         await requireTenderManager(user, tender.id);
+        const { data: clarificationBids } = await supabaseRest<
+          Array<{ supplier_organization_id: string }>
+        >(
+          `supplier_bids?select=supplier_organization_id&id=eq.${input.bidId}&tender_id=eq.${tender.id}&limit=1`,
+        );
+        if (clarificationBids[0]?.supplier_organization_id !== input.recipientOrganizationId)
+          throw new ApiError(
+            400,
+            "The clarification recipient must be the organisation that submitted this bid.",
+            "invalid_clarification_recipient",
+          );
         const clarificationId = crypto.randomUUID();
         await supabaseRest("tender_clarifications", {
           method: "POST",
@@ -1538,13 +1685,32 @@ export async function POST(request: Request) {
       return Response.json({ data: { assigned: true } }, { status: 201 });
     }
     if (input.action === "evaluate") {
-      const { tender } = await requireTenderEvaluator(user, input.tenderId);
+      const { tender, role } = await requireTenderEvaluator(user, input.tenderId);
       if (!bidsAreOpen(tender))
         throw new ApiError(
           403,
           "Sealed bid content cannot be evaluated before opening.",
           "sealed_until_deadline",
         );
+      const { data: evaluationBids } = await supabaseRest<Array<{ id: string }>>(
+        `supplier_bids?select=id&id=eq.${input.bidId}&tender_id=eq.${tender.id}&status=neq.draft&limit=1`,
+      );
+      if (!evaluationBids[0])
+        throw new ApiError(404, "Submitted bid not found for this tender.", "bid_not_found");
+      const { data: activeAssignments } = await supabaseRest<
+        Array<{ bid_id: string | null; criterion_id: string | null; lot_id: string | null }>
+      >(
+        `procurement_evaluation_assignments?select=bid_id,criterion_id,lot_id&tender_id=eq.${tender.id}&evaluator_user_id=eq.${user.id}&status=eq.active`,
+      );
+      if (
+        role !== "organization_owner" &&
+        !activeAssignments.some(
+          (assignment) =>
+            (!assignment.bid_id || assignment.bid_id === input.bidId) &&
+            (!assignment.lot_id || assignment.lot_id === (input.lotId || null)),
+        )
+      )
+        throw new ApiError(403, "This bid or lot is outside your evaluation assignment.", "evaluation_scope_denied");
       const { data: criteria } = await supabaseRest<
         Array<{
           id: string;
@@ -1563,6 +1729,16 @@ export async function POST(request: Request) {
             "An evaluation score references an invalid criterion.",
             "invalid_criterion",
           );
+        if (
+          role !== "organization_owner" &&
+          !activeAssignments.some(
+            (assignment) =>
+              (!assignment.bid_id || assignment.bid_id === input.bidId) &&
+              (!assignment.lot_id || assignment.lot_id === (input.lotId || null)) &&
+              (!assignment.criterion_id || assignment.criterion_id === score.criterionId),
+          )
+        )
+          throw new ApiError(403, "An evaluation criterion is outside your assignment.", "evaluation_scope_denied");
         if (
           criterion.criterion_type === "scored" &&
           (score.numericScore == null ||
@@ -1625,6 +1801,13 @@ export async function POST(request: Request) {
     }
     if (input.action === "shortlist") {
       const { tender } = await requireTenderManager(user, input.tenderId);
+      const { data: managedBids } = await supabaseRest<
+        Array<{ supplier_organization_id: string }>
+      >(
+        `supplier_bids?select=supplier_organization_id&id=eq.${input.bidId}&tender_id=eq.${tender.id}&status=neq.draft&limit=1`,
+      );
+      if (!managedBids[0])
+        throw new ApiError(404, "Submitted bid not found for this tender.", "bid_not_found");
       const status = {
         shortlist: "shortlisted",
         clarification: "clarification_requested",
@@ -1647,12 +1830,7 @@ export async function POST(request: Request) {
         `supplier_bids?id=eq.${input.bidId}&tender_id=eq.${tender.id}`,
         { method: "PATCH", body: JSON.stringify({ status }) },
       );
-      const { data: bidRows } = await supabaseRest<
-          Array<{ supplier_organization_id: string }>
-        >(
-          `supplier_bids?select=supplier_organization_id&id=eq.${input.bidId}&tender_id=eq.${tender.id}&limit=1`,
-        ),
-        supplierOrganizationId = bidRows[0]?.supplier_organization_id;
+      const supplierOrganizationId = managedBids[0].supplier_organization_id;
       if (supplierOrganizationId) {
         const titles = {
           shortlist: "Bid shortlisted",
@@ -1689,6 +1867,11 @@ export async function POST(request: Request) {
     }
     if (input.action === "invite_supplier") {
       const { tender } = await requireTenderManager(user, input.tenderId);
+      const { data: suppliers } = await supabaseRest<Array<{ id: string }>>(
+        `organizations?select=id&id=eq.${input.supplierOrganizationId}&can_bid=eq.true&limit=1`,
+      );
+      if (!suppliers[0])
+        throw new ApiError(400, "Choose an organisation that can bid for work.", "invalid_supplier");
       await supabaseRest(
         "tender_invitations?on_conflict=tender_id,supplier_organization_id",
         {
@@ -1759,6 +1942,34 @@ export async function POST(request: Request) {
           "Select at least one lot for this award.",
           "award_lot_required",
         );
+      const { data: bidRows } = await supabaseRest<
+        Array<{ id: string; supplier_organization_id: string; status: string }>
+      >(
+        `supplier_bids?select=id,supplier_organization_id,status&id=eq.${input.bidId}&tender_id=eq.${tender.id}&supplier_organization_id=eq.${input.supplierOrganizationId}&limit=1`,
+      );
+      if (!bidRows[0] || bidRows[0].status === "draft")
+        throw new ApiError(
+          400,
+          "The selected supplier does not have an eligible submitted bid for this tender.",
+          "invalid_award_bid",
+        );
+      if (tender.award_structure === "lots") {
+        const lotFilter = input.lotIds.join(",");
+        const [{ data: tenderLots }, { data: bidLots }] = await Promise.all([
+          supabaseRest<Array<{ id: string }>>(
+            `procurement_tender_lots?select=id&tender_id=eq.${tender.id}&id=in.(${lotFilter})`,
+          ),
+          supabaseRest<Array<{ lot_id: string }>>(
+            `supplier_bid_lots?select=lot_id&bid_id=eq.${input.bidId}&lot_id=in.(${lotFilter})`,
+          ),
+        ]);
+        if (tenderLots.length !== input.lotIds.length || bidLots.length !== input.lotIds.length)
+          throw new ApiError(
+            400,
+            "Every awarded lot must belong to this tender and be included in the supplier's bid.",
+            "invalid_award_lots",
+          );
+      }
       const id = crypto.randomUUID(),
         approvalStatus =
           input.submitForApproval || tender.approval_required
@@ -1784,13 +1995,19 @@ export async function POST(request: Request) {
             : {}),
         }),
       });
-      if (input.lotIds.length)
-        await supabaseRest("procurement_award_lots", {
-          method: "POST",
-          body: JSON.stringify(
-            input.lotIds.map((lotId) => ({ award_id: id, lot_id: lotId })),
-          ),
-        });
+      if (input.lotIds.length) {
+        try {
+          await supabaseRest("procurement_award_lots", {
+            method: "POST",
+            body: JSON.stringify(
+              input.lotIds.map((lotId) => ({ award_id: id, lot_id: lotId })),
+            ),
+          });
+        } catch (error) {
+          await supabaseRest(`procurement_awards?id=eq.${id}`, { method: "DELETE" });
+          throw error;
+        }
+      }
       await supabaseRest(`procurement_tenders?id=eq.${tender.id}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -1812,10 +2029,15 @@ export async function POST(request: Request) {
         },
       });
       if (approvalStatus === "pending") {
-        const { data: approvers } = await supabaseRest<
-          Array<{ user_id: string; role: string }>
+        const { data: members } = await supabaseRest<
+          Array<{ user_id: string; role: string; procurement_role: string }>
         >(
-          `organization_members?select=user_id,role&organization_id=eq.${tender.organization_id}&role=in.(organization_owner,approver,procurement_manager)`,
+          `organization_members?select=user_id,role,procurement_role&organization_id=eq.${tender.organization_id}`,
+        );
+        const approvers = members.filter(
+          (member) =>
+            ["owner", "admin"].includes(member.role) ||
+            ["approver", "procurement_manager"].includes(member.procurement_role),
         );
         await Promise.all(
           approvers.map((approver) =>
@@ -1864,7 +2086,9 @@ export async function POST(request: Request) {
           "Your role cannot approve awards.",
           "award_approval_denied",
         );
-      const status = input.approve ? "finalised" : "rejected",
+      if (!input.approve && award.approval_status === "finalised")
+        throw new ApiError(409, "A finalised award cannot be rejected.", "award_finalised");
+      const status = input.approve ? "approved" : "rejected",
         at = new Date().toISOString();
       await supabaseRest(`procurement_awards?id=eq.${award.id}`, {
         method: "PATCH",
@@ -1872,65 +2096,111 @@ export async function POST(request: Request) {
           approval_status: status,
           approved_by: user.id,
           approved_at: at,
-          finalised_at: input.approve ? at : null,
+          finalised_at: null,
           award_notes: input.note || undefined,
         }),
       });
-      if (input.approve) {
-        await supabaseRest(`supplier_bids?id=eq.${award.bid_id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: "awarded" }),
-        });
-        await supabaseRest(`procurement_tenders?id=eq.${tender.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: "awarded" }),
-        });
-        await notifyOrganisation(award.supplier_organization_id, {
-          type: "award",
-          title: "Contract awarded",
-          message: `Your organisation has been awarded ${tender.title}.`,
-          relatedEntityType: "procurement_award",
-          relatedEntityId: award.id,
-          relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
-          priority: "urgent",
-          frequencyOverride: "instant",
-          dedupeKey: `award-${award.id}`,
-        });
-        const { data: unsuccessful } = await supabaseRest<
-          Array<{ id: string; supplier_organization_id: string }>
-        >(
-          `supplier_bids?select=id,supplier_organization_id&tender_id=eq.${tender.id}&status=neq.draft&supplier_organization_id=neq.${award.supplier_organization_id}`,
-        );
-        await Promise.all(
-          unsuccessful.map(async (bid) => {
-            await supabaseRest(`supplier_bids?id=eq.${bid.id}`, {
-              method: "PATCH",
-              body: JSON.stringify({ status: "unsuccessful" }),
-            });
-            await notifyOrganisation(bid.supplier_organization_id, {
-              type: "award",
-              title: "Tender outcome",
-              message: `Your bid for ${tender.title} was not selected. Thank you for participating.`,
-              relatedEntityType: "supplier_bid",
-              relatedEntityId: bid.id,
-              relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
-              priority: "high",
-              frequencyOverride: "instant",
-              dedupeKey: `award-unsuccessful-${award.id}-${bid.id}`,
-            });
-          }),
-        );
-      }
       await audit({
         organizationId: tender.organization_id,
         tenderId: tender.id,
         actorUserId: user.id,
-        action: input.approve ? "award_finalised" : "award_rejected",
+        action: input.approve ? "award_approved" : "award_rejected",
         entityType: "procurement_award",
         entityId: award.id,
         metadata: { note: input.note || null },
       });
       return Response.json({ data: { status } });
+    }
+    if (input.action === "finalize_awards") {
+      const { tender } = await requireTenderManager(user, input.tenderId);
+      const member = await procurementContext(user);
+      if (!["organization_owner", "approver", "procurement_manager"].includes(member.role))
+        throw new ApiError(403, "Your role cannot finalise awards.", "award_finalisation_denied");
+      const { data: awards } = await supabaseRest<
+        Array<{ id: string; supplier_organization_id: string; bid_id: string; approval_status: string }>
+      >(
+        `procurement_awards?select=id,supplier_organization_id,bid_id,approval_status&tender_id=eq.${tender.id}&approval_status=neq.rejected`,
+      );
+      if (!awards.length)
+        throw new ApiError(409, "Create at least one award recommendation first.", "award_required");
+      if (awards.some((award) => award.approval_status !== "approved"))
+        throw new ApiError(409, "Every award recommendation must be approved before finalisation.", "award_approval_required");
+      if (tender.award_structure === "single" && awards.length !== 1)
+        throw new ApiError(409, "A single-winner tender must have exactly one approved award.", "single_winner_required");
+      if (tender.award_structure === "lots") {
+        const [{ data: lots }, { data: awardedLots }] = await Promise.all([
+          supabaseRest<Array<{ id: string }>>(`procurement_tender_lots?select=id&tender_id=eq.${tender.id}`),
+          supabaseRest<Array<{ lot_id: string }>>(
+            `procurement_award_lots?select=lot_id&award_id=in.(${awards.map((award) => award.id).join(",")})`,
+          ),
+        ]);
+        if (!lots.length || new Set(awardedLots.map((lot) => lot.lot_id)).size !== lots.length)
+          throw new ApiError(409, "Assign every tender lot exactly once before finalising awards.", "incomplete_lot_awards");
+      }
+      const at = new Date().toISOString();
+      await supabaseRest(
+        `procurement_awards?tender_id=eq.${tender.id}&approval_status=eq.approved`,
+        { method: "PATCH", body: JSON.stringify({ approval_status: "finalised", finalised_at: at }) },
+      );
+      const winningBidIds = awards.map((award) => award.bid_id);
+      await Promise.all(
+        winningBidIds.map((id) =>
+          supabaseRest(`supplier_bids?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ status: "awarded" }) }),
+        ),
+      );
+      await supabaseRest(`procurement_tenders?id=eq.${tender.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "awarded" }),
+      });
+      await Promise.all(
+        awards.map((award) =>
+          notifyOrganisation(award.supplier_organization_id, {
+            type: "award",
+            title: "Contract awarded",
+            message: `Your organisation has been awarded ${tender.title}.`,
+            relatedEntityType: "procurement_award",
+            relatedEntityId: award.id,
+            relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+            priority: "urgent",
+            frequencyOverride: "instant",
+            dedupeKey: `award-${award.id}`,
+          }),
+        ),
+      );
+      const { data: unsuccessful } = await supabaseRest<
+        Array<{ id: string; supplier_organization_id: string }>
+      >(
+        `supplier_bids?select=id,supplier_organization_id&tender_id=eq.${tender.id}&status=neq.draft&id=not.in.(${winningBidIds.join(",")})`,
+      );
+      await Promise.all(
+        unsuccessful.map(async (bid) => {
+          await supabaseRest(`supplier_bids?id=eq.${bid.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ status: "unsuccessful" }),
+          });
+          await notifyOrganisation(bid.supplier_organization_id, {
+            type: "award",
+            title: "Tender outcome",
+            message: `Your bid for ${tender.title} was not selected. Thank you for participating.`,
+            relatedEntityType: "supplier_bid",
+            relatedEntityId: bid.id,
+            relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+            priority: "high",
+            frequencyOverride: "instant",
+            dedupeKey: `award-unsuccessful-${tender.id}-${bid.id}`,
+          });
+        }),
+      );
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "awards_finalised",
+        entityType: "procurement_tender",
+        entityId: tender.id,
+        metadata: { awardIds: awards.map((award) => award.id) },
+      });
+      return Response.json({ data: { status: "awarded", awards: awards.length } });
     }
     if (input.action === "report_tender") {
       const tender = await tenderById(input.tenderId);

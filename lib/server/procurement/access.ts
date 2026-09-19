@@ -92,6 +92,7 @@ export async function procurementContext(user: AuthenticatedUser) {
   return {
     organizationId: primary.organization_id,
     organization: member.organization,
+    membershipRole: member.role,
     role,
     canManage: buyerManagers.has(role),
   };

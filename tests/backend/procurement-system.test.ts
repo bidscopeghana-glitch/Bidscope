@@ -162,10 +162,21 @@ test("procurement workflows enforce documents, approvals and outcome notices", (
     new URL("../../components/procurement/bid-inbox.tsx", import.meta.url),
     "utf8",
   );
+  const hardening = readFileSync(
+    new URL(
+      "../../supabase/migrations/20260919200912_procurement_audit_hardening.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   assert.match(route, /mandatory_documents_missing/);
   assert.match(route, /respond_clarification/);
   assert.match(route, /award-unsuccessful-/);
   assert.match(route, /award-approval-/);
+  assert.match(route, /finalize_awards/);
+  assert.match(route, /incomplete_lot_awards/);
+  assert.match(route, /cancel_tender/);
+  assert.match(route, /update_deadline/);
   assert.match(documents, /document_type_not_accepted/);
   assert.match(
     documents,
@@ -174,5 +185,9 @@ test("procurement workflows enforce documents, approvals and outcome notices", (
   assert.match(supplier, /Your secure bid documents/);
   assert.match(supplier, /Ask a private tender question/);
   assert.match(buyer, /Award recommendations/);
-  assert.match(buyer, /Approve award/);
+  assert.match(buyer, /Approve recommendation/);
+  assert.match(buyer, /Finalise approved awards/);
+  assert.match(hardening, /revoke all on table public\.supplier_bids from authenticated/);
+  assert.match(hardening, /validate_procurement_scope/);
+  assert.match(hardening, /lot already has an active award/);
 });
