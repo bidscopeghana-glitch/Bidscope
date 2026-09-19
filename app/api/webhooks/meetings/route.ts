@@ -4,8 +4,14 @@ import { supabaseRest } from "@/lib/server/supabase-rest";
 
 function authorised(request:Request){
   const configured=process.env.BIDSCOPE_MEET_WEBHOOK_BASIC_AUTH;if(!configured)return false;
-  const expected=`Basic ${Buffer.from(configured).toString("base64")}`,actual=request.headers.get("authorization")||"";
-  return expected.length===actual.length&&timingSafeEqual(Buffer.from(expected),Buffer.from(actual));
+  const actual=request.headers.get("authorization")||"";
+  const expectedValues=[
+    `Basic ${configured}`,
+    `Basic ${Buffer.from(configured).toString("base64")}`,
+  ];
+  return expectedValues.some((expected)=>
+    expected.length===actual.length&&timingSafeEqual(Buffer.from(expected),Buffer.from(actual)),
+  );
 }
 
 export async function POST(request:Request){
