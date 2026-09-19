@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     const requestUrl = new URL(request.url);
     const intent = requestUrl.searchParams.get("intent");
     const legalAccepted = requestUrl.searchParams.get("legalAccepted") === "true";
+    const usageMode = requestUrl.searchParams.get("usageMode") === "buyer" ? "buyer" : "supplier";
     if (intent === "sign-up" && !legalAccepted) {
       return Response.redirect(new URL("/sign-in?legal=required", requestUrl.origin));
     }
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
     authorize.searchParams.set("provider", "google");
     const callback = new URL(`${siteUrl}/auth/callback`);
     if (intent === "sign-up") callback.searchParams.set("signup", "google");
+    if (intent === "sign-up") callback.searchParams.set("usageMode", usageMode);
     callback.searchParams.set("next", customerReturnPath(requestUrl.searchParams.get("next")));
     authorize.searchParams.set("redirect_to", callback.href);
     authorize.searchParams.set("scopes", "openid email profile");

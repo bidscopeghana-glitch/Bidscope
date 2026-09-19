@@ -6,6 +6,7 @@ import { primaryOrganization } from "@/lib/server/entitlements";
 import { meetingProvider, type MeetingRecord, type MeetingProviderName } from "@/lib/server/meetings";
 import { createNotification, stableDedupe } from "@/lib/server/notifications";
 import { supabaseRest } from "@/lib/server/supabase-rest";
+import {requireTenderManager} from "@/lib/server/procurement/access";
 
 export const dynamic="force-dynamic";
 
@@ -26,6 +27,12 @@ const schema=z.object({
   recordingEnabled:z.boolean().default(false),
   transcriptionEnabled:z.boolean().default(false),
   waitingRoomEnabled:z.boolean().default(true),
+  procurementTenderId:z.string().uuid().nullable().optional(),
+  supplierBidId:z.string().uuid().nullable().optional(),
+  supplierOrganizationId:z.string().uuid().nullable().optional(),
+  tenderLotId:z.string().uuid().nullable().optional(),
+  procurementMeetingType:z.enum(["supplier_interview","supplier_presentation","clarification","negotiation","evaluation_committee"]).nullable().optional(),
+  interviewQuestions:z.array(z.string().trim().min(2).max(1000)).max(50).default([]),
 });
 
 async function settings(organizationId:string){
@@ -38,7 +45,7 @@ export async function GET(request:Request){
     const{user}=await requireUser(request);const membership=await primaryOrganization(user.id);
     if(!membership)return Response.json({data:[],settings:null,googleConnected:false});
     const[{data:meetings},guardrails,{data:connection}]=await Promise.all([
-      supabaseRest<Array<Record<string,unknown>>>(`meetings?select=id,organization_id,organizer_user_id,provider,meeting_type,title,agenda,timezone,starts_at,ends_at,status,related_opportunity_id,related_partner_organization_id,reminder_minutes,waiting_room_enabled,recording_enabled,transcription_enabled,provider_status,created_at&organization_id=eq.${membership.organization_id}&order=starts_at.asc`),
+      supabaseRest<Array<Record<string,unknown>>>(`meetings?select=id,organization_id,organizer_user_id,provider,meeting_type,title,agenda,timezone,starts_at,ends_at,status,related_opportunity_id,related_partner_organization_id,procurement_tender_id,supplier_bid_id,supplier_organization_id,tender_lot_id,procurement_meeting_type,interview_questions,reminder_minutes,waiting_room_enabled,recording_enabled,transcription_enabled,provider_status,created_at&organization_id=eq.${membership.organization_id}&order=starts_at.asc`),
       settings(membership.organization_id),
       supabaseRest<Array<{user_id:string}>>(`meeting_oauth_connections?select=user_id&user_id=eq.${user.id}&provider=eq.google&limit=1`),
     ]);
@@ -62,6 +69,7 @@ export async function POST(request:Request){
     if(!membership)throw new ApiError(400,"Create a business profile before scheduling meetings.","profile_required");
     await requireOrganizationMember(user.id,membership.organization_id);
     const input=schema.parse(await request.json()),guardrails=await settings(membership.organization_id);
+    if(input.procurementTenderId){const{tender}=await requireTenderManager(user,input.procurementTenderId);if(input.supplierBidId){const{data:bid}=await supabaseRest<Array<{id:string;supplier_organization_id:string}>>(`supplier_bids?select=id,supplier_organization_id&id=eq.${input.supplierBidId}&tender_id=eq.${tender.id}&limit=1`);if(!bid[0]||input.supplierOrganizationId&&bid[0].supplier_organization_id!==input.supplierOrganizationId)throw new ApiError(400,"The selected supplier bid does not belong to this tender.","invalid_procurement_meeting_link");}}
     if(!guardrails.enabled)throw new ApiError(403,"BidScope Meet is disabled for this workspace.","meetings_disabled");
     if(input.durationMinutes>guardrails.max_duration_minutes)throw new ApiError(400,`Meetings are limited to ${guardrails.max_duration_minutes} minutes.`,"meeting_duration_limit");
     if(1+input.participantUserIds.length+input.guestEmails.length>guardrails.max_participants)throw new ApiError(400,`This workspace allows up to ${guardrails.max_participants} participants per meeting.`,"meeting_participant_limit");
@@ -70,7 +78,7 @@ export async function POST(request:Request){
     const memberIds=[...new Set(input.participantUserIds.filter((id)=>id!==user.id))];
     if(memberIds.length){const{data}=await supabaseRest<Array<{user_id:string}>>(`organization_members?select=user_id&organization_id=eq.${membership.organization_id}&user_id=in.(${memberIds.join(",")})`);if(data.length!==memberIds.length)throw new ApiError(400,"Every selected team attendee must belong to this workspace.","invalid_meeting_attendee");}
     const startsAt=new Date(input.startsAt),endsAt=new Date(startsAt.getTime()+input.durationMinutes*60_000);
-    const row={organization_id:membership.organization_id,organizer_user_id:user.id,provider:input.provider,meeting_type:input.meetingType,title:input.title,agenda:input.agenda,timezone:input.timezone,starts_at:startsAt.toISOString(),ends_at:endsAt.toISOString(),related_opportunity_id:input.relatedOpportunityId||null,related_partner_organization_id:input.relatedPartnerOrganizationId||null,recurrence_rule:input.recurrenceRule||null,reminder_minutes:input.reminderMinutes,waiting_room_enabled:input.waitingRoomEnabled,recording_enabled:input.recordingEnabled,transcription_enabled:input.transcriptionEnabled,provider_status:"creating"};
+    const row={organization_id:membership.organization_id,organizer_user_id:user.id,provider:input.provider,meeting_type:input.meetingType,title:input.title,agenda:input.agenda,timezone:input.timezone,starts_at:startsAt.toISOString(),ends_at:endsAt.toISOString(),related_opportunity_id:input.relatedOpportunityId||null,related_partner_organization_id:input.relatedPartnerOrganizationId||null,recurrence_rule:input.recurrenceRule||null,reminder_minutes:input.reminderMinutes,waiting_room_enabled:input.waitingRoomEnabled,recording_enabled:input.recordingEnabled,transcription_enabled:input.transcriptionEnabled,provider_status:"creating",procurement_tender_id:input.procurementTenderId||null,supplier_bid_id:input.supplierBidId||null,supplier_organization_id:input.supplierOrganizationId||null,tender_lot_id:input.tenderLotId||null,procurement_meeting_type:input.procurementMeetingType||null,interview_questions:input.interviewQuestions};
     const{data:created}=await supabaseRest<MeetingRecord[]>("meetings",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(row)});
     const meeting=created[0];if(!meeting)throw new ApiError(500,"Meeting could not be saved.","meeting_create_failed");
     const guestTokens=input.guestEmails.map((email)=>({email,token:randomBytes(32).toString("base64url")}));

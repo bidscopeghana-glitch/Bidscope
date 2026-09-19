@@ -2,7 +2,7 @@
 import { createContext,useContext,useEffect,useRef,useState } from "react";
 import Link from "next/link";
 import { usePathname,useRouter,useSearchParams } from "next/navigation";
-import { Home,Search,Globe2,Bookmark,BriefcaseBusiness,Building2,ChartNoAxesCombined,FileText,CalendarDays,Bell,Settings,PanelLeftClose,PanelLeftOpen,LogOut,ChevronRight,Sparkles,History,Eye,Menu,X,ArrowUpRight,SlidersHorizontal,Compass,CreditCard,Users,ShieldCheck,Send,Video } from "lucide-react";
+import { Home,Search,Globe2,Bookmark,BriefcaseBusiness,Building2,ChartNoAxesCombined,FileText,CalendarDays,Bell,Settings,PanelLeftClose,PanelLeftOpen,LogOut,ChevronRight,Sparkles,History,Eye,Menu,X,ArrowUpRight,SlidersHorizontal,Compass,CreditCard,Users,ShieldCheck,Send,Video,Gavel } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { useBidScopeSession } from "@/components/procurement/auth-nav";
 import { NotificationBell } from "@/components/procurement/notification-bell";
@@ -14,7 +14,7 @@ const Context=createContext<Account>({preferences:{},setPreferences:()=>{},toast
 export const useAccount=()=>useContext(Context);
 export const navGroups:ReadonlyArray<{title:string;links:ReadonlyArray<readonly [string,string,typeof Home]>}>=[
  {title:"",links:[["Home","/customer",Home]]},
- {title:"Discover",links:[["All Opportunities","/customer/discover",Compass],["Ghana","/customer/discover?scope=ghana",Search],["International","/customer/discover?scope=international",Globe2],["Upcoming Procurement","/customer/discover?stage=upcoming",CalendarDays],["Closing Soon","/customer/discover?days=7",History]]},
+ {title:"Discover",links:[["All Opportunities","/customer/discover",Compass],["BidScope Tenders","/customer/bidscope-tenders",Gavel],["Ghana","/customer/discover?scope=ghana",Search],["International","/customer/discover?scope=international",Globe2],["Upcoming Procurement","/customer/discover?stage=upcoming",CalendarDays],["Closing Soon","/customer/discover?days=7",History]]},
  {title:"Contribute",links:[["Post a Tender","/post-tender",Send]]},
  {title:"My Opportunities",links:[["Recommended","/customer/recommended",Sparkles],["Saved","/customer/saved",Bookmark],["Following","/customer/following",Eye],["Recently Viewed","/customer/recent",History]]},
  {title:"Bid Workspace",links:[["My Bids","/customer/bids",BriefcaseBusiness],["Bid Pipeline","/customer/pipeline",ChartNoAxesCombined],["Documents","/customer/documents",FileText],["Deadlines","/customer/deadlines",CalendarDays],["Meetings","/customer/meetings",Video]]},

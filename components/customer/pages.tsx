@@ -18,6 +18,7 @@ import {
 import { Empty, Skeleton, useAccount } from "./shell";
 import { HomePage, PanelTitle } from "./home";
 import { Discovery } from "./opportunities";
+import { SupplierTenders } from "@/components/procurement/supplier-tenders";
 const Detail = dynamic(() => import("./detail").then((m) => m.Detail), {
   loading: Skeleton,
 });
@@ -47,6 +48,7 @@ export function CustomerPage({
     );
   if (section === "opportunity" && identifier)
     return <Detail slug={identifier} />;
+  if (section === "bidscope-tenders") return <SupplierTenders identifier={identifier}/>;
   if (["bids", "pipeline", "deadlines"].includes(section))
     return (
       <BidsPage

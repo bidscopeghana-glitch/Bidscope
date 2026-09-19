@@ -16,11 +16,12 @@ function messageFor(status: number, fallback?: string) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { action?: AuthAction; email?: string; password?: string; fullName?: string; legalAccepted?: boolean };
+    const body = (await request.json()) as { action?: AuthAction; email?: string; password?: string; fullName?: string; usageMode?: "supplier" | "buyer"; legalAccepted?: boolean };
     const action = body.action;
     const email = body.email?.trim().toLowerCase();
     const password = body.password || "";
     const fullName = body.fullName?.trim();
+    const usageMode = body.usageMode === "buyer" ? "buyer" : "supplier";
 
     if (action !== "sign-in" && action !== "sign-up") {
       return NextResponse.json({ error: "Choose sign in or create account." }, { status: 400 });
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || requestUrl.origin).replace(/\/$/, "");
     const endpoint = action === "sign-in"
       ? `${url}/auth/v1/token?grant_type=password`
-      : `${url}/auth/v1/signup?redirect_to=${encodeURIComponent(`${siteUrl}/auth/callback`)}`;
+      : `${url}/auth/v1/signup?redirect_to=${encodeURIComponent(`${siteUrl}/auth/callback?next=${encodeURIComponent(usageMode === "buyer" ? "/procurement/settings?onboarding=buyer" : "/customer/profile?onboarding=supplier")}`)}`;
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
           privacy_version: PRIVACY_VERSION,
           cookie_policy_version: COOKIE_POLICY_VERSION,
           legal_accepted_at: new Date().toISOString(),
+          bidscope_usage: usageMode,
         },
       }),
       cache: "no-store",
