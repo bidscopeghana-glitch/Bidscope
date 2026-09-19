@@ -418,8 +418,13 @@ function Heading({
   description: string;
   action?: React.ReactNode;
 }) {
+  const visual = /tender|evaluation|bid/i.test(title)
+    ? "tenders"
+    : /team|meeting|supplier|report/i.test(title)
+      ? "collaboration"
+      : "boardroom";
   return (
-    <div className="pw-hero">
+    <div className={`pw-hero pw-hero-${visual}`}>
       <div className="pw-hero-copy">
         <p className="pw-eyebrow">{eyebrow}</p>
         <h1>{title}</h1>

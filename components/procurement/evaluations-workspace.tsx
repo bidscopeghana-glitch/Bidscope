@@ -156,7 +156,7 @@ export function EvaluationsWorkspace() {
   }
   return (
     <>
-      <div className="pw-hero">
+      <div className="pw-hero pw-hero-tenders">
         <p className="pw-eyebrow">PRIVATE EVALUATION WORKSPACE</p>
         <h1>Evaluations</h1>
         <p>

@@ -199,7 +199,7 @@ export function ProcurementBidInbox() {
   }
   return (
     <>
-      <div className="pw-hero">
+      <div className="pw-hero pw-hero-tenders">
         <p className="pw-eyebrow">SECURE BID INBOX</p>
         <h1>Bids received</h1>
         <p>

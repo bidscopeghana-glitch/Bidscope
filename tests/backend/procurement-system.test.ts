@@ -225,13 +225,44 @@ test("buyer workspace uses a lightweight premium visual system", () => {
     new URL("../../components/procurement/buyer-workspace.tsx", import.meta.url),
     "utf8",
   );
-  const artwork = new URL(
-    "../../public/images/buyer-procurement-boardroom.webp",
-    import.meta.url,
+  const evaluations = readFileSync(
+    new URL("../../components/procurement/evaluations-workspace.tsx", import.meta.url),
+    "utf8",
   );
+  const meetings = readFileSync(
+    new URL("../../components/procurement/procurement-meetings.tsx", import.meta.url),
+    "utf8",
+  );
+  const artworks = [
+    "buyer-procurement-boardroom.webp",
+    "buyer-tender-evaluation.webp",
+    "buyer-team-collaboration.webp",
+  ].map((name) => new URL(`../../public/images/${name}`, import.meta.url));
   assert.match(css, /buyer-procurement-boardroom\.webp/);
+  assert.match(css, /buyer-tender-evaluation\.webp/);
+  assert.match(css, /buyer-team-collaboration\.webp/);
+  assert.match(workspace, /pw-hero-\$\{visual\}/);
+  assert.match(evaluations, /pw-hero-tenders/);
+  assert.match(meetings, /pw-hero-collaboration/);
   assert.match(css, /\.pw-stat-icon/);
   assert.match(workspace, /pw-hero-mark/);
   assert.match(workspace, /pw-card-heading/);
-  assert.ok(statSync(artwork).size < 100_000, "buyer banner must remain under 100 KB");
+  for (const artwork of artworks) {
+    assert.ok(statSync(artwork).size < 100_000, "buyer banner must remain under 100 KB");
+  }
+});
+
+test("dual-capability sellers can return to the buyer workspace", () => {
+  const shell = readFileSync(
+    new URL("../../components/customer/shell.tsx", import.meta.url),
+    "utf8",
+  );
+  const data = readFileSync(
+    new URL("../../components/customer/data.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(shell, /organization\.can_procure/);
+  assert.match(shell, /href="\/procurement"/);
+  assert.match(shell, /Switch to procurement/);
+  assert.match(data, /can_procure\?:boolean/);
 });

@@ -79,7 +79,7 @@ function ProcurementMeetingList() {
   }
   return (
     <>
-      <div className="pw-hero">
+      <div className="pw-hero pw-hero-collaboration">
         <p className="pw-eyebrow">BIDSCOPE MEET · PROCUREMENT</p>
         <h1>Procurement meetings</h1>
         <p>
