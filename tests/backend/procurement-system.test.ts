@@ -191,3 +191,27 @@ test("procurement workflows enforce documents, approvals and outcome notices", (
   assert.match(hardening, /validate_procurement_scope/);
   assert.match(hardening, /lot already has an active award/);
 });
+
+test("buyer team management stays inside the procurement workspace", () => {
+  const buyer = readFileSync(
+    new URL("../../components/procurement/buyer-workspace.tsx", import.meta.url),
+    "utf8",
+  );
+  const teamRoute = readFileSync(
+    new URL("../../app/api/team/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(buyer, /href="\/customer\/team"/);
+  assert.match(buyer, /workspace:\s*"procurement"/);
+  assert.match(buyer, /window\.history\.replaceState\(\{\},\s*"",\s*"\/procurement\/team"\)/);
+  assert.match(teamRoute, /body\.workspace==="procurement"\?"\/procurement\/team"/);
+});
+
+test("seller navigation does not offer tender publishing", () => {
+  const shell = readFileSync(
+    new URL("../../components/customer/shell.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(shell, /Post a Tender/);
+  assert.doesNotMatch(shell, /\/post-tender/);
+});

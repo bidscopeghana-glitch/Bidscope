@@ -38,7 +38,7 @@ export async function POST(request:Request){
   try{
     const{user}=await requireUser(request);
     const body=z.discriminatedUnion("action",[
-      z.object({action:z.literal("invite"),organizationId:z.string().uuid(),email:z.string().trim().toLowerCase().email().max(320),role:z.enum(["admin","member"]).default("member")}),
+      z.object({action:z.literal("invite"),organizationId:z.string().uuid(),email:z.string().trim().toLowerCase().email().max(320),role:z.enum(["admin","member"]).default("member"),workspace:z.enum(["supplier","procurement"]).default("supplier")}),
       z.object({action:z.literal("accept"),token:z.string().min(32).max(256)}),
       z.object({action:z.literal("set_procurement_role"),organizationId:z.string().uuid(),userId:z.string().uuid(),procurementRole:z.enum(["procurement_manager","procurement_officer","evaluator","technical_expert","finance_evaluator","approver","viewer","bid_team_member"])}),
     ]).parse(await request.json());
@@ -73,7 +73,7 @@ export async function POST(request:Request){
     const token=randomBytes(32).toString("base64url");
     const{data}=await supabaseRest<Array<{id:string}>>("organization_invitations",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify({organization_id:body.organizationId,email:body.email,role:body.role,token_hash:hash(token),invited_by:user.id})});
     const site=process.env.NEXT_PUBLIC_SITE_URL||"https://www.bidscopeghana.com";
-    const inviteUrl=new URL("/customer/team",site);
+    const inviteUrl=new URL(body.workspace==="procurement"?"/procurement/team":"/customer/team",site);
     inviteUrl.searchParams.set("invite",token);
     const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({from:process.env.ALERT_FROM_EMAIL,to:[body.email],subject:"You have been invited to a BidScope workspace",html:`<div style="font-family:Arial,sans-serif;color:#17362d"><h2>Join the BidScope workspace</h2><p>You were invited as ${body.role}.</p><p><a href="${inviteUrl.toString()}">Accept invitation</a></p><p>This secure link expires in 7 days.</p></div>`})});
     if(!response.ok){

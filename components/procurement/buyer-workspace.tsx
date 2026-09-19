@@ -1945,10 +1945,20 @@ function Reports() {
   );
 }
 function Team() {
+  const params = useSearchParams();
+  const inviteToken = params.get("invite");
   const result = useData<{
     data: {
       organizationId: string | null;
       canManage: boolean;
+      used: number;
+      limit: number;
+      invitations: Array<{
+        id: string;
+        email: string;
+        role: string;
+        expires_at: string;
+      }>;
       members: Array<{
         user_id: string;
         role: string;
@@ -1972,17 +1982,35 @@ function Team() {
     <>
       <Heading
         title="Procurement team"
-        description="Use your existing BidScope organisation team, then assign procurement-specific responsibilities per tender."
+        description="Invite colleagues and assign procurement responsibilities without leaving the buyer workspace."
       />
+      {inviteToken && (
+        <section className="pw-card mt-5">
+          <h2>Accept procurement workspace invitation</h2>
+          <p>Accept this invitation using the email address that received it.</p>
+          <button
+            className="pw-button primary mt-4"
+            onClick={async () => {
+              try {
+                await api("/api/team", { action: "accept", token: inviteToken });
+                setMessage("Invitation accepted. Welcome to the procurement team.");
+                window.history.replaceState({}, "", "/procurement/team");
+                invalidate();
+              } catch (error) {
+                setMessage((error as Error).message);
+              }
+            }}
+          >
+            Accept invitation
+          </button>
+        </section>
+      )}
       <section className="pw-card mt-5">
         <h2>Manage organisation members</h2>
         <p>
-          Owners and administrators can invite team members from the existing
-          team workspace. Evaluator access remains tender-specific.
+          Owners and administrators can invite colleagues here. Evaluator
+          access remains tender-specific.
         </p>
-        <Link className="pw-button primary" href="/customer/team">
-          Invite or remove team members
-        </Link>
         {message && <p className="pw-notice mt-4">{message}</p>}
         {result.loading ? (
           <p className="mt-5">Loading procurement roles…</p>
@@ -1990,6 +2018,9 @@ function Team() {
           <ErrorState message={result.error} />
         ) : (
           <div className="mt-5">
+            <p className="pw-notice">
+              {result.data?.data.used || 0} of {result.data?.data.limit || 0} team seats allocated, including pending invitations.
+            </p>
             {result.data?.data.members.map((member) => (
               <div className="pw-row" key={member.user_id}>
                 <span>
@@ -2027,6 +2058,73 @@ function Team() {
           </div>
         )}
       </section>
+      {result.data?.data.canManage && result.data.data.organizationId && (
+        <section className="pw-card mt-5">
+          <h2>Invite a procurement teammate</h2>
+          <p>The secure invitation expires after seven days.</p>
+          <form
+            className="pw-fields mt-5"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              try {
+                await api("/api/team", {
+                  action: "invite",
+                  organizationId: result.data!.data.organizationId,
+                  email: form.get("email"),
+                  role: form.get("role"),
+                  workspace: "procurement",
+                });
+                event.currentTarget.reset();
+                setMessage("Procurement team invitation sent.");
+                invalidate();
+              } catch (error) {
+                setMessage((error as Error).message);
+              }
+            }}
+          >
+            <label>
+              Email address
+              <input name="email" type="email" required autoComplete="email" placeholder="colleague@company.com" />
+            </label>
+            <label>
+              Workspace role
+              <select name="role" defaultValue="member">
+                <option value="member">Member</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </label>
+            <button className="pw-button primary">Send secure invitation</button>
+          </form>
+          {!!result.data.data.invitations.length && (
+            <div className="mt-5">
+              <h2>Pending invitations</h2>
+              {result.data.data.invitations.map((invitation) => (
+                <div className="pw-row" key={invitation.id}>
+                  <span>
+                    <strong>{invitation.email}</strong>
+                    <small>{invitation.role} · expires {new Date(invitation.expires_at).toLocaleDateString("en-GB")}</small>
+                  </span>
+                  <button
+                    className="pw-button"
+                    onClick={async () => {
+                      try {
+                        await api(`/api/team?id=${invitation.id}`, undefined, "DELETE");
+                        setMessage("Invitation revoked.");
+                        invalidate();
+                      } catch (error) {
+                        setMessage((error as Error).message);
+                      }
+                    }}
+                  >
+                    Revoke
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </>
   );
 }
