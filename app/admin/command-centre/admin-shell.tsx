@@ -3,7 +3,7 @@
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import {usePathname,useRouter} from "next/navigation";
-import {Activity,ArrowLeft,BarChart3,BellRing,BrainCircuit,ContactRound,CreditCard,Database,LayoutDashboard,LogOut,Menu,ShieldCheck,UsersRound,X,Send} from "lucide-react";
+import {Activity,ArrowLeft,BarChart3,BellRing,BrainCircuit,ContactRound,CreditCard,Database,LayoutDashboard,LogOut,Menu,ShieldCheck,UsersRound,X,Send,Video} from "lucide-react";
 import {BrandLogo} from "@/components/brand/brand-logo";
 import {api,invalidate} from "@/components/customer/data";
 import {clearSession} from "@/lib/client/session";
@@ -19,6 +19,7 @@ const navigation=[
   ["AI control centre","/admin/ai",BrainCircuit],
   ["Outreach","/admin/outreach",ContactRound],
   ["Tender submissions","/admin/tenders/submissions",Send],
+  ["BidScope Meet usage","/admin/command-centre/meetings",Video],
 ] as const;
 
 export function AdminShell({children}:{children:React.ReactNode}){

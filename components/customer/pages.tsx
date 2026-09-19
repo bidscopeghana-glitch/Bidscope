@@ -27,6 +27,9 @@ const AIAnalysis = dynamic(() => import("./detail").then((m) => m.AIAnalysis), {
 const BidsPage = dynamic(() => import("./bids").then((m) => m.BidsPage), {
   loading: Skeleton,
 });
+const MeetingsWorkspace = dynamic(() => import("@/components/meetings/meetings-workspace").then((m) => m.MeetingsWorkspace), {
+  loading: Skeleton,
+});
 export function CustomerPage({
   section,
   identifier,
@@ -51,6 +54,7 @@ export function CustomerPage({
         calendar={section === "deadlines"}
       />
     );
+  if (section === "meetings") return <MeetingsWorkspace meetingId={identifier} />;
   if (section === "profile") return <BusinessProfile />;
   if (section === "team") return <TeamPage />;
   if (section === "readiness") return <ReadinessPage />;
