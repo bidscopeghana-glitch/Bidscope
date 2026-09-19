@@ -8,10 +8,10 @@ const nextConfig: NextConfig = {
     return [{
       source: "/:path*",
       headers: [
-        { key: "Content-Security-Policy", value: [`default-src 'self'`, `script-src ${scriptSrc}`, "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob: https:", "font-src 'self' data:", "connect-src 'self' https://*.supabase.co https://api.paystack.co", "frame-src https://checkout.paystack.com https://js.paystack.co", "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self' https://checkout.paystack.com", "object-src 'none'", "upgrade-insecure-requests"].join("; ") },
+        { key: "Content-Security-Policy", value: [`default-src 'self'`, `script-src ${scriptSrc}`, "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob: https:", "font-src 'self' data:", "connect-src 'self' https://*.supabase.co https://api.paystack.co", "frame-src https://checkout.paystack.com https://js.paystack.co https://*.daily.co", "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self' https://checkout.paystack.com", "object-src 'none'", "upgrade-insecure-requests"].join("; ") },
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        { key: "Permissions-Policy", value: 'camera=(self "https://bidscope.daily.co"), microphone=(self "https://bidscope.daily.co"), geolocation=()' },
         { key: "X-Frame-Options", value: "DENY" },
       ],
     }];

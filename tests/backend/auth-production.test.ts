@@ -41,6 +41,9 @@ test("production routes publish indexing and baseline security controls", () => 
   assert.match(config, /Content-Security-Policy/);
   assert.match(config, /X-Content-Type-Options/);
   assert.match(config, /frame-ancestors 'none'/);
+  assert.match(config, /frame-src[^\n]*https:\/\/\*\.daily\.co/);
+  assert.match(config, /camera=\(self \"https:\/\/bidscope\.daily\.co\"\)/);
+  assert.match(config, /microphone=\(self \"https:\/\/bidscope\.daily\.co\"\)/);
   assert.match(read("app/robots.ts"), /sitemap\.xml/);
   assert.match(read("app/sitemap.ts"), /\/opportunities/);
 });
