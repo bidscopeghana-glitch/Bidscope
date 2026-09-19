@@ -15,7 +15,7 @@
     },
     {
       "path": "/api/internal/procurement/lifecycle",
-      "schedule": "*/30 * * * *"
+      "schedule": "45 6 * * *"
     }
   ]
 }
