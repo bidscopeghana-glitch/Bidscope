@@ -1,168 +1,1959 @@
-import {z} from "zod";
-import {ApiError,apiErrorResponse} from "@/lib/server/api-error";
-import {requireUser} from "@/lib/server/auth";
-import {createNotification} from "@/lib/server/notifications";
-import {audit,bidsAreOpen,buyerVerification,procurementContext,requireProcurementManager,requireTenderEvaluator,requireTenderManager,tenderById} from "@/lib/server/procurement/access";
-import {bidInputSchema,tenderInputSchema,uuid,verificationSchema} from "@/lib/server/procurement/schemas";
-import {encodeFilter,supabaseRest} from "@/lib/server/supabase-rest";
-import {tenderAccessForUser} from "@/lib/server/tender-access";
+import { z } from "zod";
+import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
+import { requireUser } from "@/lib/server/auth";
+import { createNotification } from "@/lib/server/notifications";
+import {
+  audit,
+  bidsAreOpen,
+  buyerVerification,
+  procurementContext,
+  requireProcurementManager,
+  requireTenderEvaluator,
+  requireTenderManager,
+  tenderById,
+} from "@/lib/server/procurement/access";
+import {
+  bidInputSchema,
+  tenderInputSchema,
+  uuid,
+  verificationSchema,
+} from "@/lib/server/procurement/schemas";
+import { encodeFilter, supabaseRest } from "@/lib/server/supabase-rest";
+import { tenderAccessForUser } from "@/lib/server/tender-access";
 
-export const dynamic="force-dynamic";
-const noStore={"Cache-Control":"private, no-store"};
-const tenderSelect="id,organization_id,created_by,owner_user_id,title,reference_number,description,tender_type,procurement_category,classification,location,currency,estimated_budget,issue_date,clarification_deadline,submission_deadline,expected_award_date,expected_contract_start_date,eligibility_requirements,technical_requirements,commercial_requirements,delivery_requirements,terms_and_conditions,procurement_owner_name,procurement_owner_email,award_structure,bid_opening_model,visibility,questions_allowed,supplier_identity_visible_before_opening,withdrawal_allowed,approval_required,publish_award_publicly,status,published_at,bids_opened_at,created_at,updated_at";
+export const dynamic = "force-dynamic";
+const noStore = { "Cache-Control": "private, no-store" };
+const tenderSelect =
+  "id,organization_id,created_by,owner_user_id,title,reference_number,description,tender_type,procurement_category,classification,location,currency,estimated_budget,issue_date,clarification_deadline,submission_deadline,expected_award_date,expected_contract_start_date,eligibility_requirements,technical_requirements,commercial_requirements,delivery_requirements,terms_and_conditions,procurement_owner_name,procurement_owner_email,award_structure,bid_opening_model,visibility,questions_allowed,supplier_identity_visible_before_opening,withdrawal_allowed,approval_required,publish_award_publicly,status,published_at,bids_opened_at,created_at,updated_at";
 
-async function children(tenderId:string){
-  const [lots,requirements,documents,criteria]=await Promise.all([
-    supabaseRest(`procurement_tender_lots?select=*&tender_id=eq.${tenderId}&order=lot_number.asc`),
-    supabaseRest(`procurement_requirements?select=*&tender_id=eq.${tenderId}&order=display_order.asc`),
-    supabaseRest(`procurement_required_documents?select=*&tender_id=eq.${tenderId}&order=display_order.asc`),
-    supabaseRest(`procurement_evaluation_criteria?select=*&tender_id=eq.${tenderId}&order=display_order.asc`),
-  ]);return{lots:lots.data,requirements:requirements.data,requiredDocuments:documents.data,criteria:criteria.data};
-}
-async function organisationProfiles(ids:string[]){if(!ids.length)return new Map<string,{id:string;name:string;region:string|null;sectors:string[];services:string[];products:string[];certifications:string[]}>();const{data}=await supabaseRest<Array<{id:string;name:string;region:string|null;sectors:string[];services:string[];products:string[];certifications:string[]}>>(`organizations?select=id,name,region,sectors,services,products,certifications&id=in.(${[...new Set(ids)].join(",")})`);return new Map(data.map(item=>[item.id,item]));}
-
-export async function GET(request:Request){
-  try{
-    const{user}=await requireUser(request),params=new URL(request.url).searchParams,resource=params.get("resource")||"dashboard";
-    const context=await procurementContext(user);
-    if(resource==="capabilities"){
-      const{data:verification}=await supabaseRest<Array<{status:string;submitted_at:string|null;reviewed_at:string|null;verification_notes:string|null}>>(`buyer_verifications?select=status,submitted_at,reviewed_at,verification_notes&organization_id=eq.${context.organizationId}&limit=1`);
-      return Response.json({data:{...context,verification:verification[0]||{status:"unverified"}}},{headers:noStore});
-    }
-    if(resource==="marketplace"){
-      const access=await tenderAccessForUser(user);
-      const type=params.get("type"),q=params.get("q")?.trim()||"",limit=Math.min(100,Math.max(1,Number(params.get("limit")||50)));
-      let query=`procurement_tenders?select=${tenderSelect}&status=in.(scheduled,live,closing_soon)&submission_deadline=gt.${new Date().toISOString()}&order=submission_deadline.asc&limit=${limit}`;
-      if(type)query+=`&tender_type=eq.${encodeFilter(type)}`;if(q)query+=`&or=(title.ilike.*${encodeFilter(q)}*,description.ilike.*${encodeFilter(q)}*,procurement_category.ilike.*${encodeFilter(q)}*)`;
-      const{data}=await supabaseRest<Array<Record<string,unknown>>>(query);
-      const visible=[];for(const tender of data){if(tender.visibility==="invite_only"){const{data:invite}=await supabaseRest<unknown[]>(`tender_invitations?select=id&tender_id=eq.${tender.id}&supplier_organization_id=eq.${context.organizationId}&status=neq.revoked&limit=1`);if(!invite.length)continue;}visible.push(tender);}
-      const buyers=await organisationProfiles(visible.map(item=>String(item.organization_id)));
-      return Response.json({data:visible.map(item=>access.allowed?({...item,tender_origin:"bidscope",buyer:buyers.get(String(item.organization_id))||null}):({id:item.id,title:item.title,tender_type:item.tender_type,procurement_category:item.procurement_category,classification:item.classification,location:item.location,submission_deadline:item.submission_deadline,status:item.status,tender_origin:"bidscope",buyer:null,access:{allowed:false,reason:access.reason}}))},{headers:noStore});
-    }
-    if(resource==="tender"){
-      const id=uuid.parse(params.get("id")),tender=await tenderById(id),isBuyer=tender.organization_id===context.organizationId;
-      if(!isBuyer&&!(["scheduled","live","closing_soon","closed","evaluation","shortlisted","interviews","pending_award","awarded"].includes(tender.status)))throw new ApiError(404,"Tender not found.","tender_not_found");
-      if(!isBuyer&&tender.visibility==="invite_only"){const{data}=await supabaseRest<unknown[]>(`tender_invitations?select=id&tender_id=eq.${id}&supplier_organization_id=eq.${context.organizationId}&status=neq.revoked&limit=1`);if(!data.length)throw new ApiError(403,"This tender is available only to invited suppliers.","tender_invitation_required");}
-      const access=isBuyer?{allowed:true,reason:"buyer"}:await tenderAccessForUser(user);
-      if(!access.allowed)throw new ApiError(402,"Upgrade to open full tender details and the secure bid workspace.","subscription_required");
-      const [parts,{data:buyer},{data:bid}]=await Promise.all([children(id),supabaseRest<Array<Record<string,unknown>>>(`organizations?select=id,name,organization_type,region,sectors,created_at&id=eq.${tender.organization_id}&limit=1`),supabaseRest<Array<Record<string,unknown>>>(`supplier_bids?select=id,status,current_version,submitted_at,updated_at&tender_id=eq.${id}&supplier_organization_id=eq.${context.organizationId}&limit=1`)]);
-      return Response.json({data:{...tender,...parts,buyer:buyer[0]||null,buyerVerified:(await buyerVerification(tender.organization_id))==="verified",currentBid:bid[0]||null,viewer:{isBuyer,organizationId:context.organizationId}}},{headers:noStore});
-    }
-    if(resource==="tenders"){
-      if(!context.organization.can_procure)return Response.json({data:[]},{headers:noStore});
-      const status=params.get("status");let query=`procurement_tenders?select=${tenderSelect}&organization_id=eq.${context.organizationId}&order=updated_at.desc&limit=200`;if(status)query+=`&status=eq.${encodeFilter(status)}`;
-      const{data}=await supabaseRest<Array<Record<string,unknown>>>(query);const ids=data.map(item=>String(item.id));const{data:bidRows}=ids.length?await supabaseRest<Array<{tender_id:string;status:string}>>(`supplier_bids?select=tender_id,status&tender_id=in.(${ids.join(",")})`):{data:[]};
-      return Response.json({data:data.map(t=>({...t,bidCounts:bidRows.filter(b=>b.tender_id===t.id).reduce<Record<string,number>>((a,b)=>(a[b.status]=(a[b.status]||0)+1,a),{})}))},{headers:noStore});
-    }
-    if(resource==="dashboard"){
-      if(!context.organization.can_procure)return Response.json({data:{capabilityRequired:true,counts:{},recent:[],upcoming:[],actions:[]}},{headers:noStore});
-      const{data:tenders}=await supabaseRest<Array<Record<string,unknown>>>(`procurement_tenders?select=id,title,status,submission_deadline,clarification_deadline,updated_at&organization_id=eq.${context.organizationId}&order=updated_at.desc&limit=100`);const ids=tenders.map(t=>String(t.id));
-      const[{data:bids},{data:meetings},{data:awards}]=await Promise.all([ids.length?supabaseRest<Array<Record<string,unknown>>>(`supplier_bids?select=id,tender_id,status,submitted_at,supplier_organization_id&tender_id=in.(${ids.join(",")})&order=submitted_at.desc.nullslast&limit=100`):Promise.resolve({data:[]}),supabaseRest<Array<Record<string,unknown>>>(`meetings?select=id,title,starts_at,status,procurement_tender_id,procurement_meeting_type&organization_id=eq.${context.organizationId}&starts_at=gte.${new Date().toISOString()}&order=starts_at.asc&limit=20`),ids.length?supabaseRest<Array<Record<string,unknown>>>(`procurement_awards?select=id,tender_id,approval_status,contract_value,currency&tender_id=in.(${ids.join(",")})`):Promise.resolve({data:[]})]);
-      const counts={activeTenders:tenders.filter(t=>["live","closing_soon"].includes(String(t.status))).length,bidsReceived:bids.filter(b=>b.status!=="draft").length,awaitingEvaluation:bids.filter(b=>["submitted","under_review"].includes(String(b.status))).length,interviewsThisWeek:meetings.filter(m=>Date.parse(String(m.starts_at))<Date.now()+7*86400000).length,pendingAwards:awards.filter(a=>["draft","pending"].includes(String(a.approval_status))).length};
-      return Response.json({data:{counts,recent:tenders.slice(0,8),submissions:bids.slice(0,8),upcoming:meetings,actions:[...tenders.filter(t=>Date.parse(String(t.submission_deadline))<Date.now()+3*86400000&&Date.parse(String(t.submission_deadline))>Date.now()).map(t=>({type:"deadline",title:t.title,at:t.submission_deadline})),...awards.filter(a=>a.approval_status==="pending").map(a=>({type:"approval",title:"Award approval required",id:a.id}))]}},{headers:noStore});
-    }
-    if(resource==="bids"){
-      const tenderId=uuid.parse(params.get("tenderId")),{tender}=await requireTenderManager(user,tenderId),opened=bidsAreOpen(tender);
-      const{data}=await supabaseRest<Array<Record<string,unknown>>>(`supplier_bids?select=*&tender_id=eq.${tenderId}&status=neq.draft&order=submitted_at.asc`);const profiles=await organisationProfiles(data.map(b=>String(b.supplier_organization_id)));
-      const safe=data.map(b=>opened?{...b,supplier:profiles.get(String(b.supplier_organization_id))}:{id:b.id,tender_id:b.tender_id,status:b.status,submitted_at:b.submitted_at,documents_complete:null,supplier:tender.supplier_identity_visible_before_opening?profiles.get(String(b.supplier_organization_id)):null,sealed:true});
-      return Response.json({data:safe,meta:{sealed:!opened,openingModel:tender.bid_opening_model,deadline:tender.submission_deadline}},{headers:noStore});
-    }
-    if(resource==="my_bids"){
-      const{data}=await supabaseRest<Array<Record<string,unknown>>>(`supplier_bids?select=*&supplier_organization_id=eq.${context.organizationId}&order=updated_at.desc&limit=200`);const ids=data.map(b=>String(b.tender_id));const{data:tenders}=ids.length?await supabaseRest<Array<Record<string,unknown>>>(`procurement_tenders?select=id,title,submission_deadline,status,organization_id,tender_type,award_structure&id=in.(${ids.join(",")})`):{data:[]};return Response.json({data:data.map(b=>({...b,tender:tenders.find(t=>t.id===b.tender_id)}))},{headers:noStore});
-    }
-    if(resource==="evaluations"){
-      const{data:owned}=await supabaseRest<Array<Record<string,unknown>>>(`procurement_tenders?select=id,title,status,submission_deadline,bid_opening_model,bids_opened_at&organization_id=eq.${context.organizationId}&status=in.(closed,evaluation,shortlisted,interviews,pending_award,awarded)&order=updated_at.desc&limit=100`);
-      const{data:assigned}=await supabaseRest<Array<Record<string,unknown>>>(`procurement_evaluation_assignments?select=*&evaluator_user_id=eq.${user.id}&status=eq.active`);
-      const ids=[...new Set([...(context.canManage?owned.map(t=>String(t.id)):[]),...assigned.map(a=>String(a.tender_id))])];
-      if(!ids.length)return Response.json({data:{tenders:[],assignments:[],bids:[],criteria:[],evaluations:[],scores:[]}},{headers:noStore});
-      const[{data:tenders},{data:bids},{data:criteria},{data:evaluations}]=await Promise.all([supabaseRest<Array<Record<string,unknown>>>(`procurement_tenders?select=id,title,status,submission_deadline,bid_opening_model,bids_opened_at,organization_id&id=in.(${ids.join(",")})`),supabaseRest<Array<Record<string,unknown>>>(`supplier_bids?select=id,tender_id,supplier_organization_id,status,bid_price,currency,delivery_period,submitted_at&tender_id=in.(${ids.join(",")})&status=neq.draft`),supabaseRest<Array<Record<string,unknown>>>(`procurement_evaluation_criteria?select=*&tender_id=in.(${ids.join(",")})&order=display_order.asc`),supabaseRest<Array<Record<string,unknown>>>(`bid_evaluations?select=*&tender_id=in.(${ids.join(",")})`)]);
-      const profiles=await organisationProfiles(bids.map(b=>String(b.supplier_organization_id))),evaluationIds=evaluations.map(e=>String(e.id));
-      const{data:scores}=evaluationIds.length?await supabaseRest<Array<Record<string,unknown>>>(`evaluation_scores?select=*&evaluation_id=in.(${evaluationIds.join(",")})`):{data:[]};
-      return Response.json({data:{tenders,assignments:assigned,bids:bids.map(b=>({...b,supplier:profiles.get(String(b.supplier_organization_id))||null})),criteria,evaluations,scores}},{headers:noStore});
-    }
-    if(resource==="suppliers"){
-      await requireProcurementManager(user);const q=params.get("q")?.trim()||"";let query=`organizations?select=id,name,region,sectors,services,products,certifications,created_at&can_bid=eq.true&order=name.asc&limit=100`;if(q)query+=`&or=(name.ilike.*${encodeFilter(q)}*,services.cs.{${encodeFilter(q)}},products.cs.{${encodeFilter(q)}})`;const{data}=await supabaseRest(query);return Response.json({data},{headers:noStore});
-    }
-    if(resource==="reports"){
-      await requireProcurementManager(user);const{data:tenders}=await supabaseRest<Array<Record<string,unknown>>>(`procurement_tenders?select=id,status,procurement_category,created_at,published_at,submission_deadline&organization_id=eq.${context.organizationId}`);const ids=tenders.map(t=>String(t.id));const[{data:bids},{data:awards}]=await Promise.all([ids.length?supabaseRest<Array<Record<string,unknown>>>(`supplier_bids?select=id,tender_id,supplier_organization_id,status&tender_id=in.(${ids.join(",")})`):Promise.resolve({data:[]}),ids.length?supabaseRest<Array<Record<string,unknown>>>(`procurement_awards?select=tender_id,contract_value,currency,approval_status&tender_id=in.(${ids.join(",")})`):Promise.resolve({data:[]})]);return Response.json({data:{tenders:tenders.length,active:tenders.filter(t=>["live","closing_soon"].includes(String(t.status))).length,byStatus:Object.groupBy(tenders,t=>String(t.status)),bids:bids.length,uniqueSuppliers:new Set(bids.map(b=>b.supplier_organization_id)).size,averageBids:tenders.length?Number((bids.length/tenders.length).toFixed(1)):0,awards:awards.filter(a=>a.approval_status==="finalised"),categories:Object.groupBy(tenders,t=>String(t.procurement_category))}},{headers:noStore});
-    }
-    if(resource==="audit"){
-      const tenderId=uuid.parse(params.get("tenderId"));await requireTenderManager(user,tenderId);const{data}=await supabaseRest(`procurement_audit_logs?select=*&tender_id=eq.${tenderId}&order=created_at.desc&limit=200`);return Response.json({data},{headers:noStore});
-    }
-    throw new ApiError(400,"Unknown procurement resource.","invalid_resource");
-  }catch(error){return apiErrorResponse(error);}
+async function notifyOrganisation(
+  organizationId: string,
+  input: Omit<
+    Parameters<typeof createNotification>[0],
+    "userId" | "organizationId" | "dedupeKey"
+  > & {
+    dedupeKey: string;
+  },
+) {
+  const { data: members } = await supabaseRest<Array<{ user_id: string }>>(
+    `organization_members?select=user_id&organization_id=eq.${organizationId}`,
+  );
+  await Promise.all(
+    members.map((member) =>
+      createNotification({
+        ...input,
+        userId: member.user_id,
+        organizationId,
+        dedupeKey: `${input.dedupeKey}-${member.user_id}`,
+      }),
+    ),
+  );
 }
 
-const actionSchema=z.discriminatedUnion("action",[
-  z.object({action:z.literal("capabilities"),canBid:z.boolean(),canProcure:z.boolean()}),
-  z.object({action:z.literal("submit_verification"),verification:verificationSchema}),
-  z.object({action:z.literal("save_tender"),id:uuid.optional(),tender:tenderInputSchema}),
-  z.object({action:z.literal("publish_tender"),tenderId:uuid}),
-  z.object({action:z.literal("open_bids"),tenderId:uuid}),
-  z.object({action:z.literal("save_bid"),bid:bidInputSchema}),
-  z.object({action:z.literal("withdraw_bid"),bidId:uuid,reason:z.string().trim().max(2000).optional()}),
-  z.object({action:z.literal("question"),tenderId:uuid,bidId:uuid.nullable().optional(),subject:z.string().trim().min(2).max(200),message:z.string().trim().min(2).max(10000)}),
-  z.object({action:z.literal("clarification"),tenderId:uuid,bidId:uuid,recipientOrganizationId:uuid,subject:z.string().trim().min(2).max(200),message:z.string().trim().min(2).max(10000),responseDeadline:z.string().datetime({offset:true}).nullable().optional()}),
-  z.object({action:z.literal("assign_evaluator"),tenderId:uuid,evaluatorUserId:uuid,assignmentRole:z.enum(["evaluator","technical_evaluator","commercial_evaluator","approver","auditor"]),bidId:uuid.nullable().optional(),criterionId:uuid.nullable().optional(),lotId:uuid.nullable().optional()}),
-  z.object({action:z.literal("evaluate"),tenderId:uuid,bidId:uuid,lotId:uuid.nullable().optional(),overallNote:z.string().trim().max(10000).default(""),recommendation:z.enum(["proceed","clarify","shortlist","unsuccessful"]).nullable().optional(),submit:z.boolean(),scores:z.array(z.object({criterionId:uuid,numericScore:z.number().nullable().optional(),pass:z.boolean().nullable().optional(),assessment:z.string().trim().max(5000).default(""),privateNote:z.string().trim().max(5000).default("")})).max(200)}),
-  z.object({action:z.literal("shortlist"),tenderId:uuid,bidId:uuid,lotId:uuid.nullable().optional(),decision:z.enum(["shortlist","clarification","interview","unsuccessful","under_review"]),note:z.string().trim().max(3000).optional()}),
-  z.object({action:z.literal("invite_supplier"),tenderId:uuid,supplierOrganizationId:uuid}),
-  z.object({action:z.literal("award"),tenderId:uuid,bidId:uuid,supplierOrganizationId:uuid,lotIds:z.array(uuid).max(100).default([]),contractValue:z.number().nonnegative(),currency:z.string().trim().toUpperCase().length(3),awardDate:z.string().date(),expectedStartDate:z.string().date().nullable().optional(),expectedEndDate:z.string().date().nullable().optional(),awardNotes:z.string().trim().max(10000).default(""),submitForApproval:z.boolean().default(false)}),
-  z.object({action:z.literal("approve_award"),awardId:uuid,approve:z.boolean(),note:z.string().trim().max(3000).optional()}),
-  z.object({action:z.literal("report_tender"),tenderId:uuid,reason:z.string().trim().min(5).max(3000)}),
+async function children(tenderId: string) {
+  const [lots, requirements, documents, criteria, tenderDocuments] =
+    await Promise.all([
+      supabaseRest(
+        `procurement_tender_lots?select=*&tender_id=eq.${tenderId}&order=lot_number.asc`,
+      ),
+      supabaseRest(
+        `procurement_requirements?select=*&tender_id=eq.${tenderId}&order=display_order.asc`,
+      ),
+      supabaseRest(
+        `procurement_required_documents?select=*&tender_id=eq.${tenderId}&order=display_order.asc`,
+      ),
+      supabaseRest(
+        `procurement_evaluation_criteria?select=*&tender_id=eq.${tenderId}&order=display_order.asc`,
+      ),
+      supabaseRest(
+        `procurement_tender_documents?select=id,original_filename,mime_type,size_bytes,visibility,created_at&tender_id=eq.${tenderId}&order=created_at.desc`,
+      ),
+    ]);
+  return {
+    lots: lots.data,
+    requirements: requirements.data,
+    requiredDocuments: documents.data,
+    criteria: criteria.data,
+    tenderDocuments: tenderDocuments.data,
+  };
+}
+async function organisationProfiles(ids: string[]) {
+  if (!ids.length)
+    return new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        region: string | null;
+        sectors: string[];
+        services: string[];
+        products: string[];
+        certifications: string[];
+      }
+    >();
+  const { data } = await supabaseRest<
+    Array<{
+      id: string;
+      name: string;
+      region: string | null;
+      sectors: string[];
+      services: string[];
+      products: string[];
+      certifications: string[];
+    }>
+  >(
+    `organizations?select=id,name,region,sectors,services,products,certifications&id=in.(${[...new Set(ids)].join(",")})`,
+  );
+  return new Map(data.map((item) => [item.id, item]));
+}
+
+export async function GET(request: Request) {
+  try {
+    const { user } = await requireUser(request),
+      params = new URL(request.url).searchParams,
+      resource = params.get("resource") || "dashboard";
+    const context = await procurementContext(user);
+    if (resource === "capabilities") {
+      const { data: verification } = await supabaseRest<
+        Array<{
+          status: string;
+          submitted_at: string | null;
+          reviewed_at: string | null;
+          verification_notes: string | null;
+        }>
+      >(
+        `buyer_verifications?select=status,submitted_at,reviewed_at,verification_notes&organization_id=eq.${context.organizationId}&limit=1`,
+      );
+      return Response.json(
+        {
+          data: {
+            ...context,
+            verification: verification[0] || { status: "unverified" },
+          },
+        },
+        { headers: noStore },
+      );
+    }
+    if (resource === "marketplace") {
+      const access = await tenderAccessForUser(user);
+      const type = params.get("type"),
+        q = params.get("q")?.trim() || "",
+        limit = Math.min(100, Math.max(1, Number(params.get("limit") || 50)));
+      let query = `procurement_tenders?select=${tenderSelect}&status=in.(scheduled,live,closing_soon)&submission_deadline=gt.${new Date().toISOString()}&order=submission_deadline.asc&limit=${limit}`;
+      if (type) query += `&tender_type=eq.${encodeFilter(type)}`;
+      if (q)
+        query += `&or=(title.ilike.*${encodeFilter(q)}*,description.ilike.*${encodeFilter(q)}*,procurement_category.ilike.*${encodeFilter(q)}*)`;
+      const { data } =
+        await supabaseRest<Array<Record<string, unknown>>>(query);
+      const visible = [];
+      for (const tender of data) {
+        if (tender.visibility === "invite_only") {
+          const { data: invite } = await supabaseRest<unknown[]>(
+            `tender_invitations?select=id&tender_id=eq.${tender.id}&supplier_organization_id=eq.${context.organizationId}&status=neq.revoked&limit=1`,
+          );
+          if (!invite.length) continue;
+        }
+        visible.push(tender);
+      }
+      const buyers = await organisationProfiles(
+        visible.map((item) => String(item.organization_id)),
+      );
+      return Response.json(
+        {
+          data: visible.map((item) =>
+            access.allowed
+              ? {
+                  ...item,
+                  tender_origin: "bidscope",
+                  buyer: buyers.get(String(item.organization_id)) || null,
+                }
+              : {
+                  id: item.id,
+                  title: item.title,
+                  tender_type: item.tender_type,
+                  procurement_category: item.procurement_category,
+                  classification: item.classification,
+                  location: item.location,
+                  submission_deadline: item.submission_deadline,
+                  status: item.status,
+                  tender_origin: "bidscope",
+                  buyer: null,
+                  access: { allowed: false, reason: access.reason },
+                },
+          ),
+        },
+        { headers: noStore },
+      );
+    }
+    if (resource === "tender") {
+      const id = uuid.parse(params.get("id")),
+        tender = await tenderById(id),
+        isBuyer = tender.organization_id === context.organizationId;
+      if (
+        !isBuyer &&
+        ![
+          "scheduled",
+          "live",
+          "closing_soon",
+          "closed",
+          "evaluation",
+          "shortlisted",
+          "interviews",
+          "pending_award",
+          "awarded",
+        ].includes(tender.status)
+      )
+        throw new ApiError(404, "Tender not found.", "tender_not_found");
+      if (!isBuyer && tender.visibility === "invite_only") {
+        const { data } = await supabaseRest<unknown[]>(
+          `tender_invitations?select=id&tender_id=eq.${id}&supplier_organization_id=eq.${context.organizationId}&status=neq.revoked&limit=1`,
+        );
+        if (!data.length)
+          throw new ApiError(
+            403,
+            "This tender is available only to invited suppliers.",
+            "tender_invitation_required",
+          );
+      }
+      const access = isBuyer
+        ? { allowed: true, reason: "buyer" }
+        : await tenderAccessForUser(user);
+      if (!access.allowed)
+        throw new ApiError(
+          402,
+          "Upgrade to open full tender details and the secure bid workspace.",
+          "subscription_required",
+        );
+      const [parts, { data: buyer }, { data: bid }] = await Promise.all([
+        children(id),
+        supabaseRest<Array<Record<string, unknown>>>(
+          `organizations?select=id,name,organization_type,region,sectors,created_at&id=eq.${tender.organization_id}&limit=1`,
+        ),
+        supabaseRest<Array<Record<string, unknown>>>(
+          `supplier_bids?select=id,status,current_version,submitted_at,updated_at&tender_id=eq.${id}&supplier_organization_id=eq.${context.organizationId}&limit=1`,
+        ),
+      ]);
+      const { data: bidDocuments } = bid[0]
+        ? await supabaseRest<Array<Record<string, unknown>>>(
+            `supplier_bid_documents?select=id,required_document_id,original_filename,mime_type,size_bytes,created_at&bid_id=eq.${bid[0].id}&order=created_at.desc`,
+          )
+        : { data: [] };
+      return Response.json(
+        {
+          data: {
+            ...tender,
+            ...parts,
+            buyer: buyer[0] || null,
+            buyerVerified:
+              (await buyerVerification(tender.organization_id)) === "verified",
+            currentBid: bid[0] ? { ...bid[0], documents: bidDocuments } : null,
+            viewer: { isBuyer, organizationId: context.organizationId },
+          },
+        },
+        { headers: noStore },
+      );
+    }
+    if (resource === "tenders") {
+      if (!context.organization.can_procure)
+        return Response.json({ data: [] }, { headers: noStore });
+      const status = params.get("status");
+      let query = `procurement_tenders?select=${tenderSelect}&organization_id=eq.${context.organizationId}&order=updated_at.desc&limit=200`;
+      if (status) query += `&status=eq.${encodeFilter(status)}`;
+      const { data } =
+        await supabaseRest<Array<Record<string, unknown>>>(query);
+      const ids = data.map((item) => String(item.id));
+      const { data: bidRows } = ids.length
+        ? await supabaseRest<Array<{ tender_id: string; status: string }>>(
+            `supplier_bids?select=tender_id,status&tender_id=in.(${ids.join(",")})`,
+          )
+        : { data: [] };
+      return Response.json(
+        {
+          data: data.map((t) => ({
+            ...t,
+            bidCounts: bidRows
+              .filter((b) => b.tender_id === t.id)
+              .reduce<
+                Record<string, number>
+              >((a, b) => ((a[b.status] = (a[b.status] || 0) + 1), a), {}),
+          })),
+        },
+        { headers: noStore },
+      );
+    }
+    if (resource === "dashboard") {
+      if (!context.organization.can_procure)
+        return Response.json(
+          {
+            data: {
+              capabilityRequired: true,
+              counts: {},
+              recent: [],
+              upcoming: [],
+              actions: [],
+            },
+          },
+          { headers: noStore },
+        );
+      const { data: tenders } = await supabaseRest<
+        Array<Record<string, unknown>>
+      >(
+        `procurement_tenders?select=id,title,status,submission_deadline,clarification_deadline,updated_at&organization_id=eq.${context.organizationId}&order=updated_at.desc&limit=100`,
+      );
+      const ids = tenders.map((t) => String(t.id));
+      const [{ data: bids }, { data: meetings }, { data: awards }] =
+        await Promise.all([
+          ids.length
+            ? supabaseRest<Array<Record<string, unknown>>>(
+                `supplier_bids?select=id,tender_id,status,submitted_at,supplier_organization_id&tender_id=in.(${ids.join(",")})&order=submitted_at.desc.nullslast&limit=100`,
+              )
+            : Promise.resolve({ data: [] }),
+          supabaseRest<Array<Record<string, unknown>>>(
+            `meetings?select=id,title,starts_at,status,procurement_tender_id,procurement_meeting_type&organization_id=eq.${context.organizationId}&starts_at=gte.${new Date().toISOString()}&order=starts_at.asc&limit=20`,
+          ),
+          ids.length
+            ? supabaseRest<Array<Record<string, unknown>>>(
+                `procurement_awards?select=id,tender_id,approval_status,contract_value,currency&tender_id=in.(${ids.join(",")})`,
+              )
+            : Promise.resolve({ data: [] }),
+        ]);
+      const counts = {
+        activeTenders: tenders.filter((t) =>
+          ["live", "closing_soon"].includes(String(t.status)),
+        ).length,
+        bidsReceived: bids.filter((b) => b.status !== "draft").length,
+        awaitingEvaluation: bids.filter((b) =>
+          ["submitted", "under_review"].includes(String(b.status)),
+        ).length,
+        interviewsThisWeek: meetings.filter(
+          (m) => Date.parse(String(m.starts_at)) < Date.now() + 7 * 86400000,
+        ).length,
+        pendingAwards: awards.filter((a) =>
+          ["draft", "pending"].includes(String(a.approval_status)),
+        ).length,
+      };
+      return Response.json(
+        {
+          data: {
+            counts,
+            recent: tenders.slice(0, 8),
+            submissions: bids.slice(0, 8),
+            upcoming: meetings,
+            actions: [
+              ...tenders
+                .filter(
+                  (t) =>
+                    Date.parse(String(t.submission_deadline)) <
+                      Date.now() + 3 * 86400000 &&
+                    Date.parse(String(t.submission_deadline)) > Date.now(),
+                )
+                .map((t) => ({
+                  type: "deadline",
+                  title: t.title,
+                  at: t.submission_deadline,
+                })),
+              ...awards
+                .filter((a) => a.approval_status === "pending")
+                .map((a) => ({
+                  type: "approval",
+                  title: "Award approval required",
+                  id: a.id,
+                })),
+            ],
+          },
+        },
+        { headers: noStore },
+      );
+    }
+    if (resource === "bids") {
+      const tenderId = uuid.parse(params.get("tenderId")),
+        { tender } = await requireTenderManager(user, tenderId),
+        opened = bidsAreOpen(tender);
+      const { data } = await supabaseRest<Array<Record<string, unknown>>>(
+        `supplier_bids?select=*&tender_id=eq.${tenderId}&status=neq.draft&order=submitted_at.asc`,
+      );
+      const profiles = await organisationProfiles(
+        data.map((b) => String(b.supplier_organization_id)),
+      );
+      const safe = data.map((b) =>
+        opened
+          ? { ...b, supplier: profiles.get(String(b.supplier_organization_id)) }
+          : {
+              id: b.id,
+              tender_id: b.tender_id,
+              status: b.status,
+              submitted_at: b.submitted_at,
+              documents_complete: null,
+              supplier: tender.supplier_identity_visible_before_opening
+                ? profiles.get(String(b.supplier_organization_id))
+                : null,
+              sealed: true,
+            },
+      );
+      return Response.json(
+        {
+          data: safe,
+          meta: {
+            sealed: !opened,
+            openingModel: tender.bid_opening_model,
+            deadline: tender.submission_deadline,
+          },
+        },
+        { headers: noStore },
+      );
+    }
+    if (resource === "my_bids") {
+      const { data } = await supabaseRest<Array<Record<string, unknown>>>(
+        `supplier_bids?select=*&supplier_organization_id=eq.${context.organizationId}&order=updated_at.desc&limit=200`,
+      );
+      const ids = data.map((b) => String(b.tender_id));
+      const { data: tenders } = ids.length
+        ? await supabaseRest<Array<Record<string, unknown>>>(
+            `procurement_tenders?select=id,title,submission_deadline,status,organization_id,tender_type,award_structure&id=in.(${ids.join(",")})`,
+          )
+        : { data: [] };
+      return Response.json(
+        {
+          data: data.map((b) => ({
+            ...b,
+            tender: tenders.find((t) => t.id === b.tender_id),
+          })),
+        },
+        { headers: noStore },
+      );
+    }
+    if (resource === "clarifications") {
+      const tenderId = uuid.parse(params.get("tenderId")),
+        tender = await tenderById(tenderId),
+        isBuyer = tender.organization_id === context.organizationId;
+      if (!isBuyer) {
+        const { data: bid } = await supabaseRest<unknown[]>(
+          `supplier_bids?select=id&tender_id=eq.${tenderId}&supplier_organization_id=eq.${context.organizationId}&limit=1`,
+        );
+        if (!bid.length)
+          throw new ApiError(
+            403,
+            "Only participating organisations can view these clarifications.",
+            "clarification_forbidden",
+          );
+      } else await requireTenderManager(user, tenderId);
+      const partyFilter = isBuyer
+        ? ""
+        : `&or=(requester_organization_id.eq.${context.organizationId},recipient_organization_id.eq.${context.organizationId})`;
+      const { data } = await supabaseRest<Array<Record<string, unknown>>>(
+        `tender_clarifications?select=*&tender_id=eq.${tenderId}${partyFilter}&order=created_at.asc`,
+      );
+      return Response.json({ data }, { headers: noStore });
+    }
+    if (resource === "awards") {
+      const tenderId = uuid.parse(params.get("tenderId")),
+        { tender } = await requireTenderManager(user, tenderId);
+      const { data: awards } = await supabaseRest<
+        Array<Record<string, unknown>>
+      >(
+        `procurement_awards?select=*&tender_id=eq.${tender.id}&order=created_at.desc`,
+      );
+      const profiles = await organisationProfiles(
+        awards.map((award) => String(award.supplier_organization_id)),
+      );
+      return Response.json(
+        {
+          data: awards.map((award) => ({
+            ...award,
+            supplier:
+              profiles.get(String(award.supplier_organization_id)) || null,
+          })),
+        },
+        { headers: noStore },
+      );
+    }
+    if (resource === "evaluations") {
+      const { data: owned } = await supabaseRest<
+        Array<Record<string, unknown>>
+      >(
+        `procurement_tenders?select=id,title,status,submission_deadline,bid_opening_model,bids_opened_at&organization_id=eq.${context.organizationId}&status=in.(closed,evaluation,shortlisted,interviews,pending_award,awarded)&order=updated_at.desc&limit=100`,
+      );
+      const { data: assigned } = await supabaseRest<
+        Array<Record<string, unknown>>
+      >(
+        `procurement_evaluation_assignments?select=*&evaluator_user_id=eq.${user.id}&status=eq.active`,
+      );
+      const ids = [
+        ...new Set([
+          ...(context.canManage ? owned.map((t) => String(t.id)) : []),
+          ...assigned.map((a) => String(a.tender_id)),
+        ]),
+      ];
+      if (!ids.length)
+        return Response.json(
+          {
+            data: {
+              tenders: [],
+              assignments: [],
+              bids: [],
+              criteria: [],
+              evaluations: [],
+              scores: [],
+            },
+          },
+          { headers: noStore },
+        );
+      const [
+        { data: tenders },
+        { data: bids },
+        { data: criteria },
+        { data: evaluations },
+      ] = await Promise.all([
+        supabaseRest<Array<Record<string, unknown>>>(
+          `procurement_tenders?select=id,title,status,submission_deadline,bid_opening_model,bids_opened_at,organization_id&id=in.(${ids.join(",")})`,
+        ),
+        supabaseRest<Array<Record<string, unknown>>>(
+          `supplier_bids?select=id,tender_id,supplier_organization_id,status,bid_price,currency,delivery_period,submitted_at&tender_id=in.(${ids.join(",")})&status=neq.draft`,
+        ),
+        supabaseRest<Array<Record<string, unknown>>>(
+          `procurement_evaluation_criteria?select=*&tender_id=in.(${ids.join(",")})&order=display_order.asc`,
+        ),
+        supabaseRest<Array<Record<string, unknown>>>(
+          `bid_evaluations?select=*&tender_id=in.(${ids.join(",")})`,
+        ),
+      ]);
+      const profiles = await organisationProfiles(
+          bids.map((b) => String(b.supplier_organization_id)),
+        ),
+        evaluationIds = evaluations.map((e) => String(e.id));
+      const { data: scores } = evaluationIds.length
+        ? await supabaseRest<Array<Record<string, unknown>>>(
+            `evaluation_scores?select=*&evaluation_id=in.(${evaluationIds.join(",")})`,
+          )
+        : { data: [] };
+      return Response.json(
+        {
+          data: {
+            tenders,
+            assignments: assigned,
+            bids: bids.map((b) => ({
+              ...b,
+              supplier:
+                profiles.get(String(b.supplier_organization_id)) || null,
+            })),
+            criteria,
+            evaluations,
+            scores,
+          },
+        },
+        { headers: noStore },
+      );
+    }
+    if (resource === "suppliers") {
+      await requireProcurementManager(user);
+      const q = params.get("q")?.trim() || "";
+      let query = `organizations?select=id,name,region,sectors,services,products,certifications,created_at&can_bid=eq.true&order=name.asc&limit=100`;
+      if (q)
+        query += `&or=(name.ilike.*${encodeFilter(q)}*,services.cs.{${encodeFilter(q)}},products.cs.{${encodeFilter(q)}})`;
+      const { data } = await supabaseRest(query);
+      return Response.json({ data }, { headers: noStore });
+    }
+    if (resource === "reports") {
+      await requireProcurementManager(user);
+      const { data: tenders } = await supabaseRest<
+        Array<Record<string, unknown>>
+      >(
+        `procurement_tenders?select=id,status,procurement_category,created_at,published_at,submission_deadline&organization_id=eq.${context.organizationId}`,
+      );
+      const ids = tenders.map((t) => String(t.id));
+      const [{ data: bids }, { data: awards }] = await Promise.all([
+        ids.length
+          ? supabaseRest<Array<Record<string, unknown>>>(
+              `supplier_bids?select=id,tender_id,supplier_organization_id,status&tender_id=in.(${ids.join(",")})`,
+            )
+          : Promise.resolve({ data: [] }),
+        ids.length
+          ? supabaseRest<Array<Record<string, unknown>>>(
+              `procurement_awards?select=tender_id,contract_value,currency,approval_status&tender_id=in.(${ids.join(",")})`,
+            )
+          : Promise.resolve({ data: [] }),
+      ]);
+      return Response.json(
+        {
+          data: {
+            tenders: tenders.length,
+            active: tenders.filter((t) =>
+              ["live", "closing_soon"].includes(String(t.status)),
+            ).length,
+            byStatus: Object.groupBy(tenders, (t) => String(t.status)),
+            bids: bids.length,
+            uniqueSuppliers: new Set(
+              bids.map((b) => b.supplier_organization_id),
+            ).size,
+            averageBids: tenders.length
+              ? Number((bids.length / tenders.length).toFixed(1))
+              : 0,
+            awards: awards.filter((a) => a.approval_status === "finalised"),
+            categories: Object.groupBy(tenders, (t) =>
+              String(t.procurement_category),
+            ),
+          },
+        },
+        { headers: noStore },
+      );
+    }
+    if (resource === "audit") {
+      const tenderId = uuid.parse(params.get("tenderId"));
+      await requireTenderManager(user, tenderId);
+      const { data } = await supabaseRest(
+        `procurement_audit_logs?select=*&tender_id=eq.${tenderId}&order=created_at.desc&limit=200`,
+      );
+      return Response.json({ data }, { headers: noStore });
+    }
+    throw new ApiError(
+      400,
+      "Unknown procurement resource.",
+      "invalid_resource",
+    );
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+const actionSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("capabilities"),
+    canBid: z.boolean(),
+    canProcure: z.boolean(),
+  }),
+  z.object({
+    action: z.literal("submit_verification"),
+    verification: verificationSchema,
+  }),
+  z.object({
+    action: z.literal("save_tender"),
+    id: uuid.optional(),
+    tender: tenderInputSchema,
+  }),
+  z.object({ action: z.literal("publish_tender"), tenderId: uuid }),
+  z.object({ action: z.literal("open_bids"), tenderId: uuid }),
+  z.object({ action: z.literal("save_bid"), bid: bidInputSchema }),
+  z.object({
+    action: z.literal("withdraw_bid"),
+    bidId: uuid,
+    reason: z.string().trim().max(2000).optional(),
+  }),
+  z.object({
+    action: z.literal("question"),
+    tenderId: uuid,
+    bidId: uuid.nullable().optional(),
+    subject: z.string().trim().min(2).max(200),
+    message: z.string().trim().min(2).max(10000),
+  }),
+  z.object({
+    action: z.literal("clarification"),
+    tenderId: uuid,
+    bidId: uuid,
+    recipientOrganizationId: uuid,
+    subject: z.string().trim().min(2).max(200),
+    message: z.string().trim().min(2).max(10000),
+    responseDeadline: z
+      .string()
+      .datetime({ offset: true })
+      .nullable()
+      .optional(),
+  }),
+  z.object({
+    action: z.literal("respond_clarification"),
+    clarificationId: uuid,
+    message: z.string().trim().min(2).max(10000),
+  }),
+  z.object({
+    action: z.literal("assign_evaluator"),
+    tenderId: uuid,
+    evaluatorUserId: uuid,
+    assignmentRole: z.enum([
+      "evaluator",
+      "technical_evaluator",
+      "commercial_evaluator",
+      "approver",
+      "auditor",
+    ]),
+    bidId: uuid.nullable().optional(),
+    criterionId: uuid.nullable().optional(),
+    lotId: uuid.nullable().optional(),
+  }),
+  z.object({
+    action: z.literal("evaluate"),
+    tenderId: uuid,
+    bidId: uuid,
+    lotId: uuid.nullable().optional(),
+    overallNote: z.string().trim().max(10000).default(""),
+    recommendation: z
+      .enum(["proceed", "clarify", "shortlist", "unsuccessful"])
+      .nullable()
+      .optional(),
+    submit: z.boolean(),
+    scores: z
+      .array(
+        z.object({
+          criterionId: uuid,
+          numericScore: z.number().nullable().optional(),
+          pass: z.boolean().nullable().optional(),
+          assessment: z.string().trim().max(5000).default(""),
+          privateNote: z.string().trim().max(5000).default(""),
+        }),
+      )
+      .max(200),
+  }),
+  z.object({
+    action: z.literal("shortlist"),
+    tenderId: uuid,
+    bidId: uuid,
+    lotId: uuid.nullable().optional(),
+    decision: z.enum([
+      "shortlist",
+      "clarification",
+      "interview",
+      "unsuccessful",
+      "under_review",
+    ]),
+    note: z.string().trim().max(3000).optional(),
+  }),
+  z.object({
+    action: z.literal("invite_supplier"),
+    tenderId: uuid,
+    supplierOrganizationId: uuid,
+  }),
+  z.object({
+    action: z.literal("award"),
+    tenderId: uuid,
+    bidId: uuid,
+    supplierOrganizationId: uuid,
+    lotIds: z.array(uuid).max(100).default([]),
+    contractValue: z.number().nonnegative(),
+    currency: z.string().trim().toUpperCase().length(3),
+    awardDate: z.string().date(),
+    expectedStartDate: z.string().date().nullable().optional(),
+    expectedEndDate: z.string().date().nullable().optional(),
+    awardNotes: z.string().trim().max(10000).default(""),
+    submitForApproval: z.boolean().default(false),
+  }),
+  z.object({
+    action: z.literal("approve_award"),
+    awardId: uuid,
+    approve: z.boolean(),
+    note: z.string().trim().max(3000).optional(),
+  }),
+  z.object({
+    action: z.literal("report_tender"),
+    tenderId: uuid,
+    reason: z.string().trim().min(5).max(3000),
+  }),
 ]);
 
-export async function POST(request:Request){
-  try{
-    const{user}=await requireUser(request),input=actionSchema.parse(await request.json()),context=await procurementContext(user);
-    if(input.action==="capabilities"){
-      if(!context.canManage)throw new ApiError(403,"Only organisation owners or procurement managers can change capabilities.","forbidden");if(!input.canBid&&!input.canProcure)throw new ApiError(400,"Keep at least one organisation capability active.","capability_required");await supabaseRest(`organizations?id=eq.${context.organizationId}`,{method:"PATCH",body:JSON.stringify({can_bid:input.canBid,can_procure:input.canProcure})});await audit({organizationId:context.organizationId,actorUserId:user.id,action:"organization_capabilities_changed",entityType:"organization",entityId:context.organizationId,after:{can_bid:input.canBid,can_procure:input.canProcure}});return Response.json({data:{saved:true}});
+export async function POST(request: Request) {
+  try {
+    const { user } = await requireUser(request),
+      input = actionSchema.parse(await request.json()),
+      context = await procurementContext(user);
+    if (input.action === "capabilities") {
+      if (!context.canManage)
+        throw new ApiError(
+          403,
+          "Only organisation owners or procurement managers can change capabilities.",
+          "forbidden",
+        );
+      if (!input.canBid && !input.canProcure)
+        throw new ApiError(
+          400,
+          "Keep at least one organisation capability active.",
+          "capability_required",
+        );
+      await supabaseRest(`organizations?id=eq.${context.organizationId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          can_bid: input.canBid,
+          can_procure: input.canProcure,
+        }),
+      });
+      await audit({
+        organizationId: context.organizationId,
+        actorUserId: user.id,
+        action: "organization_capabilities_changed",
+        entityType: "organization",
+        entityId: context.organizationId,
+        after: { can_bid: input.canBid, can_procure: input.canProcure },
+      });
+      return Response.json({ data: { saved: true } });
     }
-    if(input.action==="submit_verification"){
-      await requireProcurementManager(user);await supabaseRest("buyer_verifications?on_conflict=organization_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify({organization_id:context.organizationId,submitted_by:user.id,organization_name:input.verification.organizationName,registration_number:input.verification.registrationNumber,official_company_email:input.verification.officialCompanyEmail,contact_person:input.verification.contactPerson,organization_type:input.verification.organizationType||null,document_paths:input.verification.documentPaths,status:"pending",submitted_at:new Date().toISOString(),reviewed_by:null,reviewed_at:null,verification_notes:null})});await audit({organizationId:context.organizationId,actorUserId:user.id,action:"buyer_verification_submitted",entityType:"buyer_verification",entityId:context.organizationId});return Response.json({data:{status:"pending"}},{status:201});
+    if (input.action === "submit_verification") {
+      await requireProcurementManager(user);
+      await supabaseRest("buyer_verifications?on_conflict=organization_id", {
+        method: "POST",
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=representation",
+        },
+        body: JSON.stringify({
+          organization_id: context.organizationId,
+          submitted_by: user.id,
+          organization_name: input.verification.organizationName,
+          registration_number: input.verification.registrationNumber,
+          official_company_email: input.verification.officialCompanyEmail,
+          contact_person: input.verification.contactPerson,
+          organization_type: input.verification.organizationType || null,
+          document_paths: input.verification.documentPaths,
+          status: "pending",
+          submitted_at: new Date().toISOString(),
+          reviewed_by: null,
+          reviewed_at: null,
+          verification_notes: null,
+        }),
+      });
+      await audit({
+        organizationId: context.organizationId,
+        actorUserId: user.id,
+        action: "buyer_verification_submitted",
+        entityType: "buyer_verification",
+        entityId: context.organizationId,
+      });
+      return Response.json({ data: { status: "pending" } }, { status: 201 });
     }
-    if(input.action==="save_tender"){
-      await requireProcurementManager(user);const value=input.tender;let id=input.id,created=false,before:unknown=null;if(id){const managed=await requireTenderManager(user,id);if(!["draft","pending_verification","scheduled"].includes(managed.tender.status))throw new ApiError(409,"Published tender content cannot be silently replaced. Amend it through the controlled workflow.","tender_locked");before=managed.tender;}else{created=true;id=crypto.randomUUID();}
-      const row={id,organization_id:context.organizationId,created_by:user.id,owner_user_id:user.id,title:value.title,reference_number:value.referenceNumber||null,description:value.description,tender_type:value.tenderType,procurement_category:value.procurementCategory,classification:value.classification,location:value.location||null,currency:value.currency,estimated_budget:value.estimatedBudget??null,issue_date:value.issueDate||null,clarification_deadline:value.clarificationDeadline||null,submission_deadline:value.submissionDeadline,expected_award_date:value.expectedAwardDate||null,expected_contract_start_date:value.expectedContractStartDate||null,eligibility_requirements:value.eligibilityRequirements,technical_requirements:value.technicalRequirements,commercial_requirements:value.commercialRequirements,delivery_requirements:value.deliveryRequirements,terms_and_conditions:value.termsAndConditions,procurement_owner_name:value.procurementOwnerName||null,procurement_owner_email:value.procurementOwnerEmail||null,award_structure:value.awardStructure,bid_opening_model:value.bidOpeningModel,visibility:value.visibility,questions_allowed:value.questionsAllowed,supplier_identity_visible_before_opening:value.supplierIdentityVisibleBeforeOpening,withdrawal_allowed:value.withdrawalAllowed,approval_required:value.approvalRequired,publish_award_publicly:value.publishAwardPublicly,status:"draft"};
-      try{await supabaseRest(`procurement_tenders?on_conflict=id`,{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify(row)});await Promise.all([supabaseRest(`procurement_tender_lots?tender_id=eq.${id}`,{method:"DELETE"}),supabaseRest(`procurement_requirements?tender_id=eq.${id}`,{method:"DELETE"}),supabaseRest(`procurement_required_documents?tender_id=eq.${id}`,{method:"DELETE"}),supabaseRest(`procurement_evaluation_criteria?tender_id=eq.${id}`,{method:"DELETE"})]);const lotRows=value.lots.map(l=>({id:crypto.randomUUID(),tender_id:id,lot_number:l.lotNumber,title:l.title,description:l.description,quantity:l.quantity??null,budget:l.budget??null,requirements:l.requirements,evaluation_criteria:l.evaluationCriteria}));if(lotRows.length)await supabaseRest("procurement_tender_lots",{method:"POST",body:JSON.stringify(lotRows)});const lotIdByNumber=new Map(lotRows.map(l=>[l.lot_number,l.id]));if(value.requirements.length)await supabaseRest("procurement_requirements",{method:"POST",body:JSON.stringify(value.requirements.map(r=>({tender_id:id,section:r.section,title:r.title,description:r.description,mandatory:r.mandatory,display_order:r.displayOrder})))});if(value.requiredDocuments.length)await supabaseRest("procurement_required_documents",{method:"POST",body:JSON.stringify(value.requiredDocuments.map(d=>({tender_id:id,name:d.name,description:d.description,mandatory:d.mandatory,accepted_mime_types:d.acceptedMimeTypes,display_order:d.displayOrder})))});if(value.criteria.length)await supabaseRest("procurement_evaluation_criteria",{method:"POST",body:JSON.stringify(value.criteria.map(c=>({tender_id:id,lot_id:c.lotNumber?lotIdByNumber.get(c.lotNumber)||null:null,name:c.name,description:c.description,criterion_type:c.criterionType,weight:c.weight??null,score_min:c.scoreMin,score_max:c.scoreMax,guidance:c.guidance,mandatory:c.mandatory,section:c.section,display_order:c.displayOrder})))});}catch(error){if(created)await supabaseRest(`procurement_tenders?id=eq.${id}`,{method:"DELETE"}).catch(()=>{});throw error;}await audit({organizationId:context.organizationId,tenderId:id,actorUserId:user.id,action:created?"tender_created":"tender_edited",entityType:"procurement_tender",entityId:id,before,after:row});return Response.json({data:{id,status:"draft"}},{status:created?201:200});
+    if (input.action === "save_tender") {
+      await requireProcurementManager(user);
+      const value = input.tender;
+      let id = input.id,
+        created = false,
+        before: unknown = null;
+      if (id) {
+        const managed = await requireTenderManager(user, id);
+        if (
+          !["draft", "pending_verification", "scheduled"].includes(
+            managed.tender.status,
+          )
+        )
+          throw new ApiError(
+            409,
+            "Published tender content cannot be silently replaced. Amend it through the controlled workflow.",
+            "tender_locked",
+          );
+        before = managed.tender;
+      } else {
+        created = true;
+        id = crypto.randomUUID();
+      }
+      const row = {
+        id,
+        organization_id: context.organizationId,
+        created_by: user.id,
+        owner_user_id: user.id,
+        title: value.title,
+        reference_number: value.referenceNumber || null,
+        description: value.description,
+        tender_type: value.tenderType,
+        procurement_category: value.procurementCategory,
+        classification: value.classification,
+        location: value.location || null,
+        currency: value.currency,
+        estimated_budget: value.estimatedBudget ?? null,
+        issue_date: value.issueDate || null,
+        clarification_deadline: value.clarificationDeadline || null,
+        submission_deadline: value.submissionDeadline,
+        expected_award_date: value.expectedAwardDate || null,
+        expected_contract_start_date: value.expectedContractStartDate || null,
+        eligibility_requirements: value.eligibilityRequirements,
+        technical_requirements: value.technicalRequirements,
+        commercial_requirements: value.commercialRequirements,
+        delivery_requirements: value.deliveryRequirements,
+        terms_and_conditions: value.termsAndConditions,
+        procurement_owner_name: value.procurementOwnerName || null,
+        procurement_owner_email: value.procurementOwnerEmail || null,
+        award_structure: value.awardStructure,
+        bid_opening_model: value.bidOpeningModel,
+        visibility: value.visibility,
+        questions_allowed: value.questionsAllowed,
+        supplier_identity_visible_before_opening:
+          value.supplierIdentityVisibleBeforeOpening,
+        withdrawal_allowed: value.withdrawalAllowed,
+        approval_required: value.approvalRequired,
+        publish_award_publicly: value.publishAwardPublicly,
+        status: "draft",
+      };
+      try {
+        await supabaseRest(`procurement_tenders?on_conflict=id`, {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates" },
+          body: JSON.stringify(row),
+        });
+        await Promise.all([
+          supabaseRest(`procurement_tender_lots?tender_id=eq.${id}`, {
+            method: "DELETE",
+          }),
+          supabaseRest(`procurement_requirements?tender_id=eq.${id}`, {
+            method: "DELETE",
+          }),
+          supabaseRest(`procurement_required_documents?tender_id=eq.${id}`, {
+            method: "DELETE",
+          }),
+          supabaseRest(`procurement_evaluation_criteria?tender_id=eq.${id}`, {
+            method: "DELETE",
+          }),
+        ]);
+        const lotRows = value.lots.map((l) => ({
+          id: crypto.randomUUID(),
+          tender_id: id,
+          lot_number: l.lotNumber,
+          title: l.title,
+          description: l.description,
+          quantity: l.quantity ?? null,
+          budget: l.budget ?? null,
+          requirements: l.requirements,
+          evaluation_criteria: l.evaluationCriteria,
+        }));
+        if (lotRows.length)
+          await supabaseRest("procurement_tender_lots", {
+            method: "POST",
+            body: JSON.stringify(lotRows),
+          });
+        const lotIdByNumber = new Map(lotRows.map((l) => [l.lot_number, l.id]));
+        if (value.requirements.length)
+          await supabaseRest("procurement_requirements", {
+            method: "POST",
+            body: JSON.stringify(
+              value.requirements.map((r) => ({
+                tender_id: id,
+                section: r.section,
+                title: r.title,
+                description: r.description,
+                mandatory: r.mandatory,
+                display_order: r.displayOrder,
+              })),
+            ),
+          });
+        if (value.requiredDocuments.length)
+          await supabaseRest("procurement_required_documents", {
+            method: "POST",
+            body: JSON.stringify(
+              value.requiredDocuments.map((d) => ({
+                tender_id: id,
+                name: d.name,
+                description: d.description,
+                mandatory: d.mandatory,
+                accepted_mime_types: d.acceptedMimeTypes,
+                display_order: d.displayOrder,
+              })),
+            ),
+          });
+        if (value.criteria.length)
+          await supabaseRest("procurement_evaluation_criteria", {
+            method: "POST",
+            body: JSON.stringify(
+              value.criteria.map((c) => ({
+                tender_id: id,
+                lot_id: c.lotNumber
+                  ? lotIdByNumber.get(c.lotNumber) || null
+                  : null,
+                name: c.name,
+                description: c.description,
+                criterion_type: c.criterionType,
+                weight: c.weight ?? null,
+                score_min: c.scoreMin,
+                score_max: c.scoreMax,
+                guidance: c.guidance,
+                mandatory: c.mandatory,
+                section: c.section,
+                display_order: c.displayOrder,
+              })),
+            ),
+          });
+      } catch (error) {
+        if (created)
+          await supabaseRest(`procurement_tenders?id=eq.${id}`, {
+            method: "DELETE",
+          }).catch(() => {});
+        throw error;
+      }
+      await audit({
+        organizationId: context.organizationId,
+        tenderId: id,
+        actorUserId: user.id,
+        action: created ? "tender_created" : "tender_edited",
+        entityType: "procurement_tender",
+        entityId: id,
+        before,
+        after: row,
+      });
+      return Response.json(
+        { data: { id, status: "draft" } },
+        { status: created ? 201 : 200 },
+      );
     }
-    if(input.action==="publish_tender"){
-      const{tender}=await requireTenderManager(user,input.tenderId),verification=await buyerVerification(tender.organization_id);if(verification!=="verified"){await supabaseRest(`procurement_tenders?id=eq.${tender.id}`,{method:"PATCH",body:JSON.stringify({status:"pending_verification"})});throw new ApiError(403,"Buyer verification is required before this tender can be published.","buyer_verification_required");}if(!["draft","pending_verification","scheduled"].includes(tender.status))throw new ApiError(409,"This tender cannot be published from its current state.","invalid_tender_transition");const status=tender.issue_date&&Date.parse(tender.issue_date)>Date.now()?"scheduled":"live";await supabaseRest(`procurement_tenders?id=eq.${tender.id}`,{method:"PATCH",body:JSON.stringify({status,published_at:new Date().toISOString()})});await audit({organizationId:tender.organization_id,tenderId:tender.id,actorUserId:user.id,action:"tender_published",entityType:"procurement_tender",entityId:tender.id,after:{status}});return Response.json({data:{id:tender.id,status}});
+    if (input.action === "publish_tender") {
+      const { tender } = await requireTenderManager(user, input.tenderId),
+        verification = await buyerVerification(tender.organization_id);
+      if (verification !== "verified") {
+        await supabaseRest(`procurement_tenders?id=eq.${tender.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "pending_verification" }),
+        });
+        throw new ApiError(
+          403,
+          "Buyer verification is required before this tender can be published.",
+          "buyer_verification_required",
+        );
+      }
+      if (
+        !["draft", "pending_verification", "scheduled"].includes(tender.status)
+      )
+        throw new ApiError(
+          409,
+          "This tender cannot be published from its current state.",
+          "invalid_tender_transition",
+        );
+      const status =
+        tender.issue_date && Date.parse(tender.issue_date) > Date.now()
+          ? "scheduled"
+          : "live";
+      await supabaseRest(`procurement_tenders?id=eq.${tender.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status,
+          published_at: new Date().toISOString(),
+        }),
+      });
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "tender_published",
+        entityType: "procurement_tender",
+        entityId: tender.id,
+        after: { status },
+      });
+      return Response.json({ data: { id: tender.id, status } });
     }
-    if(input.action==="open_bids"){
-      const{tender}=await requireTenderManager(user,input.tenderId);if(tender.bid_opening_model!=="sealed")throw new ApiError(409,"This tender is configured to open bids as received.","bids_not_sealed");if(Date.now()<Date.parse(tender.submission_deadline))throw new ApiError(409,"Sealed bids cannot be opened before the submission deadline.","sealed_until_deadline");const at=new Date().toISOString();await supabaseRest(`procurement_tenders?id=eq.${tender.id}`,{method:"PATCH",body:JSON.stringify({bids_opened_at:at,bids_opened_by:user.id,status:"evaluation"})});await audit({organizationId:tender.organization_id,tenderId:tender.id,actorUserId:user.id,action:"bids_opened",entityType:"procurement_tender",entityId:tender.id,after:{bidsOpenedAt:at}});return Response.json({data:{openedAt:at}});
+    if (input.action === "open_bids") {
+      const { tender } = await requireTenderManager(user, input.tenderId);
+      if (tender.bid_opening_model !== "sealed")
+        throw new ApiError(
+          409,
+          "This tender is configured to open bids as received.",
+          "bids_not_sealed",
+        );
+      if (Date.now() < Date.parse(tender.submission_deadline))
+        throw new ApiError(
+          409,
+          "Sealed bids cannot be opened before the submission deadline.",
+          "sealed_until_deadline",
+        );
+      const at = new Date().toISOString();
+      await supabaseRest(`procurement_tenders?id=eq.${tender.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          bids_opened_at: at,
+          bids_opened_by: user.id,
+          status: "evaluation",
+        }),
+      });
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "bids_opened",
+        entityType: "procurement_tender",
+        entityId: tender.id,
+        after: { bidsOpenedAt: at },
+      });
+      return Response.json({ data: { openedAt: at } });
     }
-    if(input.action==="save_bid"){
-      const entitlement=await tenderAccessForUser(user);if(!entitlement.allowed)throw new ApiError(402,"An active BidScope subscription is required to submit a BidScope Tender.","subscription_required");
-      if(!context.organization.can_bid)throw new ApiError(403,"Activate supplier capabilities before bidding.","supplier_capability_required");const value=input.bid,tender=await tenderById(value.tenderId);if(!["live","closing_soon"].includes(tender.status)||Date.now()>=Date.parse(tender.submission_deadline))throw new ApiError(409,"This tender is not accepting bids.","tender_closed");if(tender.organization_id===context.organizationId)throw new ApiError(409,"A buyer cannot bid on its own tender.","conflict_of_interest");if(tender.visibility==="invite_only"){const{data}=await supabaseRest<unknown[]>(`tender_invitations?select=id&tender_id=eq.${tender.id}&supplier_organization_id=eq.${context.organizationId}&status=neq.revoked&limit=1`);if(!data.length)throw new ApiError(403,"An invitation is required to bid on this tender.","invitation_required");}const{data:existing}=await supabaseRest<Array<Record<string,unknown>>>(`supplier_bids?select=*&tender_id=eq.${tender.id}&supplier_organization_id=eq.${context.organizationId}&limit=1`);const prior=existing[0],bidId=String(prior?.id||crypto.randomUUID()),nextVersion=Number(prior?.current_version||0)+(value.submit?1:0);if(prior?.status==="submitted"&&!value.submit)throw new ApiError(409,"Submitted bids can only be amended by submitting a new version.","bid_already_submitted");const row={id:bidId,tender_id:tender.id,supplier_organization_id:context.organizationId,created_by:user.id,current_version:Math.max(1,nextVersion),status:value.submit?"submitted":"draft",bid_price:value.bidPrice??null,currency:value.currency,price_breakdown:value.priceBreakdown,delivery_period:value.deliveryPeriod||null,bid_validity_days:value.bidValidityDays??null,technical_response:value.technicalResponse,methodology_response:value.methodologyResponse,experience_response:value.experienceResponse,compliance_declarations:value.complianceDeclarations,notes:value.notes,submitted_at:value.submit?new Date().toISOString():null};await supabaseRest("supplier_bids?on_conflict=tender_id,supplier_organization_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify(row)});await Promise.all([supabaseRest(`supplier_bid_lots?bid_id=eq.${bidId}`,{method:"DELETE"}),supabaseRest(`supplier_bid_responses?bid_id=eq.${bidId}`,{method:"DELETE"})]);if(value.lotResponses.length)await supabaseRest("supplier_bid_lots",{method:"POST",body:JSON.stringify(value.lotResponses.map(l=>({bid_id:bidId,lot_id:l.lotId,price:l.price??null,currency:l.currency,response:l.response})))});if(value.responses.length)await supabaseRest("supplier_bid_responses",{method:"POST",body:JSON.stringify(value.responses.map(r=>({bid_id:bidId,requirement_id:r.requirementId||null,criterion_id:r.criterionId||null,response_text:r.responseText,declaration:r.declaration??null})))});if(value.submit){const snapshot={...row,lotResponses:value.lotResponses,responses:value.responses};await supabaseRest("supplier_bid_versions",{method:"POST",body:JSON.stringify({bid_id:bidId,version_number:nextVersion,snapshot,submitted_by:user.id})});await createNotification({userId:user.id,organizationId:context.organizationId,type:"system",title:"Bid submitted",message:`Your bid for ${tender.title} was submitted successfully.`,relatedEntityType:"supplier_bid",relatedEntityId:bidId,relatedUrl:`/procurement/tenders/${tender.id}`,priority:"high",frequencyOverride:"instant",dedupeKey:`bid-submitted-${bidId}-${nextVersion}`});}await audit({organizationId:context.organizationId,tenderId:tender.id,actorUserId:user.id,action:value.submit?(prior?"bid_version_submitted":"bid_submitted"):"bid_draft_saved",entityType:"supplier_bid",entityId:bidId,metadata:{version:nextVersion}});return Response.json({data:{id:bidId,status:row.status,version:nextVersion}},{status:prior?200:201});
+    if (input.action === "save_bid") {
+      const entitlement = await tenderAccessForUser(user);
+      if (!entitlement.allowed)
+        throw new ApiError(
+          402,
+          "An active BidScope subscription is required to submit a BidScope Tender.",
+          "subscription_required",
+        );
+      if (!context.organization.can_bid)
+        throw new ApiError(
+          403,
+          "Activate supplier capabilities before bidding.",
+          "supplier_capability_required",
+        );
+      const value = input.bid,
+        tender = await tenderById(value.tenderId);
+      if (
+        !["live", "closing_soon"].includes(tender.status) ||
+        Date.now() >= Date.parse(tender.submission_deadline)
+      )
+        throw new ApiError(
+          409,
+          "This tender is not accepting bids.",
+          "tender_closed",
+        );
+      if (tender.organization_id === context.organizationId)
+        throw new ApiError(
+          409,
+          "A buyer cannot bid on its own tender.",
+          "conflict_of_interest",
+        );
+      if (tender.visibility === "invite_only") {
+        const { data } = await supabaseRest<unknown[]>(
+          `tender_invitations?select=id&tender_id=eq.${tender.id}&supplier_organization_id=eq.${context.organizationId}&status=neq.revoked&limit=1`,
+        );
+        if (!data.length)
+          throw new ApiError(
+            403,
+            "An invitation is required to bid on this tender.",
+            "invitation_required",
+          );
+      }
+      const { data: existing } = await supabaseRest<
+        Array<Record<string, unknown>>
+      >(
+        `supplier_bids?select=*&tender_id=eq.${tender.id}&supplier_organization_id=eq.${context.organizationId}&limit=1`,
+      );
+      const prior = existing[0],
+        bidId = String(prior?.id || crypto.randomUUID()),
+        nextVersion =
+          Number(prior?.current_version || 0) + (value.submit ? 1 : 0);
+      if (prior?.status === "submitted" && !value.submit)
+        throw new ApiError(
+          409,
+          "Submitted bids can only be amended by submitting a new version.",
+          "bid_already_submitted",
+        );
+      if (value.submit) {
+        const { data: mandatoryDocuments } = await supabaseRest<
+            Array<{ id: string; name: string }>
+          >(
+            `procurement_required_documents?select=id,name&tender_id=eq.${tender.id}&mandatory=eq.true`,
+          ),
+          { data: uploadedDocuments } = prior
+            ? await supabaseRest<
+                Array<{ required_document_id: string | null }>
+              >(
+                `supplier_bid_documents?select=required_document_id&bid_id=eq.${bidId}`,
+              )
+            : { data: [] },
+          uploadedIds = new Set(
+            uploadedDocuments
+              .map((document) => document.required_document_id)
+              .filter(Boolean),
+          ),
+          missing = mandatoryDocuments.filter(
+            (document) => !uploadedIds.has(document.id),
+          );
+        if (missing.length)
+          throw new ApiError(
+            409,
+            `Upload all mandatory documents before submitting: ${missing.map((document) => document.name).join(", ")}. Save a draft first if this is a new bid.`,
+            "mandatory_documents_missing",
+          );
+      }
+      const row = {
+        id: bidId,
+        tender_id: tender.id,
+        supplier_organization_id: context.organizationId,
+        created_by: user.id,
+        current_version: Math.max(1, nextVersion),
+        status: value.submit ? "submitted" : "draft",
+        bid_price: value.bidPrice ?? null,
+        currency: value.currency,
+        price_breakdown: value.priceBreakdown,
+        delivery_period: value.deliveryPeriod || null,
+        bid_validity_days: value.bidValidityDays ?? null,
+        technical_response: value.technicalResponse,
+        methodology_response: value.methodologyResponse,
+        experience_response: value.experienceResponse,
+        compliance_declarations: value.complianceDeclarations,
+        notes: value.notes,
+        submitted_at: value.submit ? new Date().toISOString() : null,
+      };
+      await supabaseRest(
+        "supplier_bids?on_conflict=tender_id,supplier_organization_id",
+        {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates" },
+          body: JSON.stringify(row),
+        },
+      );
+      await Promise.all([
+        supabaseRest(`supplier_bid_lots?bid_id=eq.${bidId}`, {
+          method: "DELETE",
+        }),
+        supabaseRest(`supplier_bid_responses?bid_id=eq.${bidId}`, {
+          method: "DELETE",
+        }),
+      ]);
+      if (value.lotResponses.length)
+        await supabaseRest("supplier_bid_lots", {
+          method: "POST",
+          body: JSON.stringify(
+            value.lotResponses.map((l) => ({
+              bid_id: bidId,
+              lot_id: l.lotId,
+              price: l.price ?? null,
+              currency: l.currency,
+              response: l.response,
+            })),
+          ),
+        });
+      if (value.responses.length)
+        await supabaseRest("supplier_bid_responses", {
+          method: "POST",
+          body: JSON.stringify(
+            value.responses.map((r) => ({
+              bid_id: bidId,
+              requirement_id: r.requirementId || null,
+              criterion_id: r.criterionId || null,
+              response_text: r.responseText,
+              declaration: r.declaration ?? null,
+            })),
+          ),
+        });
+      if (value.submit) {
+        const snapshot = {
+          ...row,
+          lotResponses: value.lotResponses,
+          responses: value.responses,
+        };
+        await supabaseRest("supplier_bid_versions", {
+          method: "POST",
+          body: JSON.stringify({
+            bid_id: bidId,
+            version_number: nextVersion,
+            snapshot,
+            submitted_by: user.id,
+          }),
+        });
+        await createNotification({
+          userId: user.id,
+          organizationId: context.organizationId,
+          type: "system",
+          title: "Bid submitted",
+          message: `Your bid for ${tender.title} was submitted successfully.`,
+          relatedEntityType: "supplier_bid",
+          relatedEntityId: bidId,
+          relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+          priority: "high",
+          frequencyOverride: "instant",
+          dedupeKey: `bid-submitted-${bidId}-${nextVersion}`,
+        });
+        await notifyOrganisation(tender.organization_id, {
+          type: "system",
+          title: "New bid received",
+          message: `A supplier submitted a bid for ${tender.title}.`,
+          relatedEntityType: "supplier_bid",
+          relatedEntityId: bidId,
+          relatedUrl: `/procurement/bids?tender=${tender.id}`,
+          priority: "high",
+          frequencyOverride: "instant",
+          dedupeKey: `buyer-bid-received-${bidId}-${nextVersion}`,
+        });
+      }
+      await audit({
+        organizationId: context.organizationId,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: value.submit
+          ? prior
+            ? "bid_version_submitted"
+            : "bid_submitted"
+          : "bid_draft_saved",
+        entityType: "supplier_bid",
+        entityId: bidId,
+        metadata: { version: nextVersion },
+      });
+      return Response.json(
+        { data: { id: bidId, status: row.status, version: nextVersion } },
+        { status: prior ? 200 : 201 },
+      );
     }
-    if(input.action==="withdraw_bid"){
-      const{data}=await supabaseRest<Array<{id:string;tender_id:string;supplier_organization_id:string;status:string}>>(`supplier_bids?select=id,tender_id,supplier_organization_id,status&id=eq.${input.bidId}&limit=1`),bid=data[0];if(!bid||bid.supplier_organization_id!==context.organizationId)throw new ApiError(404,"Bid not found.","bid_not_found");const tender=await tenderById(bid.tender_id);if(!tender.withdrawal_allowed||Date.now()>=Date.parse(tender.submission_deadline))throw new ApiError(409,"This bid can no longer be withdrawn.","withdrawal_not_allowed");const at=new Date().toISOString();await supabaseRest(`supplier_bids?id=eq.${bid.id}`,{method:"PATCH",body:JSON.stringify({status:"withdrawn",withdrawn_at:at,withdrawn_by:user.id,withdrawal_reason:input.reason||null})});await audit({organizationId:context.organizationId,tenderId:tender.id,actorUserId:user.id,action:"bid_withdrawn",entityType:"supplier_bid",entityId:bid.id,metadata:{reason:input.reason||null}});return Response.json({data:{status:"withdrawn"}});
+    if (input.action === "withdraw_bid") {
+      const { data } = await supabaseRest<
+          Array<{
+            id: string;
+            tender_id: string;
+            supplier_organization_id: string;
+            status: string;
+          }>
+        >(
+          `supplier_bids?select=id,tender_id,supplier_organization_id,status&id=eq.${input.bidId}&limit=1`,
+        ),
+        bid = data[0];
+      if (!bid || bid.supplier_organization_id !== context.organizationId)
+        throw new ApiError(404, "Bid not found.", "bid_not_found");
+      const tender = await tenderById(bid.tender_id);
+      if (
+        !tender.withdrawal_allowed ||
+        Date.now() >= Date.parse(tender.submission_deadline)
+      )
+        throw new ApiError(
+          409,
+          "This bid can no longer be withdrawn.",
+          "withdrawal_not_allowed",
+        );
+      const at = new Date().toISOString();
+      await supabaseRest(`supplier_bids?id=eq.${bid.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "withdrawn",
+          withdrawn_at: at,
+          withdrawn_by: user.id,
+          withdrawal_reason: input.reason || null,
+        }),
+      });
+      await audit({
+        organizationId: context.organizationId,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "bid_withdrawn",
+        entityType: "supplier_bid",
+        entityId: bid.id,
+        metadata: { reason: input.reason || null },
+      });
+      return Response.json({ data: { status: "withdrawn" } });
     }
-    if(input.action==="question"||input.action==="clarification"){
-      const tender=await tenderById(input.tenderId);if(input.action==="question"){if(!tender.questions_allowed||Date.now()>Date.parse(tender.clarification_deadline||tender.submission_deadline))throw new ApiError(409,"The clarification period is closed.","clarifications_closed");if(tender.organization_id===context.organizationId)throw new ApiError(409,"Use a buyer clarification request for this tender.","invalid_clarification_party");await supabaseRest("tender_clarifications",{method:"POST",body:JSON.stringify({tender_id:tender.id,bid_id:input.bidId||null,requester_user_id:user.id,requester_organization_id:context.organizationId,recipient_organization_id:tender.organization_id,kind:"supplier_question",subject:input.subject,message:input.message,visibility:"private"})});}else{await requireTenderManager(user,tender.id);await supabaseRest("tender_clarifications",{method:"POST",body:JSON.stringify({tender_id:tender.id,bid_id:input.bidId,requester_user_id:user.id,requester_organization_id:context.organizationId,recipient_organization_id:input.recipientOrganizationId,kind:"buyer_clarification",subject:input.subject,message:input.message,response_deadline:input.responseDeadline||null,visibility:"private"})});await supabaseRest(`supplier_bids?id=eq.${input.bidId}`,{method:"PATCH",body:JSON.stringify({status:"clarification_requested"})});}await audit({organizationId:context.organizationId,tenderId:tender.id,actorUserId:user.id,action:input.action==="question"?"clarification_sent":"clarification_requested",entityType:"tender_clarification"});return Response.json({data:{sent:true}},{status:201});
+    if (input.action === "question" || input.action === "clarification") {
+      const tender = await tenderById(input.tenderId);
+      if (input.action === "question") {
+        if (
+          !tender.questions_allowed ||
+          Date.now() >
+            Date.parse(
+              tender.clarification_deadline || tender.submission_deadline,
+            )
+        )
+          throw new ApiError(
+            409,
+            "The clarification period is closed.",
+            "clarifications_closed",
+          );
+        if (tender.organization_id === context.organizationId)
+          throw new ApiError(
+            409,
+            "Use a buyer clarification request for this tender.",
+            "invalid_clarification_party",
+          );
+        const clarificationId = crypto.randomUUID();
+        await supabaseRest("tender_clarifications", {
+          method: "POST",
+          body: JSON.stringify({
+            id: clarificationId,
+            tender_id: tender.id,
+            bid_id: input.bidId || null,
+            requester_user_id: user.id,
+            requester_organization_id: context.organizationId,
+            recipient_organization_id: tender.organization_id,
+            kind: "supplier_question",
+            subject: input.subject,
+            message: input.message,
+            visibility: "private",
+          }),
+        });
+        await notifyOrganisation(tender.organization_id, {
+          type: "system",
+          title: "New tender question",
+          message: `${input.subject} — ${tender.title}`,
+          relatedEntityType: "tender_clarification",
+          relatedEntityId: clarificationId,
+          relatedUrl: `/procurement/tenders/${tender.id}`,
+          priority: "high",
+          frequencyOverride: "instant",
+          dedupeKey: `tender-question-${clarificationId}`,
+        });
+      } else {
+        await requireTenderManager(user, tender.id);
+        const clarificationId = crypto.randomUUID();
+        await supabaseRest("tender_clarifications", {
+          method: "POST",
+          body: JSON.stringify({
+            id: clarificationId,
+            tender_id: tender.id,
+            bid_id: input.bidId,
+            requester_user_id: user.id,
+            requester_organization_id: context.organizationId,
+            recipient_organization_id: input.recipientOrganizationId,
+            kind: "buyer_clarification",
+            subject: input.subject,
+            message: input.message,
+            response_deadline: input.responseDeadline || null,
+            visibility: "private",
+          }),
+        });
+        await supabaseRest(`supplier_bids?id=eq.${input.bidId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "clarification_requested" }),
+        });
+        await notifyOrganisation(input.recipientOrganizationId, {
+          type: "system",
+          title: "Tender clarification requested",
+          message: `${input.subject} — ${tender.title}`,
+          relatedEntityType: "tender_clarification",
+          relatedEntityId: clarificationId,
+          relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+          priority: "high",
+          frequencyOverride: "instant",
+          dedupeKey: `buyer-clarification-${clarificationId}`,
+        });
+      }
+      await audit({
+        organizationId: context.organizationId,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action:
+          input.action === "question"
+            ? "clarification_sent"
+            : "clarification_requested",
+        entityType: "tender_clarification",
+      });
+      return Response.json({ data: { sent: true } }, { status: 201 });
     }
-    if(input.action==="assign_evaluator"){
-      const{tender}=await requireTenderManager(user,input.tenderId);const{data:member}=await supabaseRest<unknown[]>(`organization_members?select=user_id&organization_id=eq.${tender.organization_id}&user_id=eq.${input.evaluatorUserId}&limit=1`);if(!member.length)throw new ApiError(400,"Evaluator must belong to the buyer organisation.","invalid_evaluator");await supabaseRest("procurement_evaluation_assignments",{method:"POST",body:JSON.stringify({tender_id:tender.id,evaluator_user_id:input.evaluatorUserId,bid_id:input.bidId||null,criterion_id:input.criterionId||null,lot_id:input.lotId||null,assignment_role:input.assignmentRole,assigned_by:user.id})});await createNotification({userId:input.evaluatorUserId,organizationId:tender.organization_id,type:"system",title:"Evaluation assigned",message:`You have been assigned to evaluate ${tender.title}.`,relatedEntityType:"procurement_tender",relatedEntityId:tender.id,relatedUrl:`/procurement/evaluations?tender=${tender.id}`,priority:"high",frequencyOverride:"instant",dedupeKey:`evaluation-assigned-${tender.id}-${input.evaluatorUserId}-${input.bidId||"all"}-${input.criterionId||"all"}`});await audit({organizationId:tender.organization_id,tenderId:tender.id,actorUserId:user.id,action:"evaluator_assigned",entityType:"evaluation_assignment",metadata:{evaluatorUserId:input.evaluatorUserId,role:input.assignmentRole}});return Response.json({data:{assigned:true}},{status:201});
+    if (input.action === "respond_clarification") {
+      const { data } = await supabaseRest<
+          Array<{
+            id: string;
+            tender_id: string;
+            bid_id: string | null;
+            requester_organization_id: string;
+            recipient_organization_id: string | null;
+            subject: string;
+            status: string;
+          }>
+        >(
+          `tender_clarifications?select=id,tender_id,bid_id,requester_organization_id,recipient_organization_id,subject,status&id=eq.${input.clarificationId}&limit=1`,
+        ),
+        clarification = data[0];
+      if (!clarification)
+        throw new ApiError(
+          404,
+          "Clarification not found.",
+          "clarification_not_found",
+        );
+      const tender = await tenderById(clarification.tender_id),
+        isBuyer = tender.organization_id === context.organizationId,
+        isRecipient =
+          clarification.recipient_organization_id === context.organizationId;
+      if (!isBuyer && !isRecipient)
+        throw new ApiError(
+          403,
+          "Your organisation cannot answer this clarification.",
+          "clarification_forbidden",
+        );
+      if (isBuyer) await requireTenderManager(user, tender.id);
+      const responseId = crypto.randomUUID(),
+        recipientOrganizationId = clarification.requester_organization_id;
+      await supabaseRest("tender_clarifications", {
+        method: "POST",
+        body: JSON.stringify({
+          id: responseId,
+          tender_id: tender.id,
+          bid_id: clarification.bid_id,
+          requester_user_id: user.id,
+          requester_organization_id: context.organizationId,
+          recipient_organization_id: recipientOrganizationId,
+          kind: "buyer_response",
+          subject: `Re: ${clarification.subject}`,
+          message: input.message,
+          response_to_id: clarification.id,
+          visibility: "private",
+          status: "answered",
+          answered_at: new Date().toISOString(),
+        }),
+      });
+      await supabaseRest(`tender_clarifications?id=eq.${clarification.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "answered",
+          answered_at: new Date().toISOString(),
+        }),
+      });
+      await notifyOrganisation(recipientOrganizationId, {
+        type: "system",
+        title: "Tender clarification answered",
+        message: `${clarification.subject} — ${tender.title}`,
+        relatedEntityType: "tender_clarification",
+        relatedEntityId: responseId,
+        relatedUrl:
+          recipientOrganizationId === tender.organization_id
+            ? `/procurement/tenders/${tender.id}`
+            : `/customer/bidscope-tenders/${tender.id}`,
+        priority: "high",
+        frequencyOverride: "instant",
+        dedupeKey: `clarification-response-${responseId}`,
+      });
+      await audit({
+        organizationId: context.organizationId,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "clarification_answered",
+        entityType: "tender_clarification",
+        entityId: responseId,
+      });
+      return Response.json({ data: { id: responseId, status: "answered" } });
     }
-    if(input.action==="evaluate"){
-      const{tender}=await requireTenderEvaluator(user,input.tenderId);if(!bidsAreOpen(tender))throw new ApiError(403,"Sealed bid content cannot be evaluated before opening.","sealed_until_deadline");const{data:criteria}=await supabaseRest<Array<{id:string;criterion_type:string;score_min:number;score_max:number}>>(`procurement_evaluation_criteria?select=id,criterion_type,score_min,score_max&tender_id=eq.${tender.id}`);for(const score of input.scores){const criterion=criteria.find(c=>c.id===score.criterionId);if(!criterion)throw new ApiError(400,"An evaluation score references an invalid criterion.","invalid_criterion");if(criterion.criterion_type==="scored"&&(score.numericScore==null||score.numericScore<criterion.score_min||score.numericScore>criterion.score_max))throw new ApiError(400,"A numeric score is outside the allowed range.","invalid_score");}const{data:existing}=await supabaseRest<Array<{id:string}>>(`bid_evaluations?select=id&bid_id=eq.${input.bidId}&evaluator_user_id=eq.${user.id}&${input.lotId?`lot_id=eq.${input.lotId}`:"lot_id=is.null"}&limit=1`),id=existing[0]?.id||crypto.randomUUID();await supabaseRest("bid_evaluations?on_conflict=id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({id,tender_id:tender.id,bid_id:input.bidId,evaluator_user_id:user.id,lot_id:input.lotId||null,overall_note:input.overallNote,recommendation:input.recommendation||null,status:input.submit?"submitted":"draft",submitted_at:input.submit?new Date().toISOString():null})});await supabaseRest(`evaluation_scores?evaluation_id=eq.${id}`,{method:"DELETE"});if(input.scores.length)await supabaseRest("evaluation_scores",{method:"POST",body:JSON.stringify(input.scores.map(s=>({evaluation_id:id,criterion_id:s.criterionId,numeric_score:s.numericScore??null,pass:s.pass??null,assessment:s.assessment,private_note:s.privateNote})))});await audit({organizationId:tender.organization_id,tenderId:tender.id,actorUserId:user.id,action:input.submit?"evaluation_submitted":"evaluation_saved",entityType:"bid_evaluation",entityId:id});return Response.json({data:{id,status:input.submit?"submitted":"draft"}});
+    if (input.action === "assign_evaluator") {
+      const { tender } = await requireTenderManager(user, input.tenderId);
+      const { data: member } = await supabaseRest<unknown[]>(
+        `organization_members?select=user_id&organization_id=eq.${tender.organization_id}&user_id=eq.${input.evaluatorUserId}&limit=1`,
+      );
+      if (!member.length)
+        throw new ApiError(
+          400,
+          "Evaluator must belong to the buyer organisation.",
+          "invalid_evaluator",
+        );
+      await supabaseRest("procurement_evaluation_assignments", {
+        method: "POST",
+        body: JSON.stringify({
+          tender_id: tender.id,
+          evaluator_user_id: input.evaluatorUserId,
+          bid_id: input.bidId || null,
+          criterion_id: input.criterionId || null,
+          lot_id: input.lotId || null,
+          assignment_role: input.assignmentRole,
+          assigned_by: user.id,
+        }),
+      });
+      await createNotification({
+        userId: input.evaluatorUserId,
+        organizationId: tender.organization_id,
+        type: "system",
+        title: "Evaluation assigned",
+        message: `You have been assigned to evaluate ${tender.title}.`,
+        relatedEntityType: "procurement_tender",
+        relatedEntityId: tender.id,
+        relatedUrl: `/procurement/evaluations?tender=${tender.id}`,
+        priority: "high",
+        frequencyOverride: "instant",
+        dedupeKey: `evaluation-assigned-${tender.id}-${input.evaluatorUserId}-${input.bidId || "all"}-${input.criterionId || "all"}`,
+      });
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "evaluator_assigned",
+        entityType: "evaluation_assignment",
+        metadata: {
+          evaluatorUserId: input.evaluatorUserId,
+          role: input.assignmentRole,
+        },
+      });
+      return Response.json({ data: { assigned: true } }, { status: 201 });
     }
-    if(input.action==="shortlist"){
-      const{tender}=await requireTenderManager(user,input.tenderId);const status={shortlist:"shortlisted",clarification:"clarification_requested",interview:"interview_requested",unsuccessful:"unsuccessful",under_review:"under_review"}[input.decision];await supabaseRest("tender_shortlists",{method:"POST",body:JSON.stringify({tender_id:tender.id,bid_id:input.bidId,lot_id:input.lotId||null,action:input.decision,note:input.note||null,acted_by:user.id})});await supabaseRest(`supplier_bids?id=eq.${input.bidId}&tender_id=eq.${tender.id}`,{method:"PATCH",body:JSON.stringify({status})});await audit({organizationId:tender.organization_id,tenderId:tender.id,actorUserId:user.id,action:`bid_${input.decision}`,entityType:"supplier_bid",entityId:input.bidId,metadata:{note:input.note||null,lotId:input.lotId||null}});return Response.json({data:{status}});
+    if (input.action === "evaluate") {
+      const { tender } = await requireTenderEvaluator(user, input.tenderId);
+      if (!bidsAreOpen(tender))
+        throw new ApiError(
+          403,
+          "Sealed bid content cannot be evaluated before opening.",
+          "sealed_until_deadline",
+        );
+      const { data: criteria } = await supabaseRest<
+        Array<{
+          id: string;
+          criterion_type: string;
+          score_min: number;
+          score_max: number;
+        }>
+      >(
+        `procurement_evaluation_criteria?select=id,criterion_type,score_min,score_max&tender_id=eq.${tender.id}`,
+      );
+      for (const score of input.scores) {
+        const criterion = criteria.find((c) => c.id === score.criterionId);
+        if (!criterion)
+          throw new ApiError(
+            400,
+            "An evaluation score references an invalid criterion.",
+            "invalid_criterion",
+          );
+        if (
+          criterion.criterion_type === "scored" &&
+          (score.numericScore == null ||
+            score.numericScore < criterion.score_min ||
+            score.numericScore > criterion.score_max)
+        )
+          throw new ApiError(
+            400,
+            "A numeric score is outside the allowed range.",
+            "invalid_score",
+          );
+      }
+      const { data: existing } = await supabaseRest<Array<{ id: string }>>(
+          `bid_evaluations?select=id&bid_id=eq.${input.bidId}&evaluator_user_id=eq.${user.id}&${input.lotId ? `lot_id=eq.${input.lotId}` : "lot_id=is.null"}&limit=1`,
+        ),
+        id = existing[0]?.id || crypto.randomUUID();
+      await supabaseRest("bid_evaluations?on_conflict=id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates" },
+        body: JSON.stringify({
+          id,
+          tender_id: tender.id,
+          bid_id: input.bidId,
+          evaluator_user_id: user.id,
+          lot_id: input.lotId || null,
+          overall_note: input.overallNote,
+          recommendation: input.recommendation || null,
+          status: input.submit ? "submitted" : "draft",
+          submitted_at: input.submit ? new Date().toISOString() : null,
+        }),
+      });
+      await supabaseRest(`evaluation_scores?evaluation_id=eq.${id}`, {
+        method: "DELETE",
+      });
+      if (input.scores.length)
+        await supabaseRest("evaluation_scores", {
+          method: "POST",
+          body: JSON.stringify(
+            input.scores.map((s) => ({
+              evaluation_id: id,
+              criterion_id: s.criterionId,
+              numeric_score: s.numericScore ?? null,
+              pass: s.pass ?? null,
+              assessment: s.assessment,
+              private_note: s.privateNote,
+            })),
+          ),
+        });
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: input.submit ? "evaluation_submitted" : "evaluation_saved",
+        entityType: "bid_evaluation",
+        entityId: id,
+      });
+      return Response.json({
+        data: { id, status: input.submit ? "submitted" : "draft" },
+      });
     }
-    if(input.action==="invite_supplier"){
-      const{tender}=await requireTenderManager(user,input.tenderId);await supabaseRest("tender_invitations?on_conflict=tender_id,supplier_organization_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({tender_id:tender.id,supplier_organization_id:input.supplierOrganizationId,invited_by:user.id,status:"invited",invited_at:new Date().toISOString()})});const{data:members}=await supabaseRest<Array<{user_id:string}>>(`organization_members?select=user_id&organization_id=eq.${input.supplierOrganizationId}`);await Promise.all(members.map(m=>createNotification({userId:m.user_id,organizationId:input.supplierOrganizationId,type:"system",title:"Invited to tender",message:`Your organisation has been invited to ${tender.title}.`,relatedEntityType:"procurement_tender",relatedEntityId:tender.id,relatedUrl:`/procurement/tenders/${tender.id}`,priority:"high",frequencyOverride:"instant",dedupeKey:`tender-invite-${tender.id}-${m.user_id}`})));await audit({organizationId:tender.organization_id,tenderId:tender.id,actorUserId:user.id,action:"supplier_invited",entityType:"tender_invitation",metadata:{supplierOrganizationId:input.supplierOrganizationId}});return Response.json({data:{invited:true}},{status:201});
+    if (input.action === "shortlist") {
+      const { tender } = await requireTenderManager(user, input.tenderId);
+      const status = {
+        shortlist: "shortlisted",
+        clarification: "clarification_requested",
+        interview: "interview_requested",
+        unsuccessful: "unsuccessful",
+        under_review: "under_review",
+      }[input.decision];
+      await supabaseRest("tender_shortlists", {
+        method: "POST",
+        body: JSON.stringify({
+          tender_id: tender.id,
+          bid_id: input.bidId,
+          lot_id: input.lotId || null,
+          action: input.decision,
+          note: input.note || null,
+          acted_by: user.id,
+        }),
+      });
+      await supabaseRest(
+        `supplier_bids?id=eq.${input.bidId}&tender_id=eq.${tender.id}`,
+        { method: "PATCH", body: JSON.stringify({ status }) },
+      );
+      const { data: bidRows } = await supabaseRest<
+          Array<{ supplier_organization_id: string }>
+        >(
+          `supplier_bids?select=supplier_organization_id&id=eq.${input.bidId}&tender_id=eq.${tender.id}&limit=1`,
+        ),
+        supplierOrganizationId = bidRows[0]?.supplier_organization_id;
+      if (supplierOrganizationId) {
+        const titles = {
+          shortlist: "Bid shortlisted",
+          clarification: "Clarification requested",
+          interview: "Supplier interview requested",
+          unsuccessful: "Tender outcome",
+          under_review: "Bid under review",
+        };
+        await notifyOrganisation(supplierOrganizationId, {
+          type: "system",
+          title: titles[input.decision],
+          message:
+            input.decision === "unsuccessful"
+              ? `Your bid for ${tender.title} was not selected. Thank you for participating.`
+              : `Your bid for ${tender.title} is now ${status.replaceAll("_", " ")}.`,
+          relatedEntityType: "supplier_bid",
+          relatedEntityId: input.bidId,
+          relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+          priority: "high",
+          frequencyOverride: "instant",
+          dedupeKey: `bid-decision-${input.bidId}-${input.decision}`,
+        });
+      }
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: `bid_${input.decision}`,
+        entityType: "supplier_bid",
+        entityId: input.bidId,
+        metadata: { note: input.note || null, lotId: input.lotId || null },
+      });
+      return Response.json({ data: { status } });
     }
-    if(input.action==="award"){
-      const{tender}=await requireTenderManager(user,input.tenderId);if(!["evaluation","shortlisted","interviews","pending_award"].includes(tender.status))throw new ApiError(409,"Awards cannot be prepared at this tender stage.","invalid_tender_transition");if(tender.award_structure==="single"){const{data}=await supabaseRest<unknown[]>(`procurement_awards?select=id&tender_id=eq.${tender.id}&approval_status=neq.rejected&limit=1`);if(data.length)throw new ApiError(409,"A single-winner tender already has an award recommendation.","single_winner_limit");if(input.lotIds.length)throw new ApiError(400,"Lot awards are not valid for a single-winner tender.","invalid_award_lots");}if(tender.award_structure==="lots"&&!input.lotIds.length)throw new ApiError(400,"Select at least one lot for this award.","award_lot_required");const id=crypto.randomUUID(),approvalStatus=input.submitForApproval||tender.approval_required?"pending":"approved";await supabaseRest("procurement_awards",{method:"POST",body:JSON.stringify({id,tender_id:tender.id,supplier_organization_id:input.supplierOrganizationId,bid_id:input.bidId,contract_value:input.contractValue,currency:input.currency,award_date:input.awardDate,expected_start_date:input.expectedStartDate||null,expected_end_date:input.expectedEndDate||null,award_notes:input.awardNotes,approval_status:approvalStatus,proposed_by:user.id,...(approvalStatus==="approved"?{approved_by:user.id,approved_at:new Date().toISOString()}: {})})});if(input.lotIds.length)await supabaseRest("procurement_award_lots",{method:"POST",body:JSON.stringify(input.lotIds.map(lotId=>({award_id:id,lot_id:lotId})))});await supabaseRest(`procurement_tenders?id=eq.${tender.id}`,{method:"PATCH",body:JSON.stringify({status:approvalStatus==="pending"?"pending_award":"pending_award"})});await audit({organizationId:tender.organization_id,tenderId:tender.id,actorUserId:user.id,action:"award_proposed",entityType:"procurement_award",entityId:id,after:{approvalStatus,supplierOrganizationId:input.supplierOrganizationId,lotIds:input.lotIds}});return Response.json({data:{id,approvalStatus}},{status:201});
+    if (input.action === "invite_supplier") {
+      const { tender } = await requireTenderManager(user, input.tenderId);
+      await supabaseRest(
+        "tender_invitations?on_conflict=tender_id,supplier_organization_id",
+        {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates" },
+          body: JSON.stringify({
+            tender_id: tender.id,
+            supplier_organization_id: input.supplierOrganizationId,
+            invited_by: user.id,
+            status: "invited",
+            invited_at: new Date().toISOString(),
+          }),
+        },
+      );
+      await notifyOrganisation(input.supplierOrganizationId, {
+        type: "system",
+        title: "Invited to tender",
+        message: `Your organisation has been invited to ${tender.title}.`,
+        relatedEntityType: "procurement_tender",
+        relatedEntityId: tender.id,
+        relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+        priority: "high",
+        frequencyOverride: "instant",
+        dedupeKey: `tender-invite-${tender.id}`,
+      });
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "supplier_invited",
+        entityType: "tender_invitation",
+        metadata: { supplierOrganizationId: input.supplierOrganizationId },
+      });
+      return Response.json({ data: { invited: true } }, { status: 201 });
     }
-    if(input.action==="approve_award"){
-      const{data}=await supabaseRest<Array<{id:string;tender_id:string;approval_status:string;supplier_organization_id:string;bid_id:string}>>(`procurement_awards?select=id,tender_id,approval_status,supplier_organization_id,bid_id&id=eq.${input.awardId}&limit=1`),award=data[0];if(!award)throw new ApiError(404,"Award not found.","award_not_found");const{tender}=await requireTenderManager(user,award.tender_id);const member=await procurementContext(user);if(!["organization_owner","approver","procurement_manager"].includes(member.role))throw new ApiError(403,"Your role cannot approve awards.","award_approval_denied");const status=input.approve?"finalised":"rejected",at=new Date().toISOString();await supabaseRest(`procurement_awards?id=eq.${award.id}`,{method:"PATCH",body:JSON.stringify({approval_status:status,approved_by:user.id,approved_at:at,finalised_at:input.approve?at:null,award_notes:input.note||undefined})});if(input.approve){await supabaseRest(`supplier_bids?id=eq.${award.bid_id}`,{method:"PATCH",body:JSON.stringify({status:"awarded"})});await supabaseRest(`procurement_tenders?id=eq.${tender.id}`,{method:"PATCH",body:JSON.stringify({status:"awarded"})});const{data:members}=await supabaseRest<Array<{user_id:string}>>(`organization_members?select=user_id&organization_id=eq.${award.supplier_organization_id}`);await Promise.all(members.map(m=>createNotification({userId:m.user_id,organizationId:award.supplier_organization_id,type:"system",title:"Contract Awarded",message:`Your organisation has been awarded ${tender.title}.`,relatedEntityType:"procurement_award",relatedEntityId:award.id,relatedUrl:`/procurement/tenders/${tender.id}`,priority:"urgent",frequencyOverride:"instant",dedupeKey:`award-${award.id}-${m.user_id}`})));}await audit({organizationId:tender.organization_id,tenderId:tender.id,actorUserId:user.id,action:input.approve?"award_finalised":"award_rejected",entityType:"procurement_award",entityId:award.id,metadata:{note:input.note||null}});return Response.json({data:{status}});
+    if (input.action === "award") {
+      const { tender } = await requireTenderManager(user, input.tenderId);
+      if (
+        !["evaluation", "shortlisted", "interviews", "pending_award"].includes(
+          tender.status,
+        )
+      )
+        throw new ApiError(
+          409,
+          "Awards cannot be prepared at this tender stage.",
+          "invalid_tender_transition",
+        );
+      if (tender.award_structure === "single") {
+        const { data } = await supabaseRest<unknown[]>(
+          `procurement_awards?select=id&tender_id=eq.${tender.id}&approval_status=neq.rejected&limit=1`,
+        );
+        if (data.length)
+          throw new ApiError(
+            409,
+            "A single-winner tender already has an award recommendation.",
+            "single_winner_limit",
+          );
+        if (input.lotIds.length)
+          throw new ApiError(
+            400,
+            "Lot awards are not valid for a single-winner tender.",
+            "invalid_award_lots",
+          );
+      }
+      if (tender.award_structure === "lots" && !input.lotIds.length)
+        throw new ApiError(
+          400,
+          "Select at least one lot for this award.",
+          "award_lot_required",
+        );
+      const id = crypto.randomUUID(),
+        approvalStatus =
+          input.submitForApproval || tender.approval_required
+            ? "pending"
+            : "approved";
+      await supabaseRest("procurement_awards", {
+        method: "POST",
+        body: JSON.stringify({
+          id,
+          tender_id: tender.id,
+          supplier_organization_id: input.supplierOrganizationId,
+          bid_id: input.bidId,
+          contract_value: input.contractValue,
+          currency: input.currency,
+          award_date: input.awardDate,
+          expected_start_date: input.expectedStartDate || null,
+          expected_end_date: input.expectedEndDate || null,
+          award_notes: input.awardNotes,
+          approval_status: approvalStatus,
+          proposed_by: user.id,
+          ...(approvalStatus === "approved"
+            ? { approved_by: user.id, approved_at: new Date().toISOString() }
+            : {}),
+        }),
+      });
+      if (input.lotIds.length)
+        await supabaseRest("procurement_award_lots", {
+          method: "POST",
+          body: JSON.stringify(
+            input.lotIds.map((lotId) => ({ award_id: id, lot_id: lotId })),
+          ),
+        });
+      await supabaseRest(`procurement_tenders?id=eq.${tender.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status:
+            approvalStatus === "pending" ? "pending_award" : "pending_award",
+        }),
+      });
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "award_proposed",
+        entityType: "procurement_award",
+        entityId: id,
+        after: {
+          approvalStatus,
+          supplierOrganizationId: input.supplierOrganizationId,
+          lotIds: input.lotIds,
+        },
+      });
+      if (approvalStatus === "pending") {
+        const { data: approvers } = await supabaseRest<
+          Array<{ user_id: string; role: string }>
+        >(
+          `organization_members?select=user_id,role&organization_id=eq.${tender.organization_id}&role=in.(organization_owner,approver,procurement_manager)`,
+        );
+        await Promise.all(
+          approvers.map((approver) =>
+            createNotification({
+              userId: approver.user_id,
+              organizationId: tender.organization_id,
+              type: "system",
+              title: "Award approval required",
+              message: `An award recommendation for ${tender.title} is awaiting approval.`,
+              relatedEntityType: "procurement_award",
+              relatedEntityId: id,
+              relatedUrl: `/procurement/bids?tender=${tender.id}`,
+              priority: "urgent",
+              frequencyOverride: "instant",
+              dedupeKey: `award-approval-${id}-${approver.user_id}`,
+            }),
+          ),
+        );
+      }
+      return Response.json({ data: { id, approvalStatus } }, { status: 201 });
     }
-    if(input.action==="report_tender"){
-      const tender=await tenderById(input.tenderId);await audit({organizationId:tender.organization_id,tenderId:tender.id,actorUserId:user.id,action:"tender_reported",entityType:"procurement_tender",entityId:tender.id,metadata:{reporterOrganizationId:context.organizationId,reason:input.reason}});return Response.json({data:{reported:true}},{status:201});
+    if (input.action === "approve_award") {
+      const { data } = await supabaseRest<
+          Array<{
+            id: string;
+            tender_id: string;
+            approval_status: string;
+            supplier_organization_id: string;
+            bid_id: string;
+          }>
+        >(
+          `procurement_awards?select=id,tender_id,approval_status,supplier_organization_id,bid_id&id=eq.${input.awardId}&limit=1`,
+        ),
+        award = data[0];
+      if (!award)
+        throw new ApiError(404, "Award not found.", "award_not_found");
+      const { tender } = await requireTenderManager(user, award.tender_id);
+      const member = await procurementContext(user);
+      if (
+        !["organization_owner", "approver", "procurement_manager"].includes(
+          member.role,
+        )
+      )
+        throw new ApiError(
+          403,
+          "Your role cannot approve awards.",
+          "award_approval_denied",
+        );
+      const status = input.approve ? "finalised" : "rejected",
+        at = new Date().toISOString();
+      await supabaseRest(`procurement_awards?id=eq.${award.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          approval_status: status,
+          approved_by: user.id,
+          approved_at: at,
+          finalised_at: input.approve ? at : null,
+          award_notes: input.note || undefined,
+        }),
+      });
+      if (input.approve) {
+        await supabaseRest(`supplier_bids?id=eq.${award.bid_id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "awarded" }),
+        });
+        await supabaseRest(`procurement_tenders?id=eq.${tender.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "awarded" }),
+        });
+        await notifyOrganisation(award.supplier_organization_id, {
+          type: "award",
+          title: "Contract awarded",
+          message: `Your organisation has been awarded ${tender.title}.`,
+          relatedEntityType: "procurement_award",
+          relatedEntityId: award.id,
+          relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+          priority: "urgent",
+          frequencyOverride: "instant",
+          dedupeKey: `award-${award.id}`,
+        });
+        const { data: unsuccessful } = await supabaseRest<
+          Array<{ id: string; supplier_organization_id: string }>
+        >(
+          `supplier_bids?select=id,supplier_organization_id&tender_id=eq.${tender.id}&status=neq.draft&supplier_organization_id=neq.${award.supplier_organization_id}`,
+        );
+        await Promise.all(
+          unsuccessful.map(async (bid) => {
+            await supabaseRest(`supplier_bids?id=eq.${bid.id}`, {
+              method: "PATCH",
+              body: JSON.stringify({ status: "unsuccessful" }),
+            });
+            await notifyOrganisation(bid.supplier_organization_id, {
+              type: "award",
+              title: "Tender outcome",
+              message: `Your bid for ${tender.title} was not selected. Thank you for participating.`,
+              relatedEntityType: "supplier_bid",
+              relatedEntityId: bid.id,
+              relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+              priority: "high",
+              frequencyOverride: "instant",
+              dedupeKey: `award-unsuccessful-${award.id}-${bid.id}`,
+            });
+          }),
+        );
+      }
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: input.approve ? "award_finalised" : "award_rejected",
+        entityType: "procurement_award",
+        entityId: award.id,
+        metadata: { note: input.note || null },
+      });
+      return Response.json({ data: { status } });
     }
-    throw new ApiError(400,"Unsupported procurement action.","invalid_action");
-  }catch(error){return apiErrorResponse(error);}
+    if (input.action === "report_tender") {
+      const tender = await tenderById(input.tenderId);
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "tender_reported",
+        entityType: "procurement_tender",
+        entityId: tender.id,
+        metadata: {
+          reporterOrganizationId: context.organizationId,
+          reason: input.reason,
+        },
+      });
+      return Response.json({ data: { reported: true } }, { status: 201 });
+    }
+    throw new ApiError(
+      400,
+      "Unsupported procurement action.",
+      "invalid_action",
+    );
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
 }

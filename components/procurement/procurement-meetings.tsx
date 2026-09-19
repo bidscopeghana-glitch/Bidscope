@@ -1,10 +1,227 @@
 "use client";
 /* eslint-disable react-hooks/purity -- the current timestamp is used only to filter already-ended meetings in this view */
 import Link from "next/link";
-import {FormEvent,useState} from "react";
-import {useSearchParams} from "next/navigation";
-import {CalendarDays,Plus,Video} from "lucide-react";
-import {api,invalidate,useData} from "@/components/customer/data";
+import { FormEvent, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { CalendarDays, Plus, Video } from "lucide-react";
+import { api, invalidate, useData } from "@/components/customer/data";
 
-type Meeting={id:string;title:string;starts_at:string;ends_at:string;provider:string;status:string;procurement_tender_id?:string|null;procurement_meeting_type?:string|null};
-export function ProcurementMeetings(){const params=useSearchParams(),[open,setOpen]=useState(params.has("tender")),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),result=useData<{data:Meeting[];settings:{max_duration_minutes:number}|null}>("/api/meetings");async function schedule(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");const f=new FormData(event.currentTarget);try{await api("/api/meetings",{title:f.get("title"),startsAt:new Date(String(f.get("startsAt"))).toISOString(),durationMinutes:Number(f.get("duration")),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||"Africa/Accra",provider:f.get("provider"),meetingType:"tender",participantUserIds:[],guestEmails:String(f.get("guests")||"").split(/[;,\n]/).map(v=>v.trim()).filter(Boolean),relatedOpportunityId:null,agenda:f.get("agenda")||"",reminderMinutes:30,recordingEnabled:false,transcriptionEnabled:false,waitingRoomEnabled:true,procurementTenderId:params.get("tender"),supplierBidId:params.get("bid"),supplierOrganizationId:params.get("supplier"),tenderLotId:params.get("lot"),procurementMeetingType:f.get("procurementMeetingType"),interviewQuestions:String(f.get("interviewQuestions")||"").split("\n").map(v=>v.trim()).filter(Boolean)});setMessage("Procurement meeting scheduled and linked to the tender record.");setOpen(false);invalidate();}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}return <><div className="pw-hero"><p className="pw-eyebrow">BIDSCOPE MEET · PROCUREMENT</p><h1>Procurement meetings</h1><p>Supplier interviews, presentations, clarifications, negotiations and committee meetings stay linked to the tender and bid.</p><div className="pw-actions mt-5"><button className="pw-button gold" onClick={()=>setOpen(true)}><Plus size={15}/>Schedule meeting</button><Link className="pw-button" href="/customer/meetings">Open full meeting calendar</Link></div></div>{message&&<p className={/scheduled/.test(message)?"pw-notice":"pw-error"}>{message}</p>}<section className="pw-card mt-5"><h2>Upcoming procurement events</h2>{result.loading?<p>Loading meetings…</p>:result.error?<p className="pw-error">{result.error}</p>:result.data?.data.filter(m=>m.procurement_tender_id&&Date.parse(m.ends_at)>Date.now()).length?result.data.data.filter(m=>m.procurement_tender_id&&Date.parse(m.ends_at)>Date.now()).map(m=><Link className="pw-row" href={`/customer/meetings/${m.id}`} key={m.id}><span><strong>{m.title}</strong><small>{new Date(m.starts_at).toLocaleString("en-GB")} · {(m.procurement_meeting_type||"procurement meeting").replaceAll("_"," ")}</small></span><Video size={17}/></Link>):<div className="pw-empty"><CalendarDays size={30}/><h2>No supplier interviews scheduled</h2><p>Schedule from a shortlisted supplier or create a procurement committee meeting.</p></div>}</section>{open&&<div className="pw-modal" role="dialog" aria-modal="true"><form className="pw-form" onSubmit={schedule}><section className="pw-form-section"><h2>Schedule procurement meeting</h2><div className="pw-fields"><label className="wide">Title<input required minLength={3} name="title"/></label><label>Meeting type<select name="procurementMeetingType"><option value="supplier_interview">Supplier Interview</option><option value="supplier_presentation">Supplier Presentation</option><option value="clarification">Clarification Meeting</option><option value="negotiation">Negotiation Meeting</option><option value="evaluation_committee">Evaluation Committee Meeting</option></select></label><label>Date and time<input required type="datetime-local" name="startsAt"/></label><label>Duration<select name="duration" defaultValue="60"><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option><option value="90">90 minutes</option></select></label><label>Platform<select name="provider"><option value="daily">BidScope Meet</option><option value="google_meet">Google Meet</option></select></label><label className="wide">Supplier attendees<textarea name="guests" rows={2} placeholder="One or more email addresses"/></label><label className="wide">Agenda<textarea name="agenda" rows={4}/></label><label className="wide">Interview questions<textarea name="interviewQuestions" rows={5} placeholder="One private panel question per line"/></label></div><div className="pw-actions"><button type="button" className="pw-button" onClick={()=>setOpen(false)}>Cancel</button><button disabled={busy} className="pw-button primary">{busy?"Scheduling…":"Schedule and invite"}</button></div></section></form></div>}</>}
+type Meeting = {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  provider: string;
+  status: string;
+  procurement_tender_id?: string | null;
+  procurement_meeting_type?: string | null;
+};
+export function ProcurementMeetings() {
+  const params = useSearchParams(),
+    [open, setOpen] = useState(params.has("tender")),
+    [busy, setBusy] = useState(false),
+    [message, setMessage] = useState(""),
+    result = useData<{
+      data: Meeting[];
+      settings: { max_duration_minutes: number } | null;
+    }>("/api/meetings");
+  async function schedule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+    const f = new FormData(event.currentTarget);
+    try {
+      await api("/api/meetings", {
+        title: f.get("title"),
+        startsAt: new Date(String(f.get("startsAt"))).toISOString(),
+        durationMinutes: Number(f.get("duration")),
+        timezone:
+          Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Accra",
+        provider: f.get("provider"),
+        meetingType: "tender",
+        participantUserIds: [],
+        guestEmails: String(f.get("guests") || "")
+          .split(/[;,\n]/)
+          .map((v) => v.trim())
+          .filter(Boolean),
+        relatedOpportunityId: null,
+        agenda: f.get("agenda") || "",
+        reminderMinutes: 30,
+        recordingEnabled: false,
+        transcriptionEnabled: false,
+        waitingRoomEnabled: true,
+        procurementTenderId: params.get("tender"),
+        supplierBidId: params.get("bid"),
+        supplierOrganizationId: params.get("supplier"),
+        tenderLotId: params.get("lot"),
+        procurementMeetingType: f.get("procurementMeetingType"),
+        interviewQuestions: String(f.get("interviewQuestions") || "")
+          .split("\n")
+          .map((v) => v.trim())
+          .filter(Boolean),
+      });
+      setMessage(
+        "Procurement meeting scheduled and linked to the tender record.",
+      );
+      setOpen(false);
+      invalidate();
+    } catch (e) {
+      setMessage((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <div className="pw-hero">
+        <p className="pw-eyebrow">BIDSCOPE MEET · PROCUREMENT</p>
+        <h1>Procurement meetings</h1>
+        <p>
+          Supplier interviews, presentations, clarifications, negotiations and
+          committee meetings stay linked to the tender and bid.
+        </p>
+        <div className="pw-actions mt-5">
+          <button className="pw-button gold" onClick={() => setOpen(true)}>
+            <Plus size={15} />
+            Schedule meeting
+          </button>
+          <Link className="pw-button" href="/customer/meetings">
+            Open full meeting calendar
+          </Link>
+        </div>
+      </div>
+      {message && (
+        <p className={/scheduled/.test(message) ? "pw-notice" : "pw-error"}>
+          {message}
+        </p>
+      )}
+      <section className="pw-card mt-5">
+        <h2>Upcoming procurement events</h2>
+        {result.loading ? (
+          <p>Loading meetings…</p>
+        ) : result.error ? (
+          <p className="pw-error">{result.error}</p>
+        ) : result.data?.data.filter(
+            (m) =>
+              m.procurement_tender_id && Date.parse(m.ends_at) > Date.now(),
+          ).length ? (
+          result.data.data
+            .filter(
+              (m) =>
+                m.procurement_tender_id && Date.parse(m.ends_at) > Date.now(),
+            )
+            .map((m) => (
+              <Link
+                className="pw-row"
+                href={`/customer/meetings/${m.id}`}
+                key={m.id}
+              >
+                <span>
+                  <strong>{m.title}</strong>
+                  <small>
+                    {new Date(m.starts_at).toLocaleString("en-GB")} ·{" "}
+                    {(
+                      m.procurement_meeting_type || "procurement meeting"
+                    ).replaceAll("_", " ")}
+                  </small>
+                </span>
+                <Video size={17} />
+              </Link>
+            ))
+        ) : (
+          <div className="pw-empty">
+            <CalendarDays size={30} />
+            <h2>No supplier interviews scheduled</h2>
+            <p>
+              Schedule from a shortlisted supplier or create a procurement
+              committee meeting.
+            </p>
+          </div>
+        )}
+      </section>
+      {open && (
+        <div className="pw-modal" role="dialog" aria-modal="true">
+          <form className="pw-form" onSubmit={schedule}>
+            <section className="pw-form-section">
+              <h2>Schedule procurement meeting</h2>
+              <div className="pw-fields">
+                <label className="wide">
+                  Title
+                  <input required minLength={3} name="title" />
+                </label>
+                <label>
+                  Meeting type
+                  <select name="procurementMeetingType">
+                    <option value="supplier_interview">
+                      Supplier Interview
+                    </option>
+                    <option value="supplier_presentation">
+                      Supplier Presentation
+                    </option>
+                    <option value="clarification">Clarification Meeting</option>
+                    <option value="negotiation">Negotiation Meeting</option>
+                    <option value="evaluation_committee">
+                      Evaluation Committee Meeting
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  Date and time
+                  <input required type="datetime-local" name="startsAt" />
+                </label>
+                <label>
+                  Duration
+                  <select name="duration" defaultValue="60">
+                    <option value="30">30 minutes</option>
+                    <option value="45">45 minutes</option>
+                    <option value="60">60 minutes</option>
+                    <option value="90">90 minutes</option>
+                  </select>
+                </label>
+                <label>
+                  Platform
+                  <select name="provider">
+                    <option value="daily">BidScope Meet</option>
+                    <option value="google_meet">Google Meet</option>
+                  </select>
+                </label>
+                <label className="wide">
+                  Supplier attendees
+                  <textarea
+                    name="guests"
+                    rows={2}
+                    placeholder="One or more email addresses"
+                  />
+                </label>
+                <label className="wide">
+                  Agenda
+                  <textarea name="agenda" rows={4} />
+                </label>
+                <label className="wide">
+                  Interview questions
+                  <textarea
+                    name="interviewQuestions"
+                    rows={5}
+                    placeholder="One private panel question per line"
+                  />
+                </label>
+              </div>
+              <div className="pw-actions">
+                <button
+                  type="button"
+                  className="pw-button"
+                  onClick={() => setOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button disabled={busy} className="pw-button primary">
+                  {busy ? "Scheduling…" : "Schedule and invite"}
+                </button>
+              </div>
+            </section>
+          </form>
+        </div>
+      )}
+    </>
+  );
+}

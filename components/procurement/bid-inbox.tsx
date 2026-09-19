@@ -1,12 +1,419 @@
 "use client";
 
 import Link from "next/link";
-import {useRouter,useSearchParams} from "next/navigation";
-import {useState} from "react";
-import {CalendarDays,CheckCircle2,Scale,ShieldCheck,Trophy} from "lucide-react";
-import {api,invalidate,useData} from "@/components/customer/data";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  Scale,
+  ShieldCheck,
+  Trophy,
+} from "lucide-react";
+import { api, invalidate, useData } from "@/components/customer/data";
 
-type Tender={id:string;title:string;currency:string;award_structure:string;approval_required:boolean;status:string;submission_deadline:string;lots?:Array<{id:string;lot_number:string;title:string}>};
-type Bid={id:string;tender_id:string;supplier_organization_id:string;status:string;bid_price:number|null;currency:string;delivery_period:string|null;bid_validity_days:number|null;submitted_at:string|null;technical_response?:string;methodology_response?:string;experience_response?:string;supplier?:{id:string;name:string}|null};
+type Tender = {
+  id: string;
+  title: string;
+  currency: string;
+  award_structure: string;
+  approval_required: boolean;
+  status: string;
+  submission_deadline: string;
+  lots?: Array<{ id: string; lot_number: string; title: string }>;
+};
+type Bid = {
+  id: string;
+  tender_id: string;
+  supplier_organization_id: string;
+  status: string;
+  bid_price: number | null;
+  currency: string;
+  delivery_period: string | null;
+  bid_validity_days: number | null;
+  submitted_at: string | null;
+  technical_response?: string;
+  methodology_response?: string;
+  experience_response?: string;
+  supplier?: { id: string; name: string } | null;
+};
+type Award = {
+  id: string;
+  approval_status: string;
+  contract_value: number;
+  currency: string;
+  award_date: string;
+  award_notes: string;
+  supplier?: { name: string } | null;
+};
 
-export function ProcurementBidInbox(){const params=useSearchParams(),router=useRouter(),tenderId=params.get("tender")||"",tenders=useData<{data:Tender[]}>("/api/procurement?resource=tenders"),detail=useData<{data:Tender}>(tenderId?`/api/procurement?resource=tender&id=${tenderId}`:null),result=useData<{data:Bid[];meta:{sealed:boolean;deadline:string}}>(tenderId?`/api/procurement?resource=bids&tenderId=${tenderId}`:null),[selected,setSelected]=useState<string[]>([]),[message,setMessage]=useState("");const tender=detail.data?.data;async function decide(bid:Bid,decision:"shortlist"|"clarification"|"interview"|"unsuccessful"|"under_review"){try{await api("/api/procurement",{action:"shortlist",tenderId:bid.tender_id,bidId:bid.id,lotId:null,decision,note:""});setMessage(`Supplier marked ${decision.replaceAll("_"," ")}.`);invalidate();}catch(e){setMessage((e as Error).message);}}async function award(bid:Bid){const value=window.prompt("Contract value",String(bid.bid_price||""));if(value==null||Number.isNaN(Number(value)))return;try{await api("/api/procurement",{action:"award",tenderId:bid.tender_id,bidId:bid.id,supplierOrganizationId:bid.supplier_organization_id,lotIds:[],contractValue:Number(value),currency:bid.currency,awardDate:new Date().toISOString().slice(0,10),expectedStartDate:null,expectedEndDate:null,awardNotes:"",submitForApproval:Boolean(tender?.approval_required)});setMessage(tender?.approval_required?"Award recommendation sent for approval.":"Award recommendation created.");invalidate();}catch(e){setMessage((e as Error).message);}}return <><div className="pw-hero"><p className="pw-eyebrow">SECURE BID INBOX</p><h1>Bids received</h1><p>Compare submitted evidence, shortlist suppliers, schedule interviews and prepare a human-approved award.</p></div><section className="pw-card mt-5"><label className="block text-sm font-bold">Tender<select className="mt-2 w-full rounded-xl border bg-white p-3" value={tenderId} onChange={e=>router.push(`/procurement/bids?tender=${e.target.value}`)}><option value="">Choose a tender</option>{tenders.data?.data.map(t=><option value={t.id} key={t.id}>{t.title}</option>)}</select></label></section>{message&&<p className={/marked|created|approval/.test(message)?"pw-notice":"pw-error"}>{message}</p>}{!tenderId?<section className="pw-empty"><Scale size={34}/><h2>Choose a tender</h2><p>Select a tender to open its secure bid inbox.</p></section>:result.loading?<div className="pw-card" aria-busy="true">Loading submitted bids…</div>:result.error?<p className="pw-error">{result.error}</p>:result.data?.meta.sealed?<section className="pw-empty"><ShieldCheck size={35}/><h2>Bids remain sealed</h2><p>Protected content stays inaccessible until {new Date(result.data.meta.deadline).toLocaleString("en-GB")}.</p></section>:!result.data?.data.length?<section className="pw-empty"><Scale size={34}/><h2>No bids have been received yet</h2><p>Submitted supplier bids will appear here.</p></section>:<><section className="pw-card mt-5"><table className="pw-table"><thead><tr><th/><th>Supplier</th><th>Price</th><th>Delivery</th><th>Submitted</th><th>Status</th><th>Actions</th></tr></thead><tbody>{result.data.data.map(b=><tr key={b.id}><td><input aria-label={`Compare ${b.supplier?.name||"supplier"}`} type="checkbox" checked={selected.includes(b.id)} onChange={e=>setSelected(s=>e.target.checked?[...s,b.id]:s.filter(id=>id!==b.id))}/></td><td><strong>{b.supplier?.name||"Supplier"}</strong></td><td>{b.bid_price==null?"Not stated":`${b.currency} ${Number(b.bid_price).toLocaleString()}`}</td><td>{b.delivery_period||"Not stated"}</td><td>{b.submitted_at?new Date(b.submitted_at).toLocaleString("en-GB"):"—"}</td><td><span className="pw-badge">{b.status.replaceAll("_"," ")}</span></td><td><div className="pw-actions"><button className="pw-button" onClick={()=>void decide(b,"shortlist")}>Shortlist</button><Link className="pw-button" href={`/procurement/meetings?tender=${b.tender_id}&bid=${b.id}&supplier=${b.supplier_organization_id}`}><CalendarDays size={14}/>Interview</Link>{["shortlisted","interview_requested","interview_scheduled","under_review"].includes(b.status)&&<button className="pw-button gold" onClick={()=>void award(b)}><Trophy size={14}/>Award</button>}</div></td></tr>)}</tbody></table></section>{selected.length>1&&<section className="pw-card pw-compare mt-5"><h2>Compare selected bids</h2><p>Differences are presented for human evaluation; BidScope does not choose a winner.</p><div className="pw-compare-grid">{result.data.data.filter(b=>selected.includes(b.id)).map(b=><article key={b.id}><h3>{b.supplier?.name||"Supplier"}</h3><p><strong>Price</strong><br/>{b.bid_price==null?"Not stated":`${b.currency} ${Number(b.bid_price).toLocaleString()}`}</p><p><strong>Delivery</strong><br/>{b.delivery_period||"Not stated"}</p><p><strong>Validity</strong><br/>{b.bid_validity_days?`${b.bid_validity_days} days`:"Not stated"}</p><p><strong>Technical response</strong><br/>{b.technical_response||"Not supplied"}</p><p><strong>Methodology</strong><br/>{b.methodology_response||"Not supplied"}</p><button className="pw-button primary" onClick={()=>void decide(b,"shortlist")}><CheckCircle2 size={14}/>Shortlist</button></article>)}</div></section>}</>}</>}
+export function ProcurementBidInbox() {
+  const params = useSearchParams(),
+    router = useRouter(),
+    tenderId = params.get("tender") || "",
+    tenders = useData<{ data: Tender[] }>("/api/procurement?resource=tenders"),
+    detail = useData<{ data: Tender }>(
+      tenderId ? `/api/procurement?resource=tender&id=${tenderId}` : null,
+    ),
+    result = useData<{
+      data: Bid[];
+      meta: { sealed: boolean; deadline: string };
+    }>(tenderId ? `/api/procurement?resource=bids&tenderId=${tenderId}` : null),
+    awards = useData<{ data: Award[] }>(
+      tenderId ? `/api/procurement?resource=awards&tenderId=${tenderId}` : null,
+    ),
+    [selected, setSelected] = useState<string[]>([]),
+    [message, setMessage] = useState("");
+  const tender = detail.data?.data;
+  async function decide(
+    bid: Bid,
+    decision:
+      | "shortlist"
+      | "clarification"
+      | "interview"
+      | "unsuccessful"
+      | "under_review",
+  ) {
+    try {
+      await api("/api/procurement", {
+        action: "shortlist",
+        tenderId: bid.tender_id,
+        bidId: bid.id,
+        lotId: null,
+        decision,
+        note: "",
+      });
+      setMessage(`Supplier marked ${decision.replaceAll("_", " ")}.`);
+      invalidate();
+    } catch (e) {
+      setMessage((e as Error).message);
+    }
+  }
+  async function award(bid: Bid) {
+    const value = window.prompt("Contract value", String(bid.bid_price || ""));
+    if (value == null || Number.isNaN(Number(value))) return;
+    try {
+      await api("/api/procurement", {
+        action: "award",
+        tenderId: bid.tender_id,
+        bidId: bid.id,
+        supplierOrganizationId: bid.supplier_organization_id,
+        lotIds: [],
+        contractValue: Number(value),
+        currency: bid.currency,
+        awardDate: new Date().toISOString().slice(0, 10),
+        expectedStartDate: null,
+        expectedEndDate: null,
+        awardNotes: "",
+        submitForApproval: Boolean(tender?.approval_required),
+      });
+      setMessage(
+        tender?.approval_required
+          ? "Award recommendation sent for approval."
+          : "Award recommendation created.",
+      );
+      invalidate();
+    } catch (e) {
+      setMessage((e as Error).message);
+    }
+  }
+  async function requestClarification(bid: Bid) {
+    const subject = window.prompt("Clarification subject");
+    if (!subject) return;
+    const clarification = window.prompt("What must the supplier clarify?");
+    if (!clarification) return;
+    try {
+      await api("/api/procurement", {
+        action: "clarification",
+        tenderId: bid.tender_id,
+        bidId: bid.id,
+        recipientOrganizationId: bid.supplier_organization_id,
+        subject,
+        message: clarification,
+        responseDeadline: null,
+      });
+      setMessage("Clarification request sent securely to the supplier.");
+      invalidate();
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  }
+  async function approveAward(awardId: string, approve: boolean) {
+    const note = window.prompt(
+      approve ? "Optional approval note" : "Reason for rejecting this award",
+    );
+    if (!approve && !note) return;
+    try {
+      await api("/api/procurement", {
+        action: "approve_award",
+        awardId,
+        approve,
+        note: note || undefined,
+      });
+      setMessage(approve ? "Award finalised." : "Award rejected.");
+      invalidate();
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  }
+  return (
+    <>
+      <div className="pw-hero">
+        <p className="pw-eyebrow">SECURE BID INBOX</p>
+        <h1>Bids received</h1>
+        <p>
+          Compare submitted evidence, shortlist suppliers, schedule interviews
+          and prepare a human-approved award.
+        </p>
+      </div>
+      <section className="pw-card mt-5">
+        <label className="block text-sm font-bold">
+          Tender
+          <select
+            className="mt-2 w-full rounded-xl border bg-white p-3"
+            value={tenderId}
+            onChange={(e) =>
+              router.push(`/procurement/bids?tender=${e.target.value}`)
+            }
+          >
+            <option value="">Choose a tender</option>
+            {tenders.data?.data.map((t) => (
+              <option value={t.id} key={t.id}>
+                {t.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+      {message && (
+        <p
+          className={
+            /marked|created|approval/.test(message) ? "pw-notice" : "pw-error"
+          }
+        >
+          {message}
+        </p>
+      )}
+      {!!awards.data?.data.length && (
+        <section className="pw-card mt-5">
+          <h2>Award recommendations</h2>
+          <p>
+            Final approval is a human decision. BidScope records the approver,
+            timestamp and outcome for the audit trail.
+          </p>
+          {awards.data.data.map((award) => (
+            <div className="pw-row" key={award.id}>
+              <span>
+                <strong>{award.supplier?.name || "Supplier"}</strong>
+                <small>
+                  {award.currency}{" "}
+                  {Number(award.contract_value).toLocaleString()}
+                  {" · "}
+                  {award.approval_status.replaceAll("_", " ")}
+                </small>
+              </span>
+              {award.approval_status === "pending" && (
+                <span className="pw-actions">
+                  <button
+                    className="pw-button primary"
+                    onClick={() => void approveAward(award.id, true)}
+                  >
+                    Approve award
+                  </button>
+                  <button
+                    className="pw-button"
+                    onClick={() => void approveAward(award.id, false)}
+                  >
+                    Reject
+                  </button>
+                </span>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
+      {!tenderId ? (
+        <section className="pw-empty">
+          <Scale size={34} />
+          <h2>Choose a tender</h2>
+          <p>Select a tender to open its secure bid inbox.</p>
+        </section>
+      ) : result.loading ? (
+        <div className="pw-card" aria-busy="true">
+          Loading submitted bids…
+        </div>
+      ) : result.error ? (
+        <p className="pw-error">{result.error}</p>
+      ) : result.data?.meta.sealed ? (
+        <section className="pw-empty">
+          <ShieldCheck size={35} />
+          <h2>Bids remain sealed</h2>
+          <p>
+            Protected content stays inaccessible until{" "}
+            {new Date(result.data.meta.deadline).toLocaleString("en-GB")}.
+          </p>
+        </section>
+      ) : !result.data?.data.length ? (
+        <section className="pw-empty">
+          <Scale size={34} />
+          <h2>No bids have been received yet</h2>
+          <p>Submitted supplier bids will appear here.</p>
+        </section>
+      ) : (
+        <>
+          <section className="pw-card mt-5">
+            <table className="pw-table">
+              <thead>
+                <tr>
+                  <th />
+                  <th>Supplier</th>
+                  <th>Price</th>
+                  <th>Delivery</th>
+                  <th>Submitted</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.data.data.map((b) => (
+                  <tr key={b.id}>
+                    <td>
+                      <input
+                        aria-label={`Compare ${b.supplier?.name || "supplier"}`}
+                        type="checkbox"
+                        checked={selected.includes(b.id)}
+                        onChange={(e) =>
+                          setSelected((s) =>
+                            e.target.checked
+                              ? [...s, b.id]
+                              : s.filter((id) => id !== b.id),
+                          )
+                        }
+                      />
+                    </td>
+                    <td>
+                      <strong>{b.supplier?.name || "Supplier"}</strong>
+                    </td>
+                    <td>
+                      {b.bid_price == null
+                        ? "Not stated"
+                        : `${b.currency} ${Number(b.bid_price).toLocaleString()}`}
+                    </td>
+                    <td>{b.delivery_period || "Not stated"}</td>
+                    <td>
+                      {b.submitted_at
+                        ? new Date(b.submitted_at).toLocaleString("en-GB")
+                        : "—"}
+                    </td>
+                    <td>
+                      <span className="pw-badge">
+                        {b.status.replaceAll("_", " ")}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="pw-actions">
+                        <button
+                          className="pw-button"
+                          onClick={() => void decide(b, "shortlist")}
+                        >
+                          Shortlist
+                        </button>
+                        <button
+                          className="pw-button"
+                          onClick={() => void requestClarification(b)}
+                        >
+                          Clarify
+                        </button>
+                        <button
+                          className="pw-button"
+                          onClick={() => void decide(b, "unsuccessful")}
+                        >
+                          Unsuccessful
+                        </button>
+                        <Link
+                          className="pw-button"
+                          href={`/procurement/meetings?tender=${b.tender_id}&bid=${b.id}&supplier=${b.supplier_organization_id}`}
+                        >
+                          <CalendarDays size={14} />
+                          Interview
+                        </Link>
+                        {[
+                          "shortlisted",
+                          "interview_requested",
+                          "interview_scheduled",
+                          "under_review",
+                        ].includes(b.status) && (
+                          <button
+                            className="pw-button gold"
+                            onClick={() => void award(b)}
+                          >
+                            <Trophy size={14} />
+                            Award
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+          {selected.length > 1 && (
+            <section className="pw-card pw-compare mt-5">
+              <h2>Compare selected bids</h2>
+              <p>
+                Differences are presented for human evaluation; BidScope does
+                not choose a winner.
+              </p>
+              <div className="pw-compare-grid">
+                {result.data.data
+                  .filter((b) => selected.includes(b.id))
+                  .map((b) => (
+                    <article key={b.id}>
+                      <h3>{b.supplier?.name || "Supplier"}</h3>
+                      <p>
+                        <strong>Price</strong>
+                        <br />
+                        {b.bid_price == null
+                          ? "Not stated"
+                          : `${b.currency} ${Number(b.bid_price).toLocaleString()}`}
+                      </p>
+                      <p>
+                        <strong>Delivery</strong>
+                        <br />
+                        {b.delivery_period || "Not stated"}
+                      </p>
+                      <p>
+                        <strong>Validity</strong>
+                        <br />
+                        {b.bid_validity_days
+                          ? `${b.bid_validity_days} days`
+                          : "Not stated"}
+                      </p>
+                      <p>
+                        <strong>Technical response</strong>
+                        <br />
+                        {b.technical_response || "Not supplied"}
+                      </p>
+                      <p>
+                        <strong>Methodology</strong>
+                        <br />
+                        {b.methodology_response || "Not supplied"}
+                      </p>
+                      <button
+                        className="pw-button primary"
+                        onClick={() => void decide(b, "shortlist")}
+                      >
+                        <CheckCircle2 size={14} />
+                        Shortlist
+                      </button>
+                    </article>
+                  ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+    </>
+  );
+}
