@@ -255,6 +255,7 @@ export function ProcurementPage({
   section: string;
   identifier?: string;
 }) {
+  if (section === "onboarding") return <BuyerOnboarding />;
   if (section === "create") return <TenderForm tenderId={identifier} />;
   if (section === "tenders" && identifier)
     return <TenderDetail id={identifier} />;
@@ -280,6 +281,90 @@ export function ProcurementPage({
         <ProcurementSettings />
       )}
     </CapabilityGate>
+  );
+}
+
+function BuyerOnboarding() {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const memberships = useData<{ data: Array<{ organization: { id: string; can_procure: boolean } }> }>("/api/organizations");
+  const existingBuyer = memberships.data?.data.find((item) => item.organization?.can_procure);
+
+  if (existingBuyer) {
+    return (
+      <>
+        <Heading title="Buyer workspace ready" description="Your procuring organisation is already connected to BidScope." />
+        <section className="pw-card mt-5">
+          <h2>Continue to procurement</h2>
+          <p>Your buyer account is active. Open the procurement command centre to manage tenders, bids and evaluations.</p>
+          <Link className="pw-button primary mt-4" href="/procurement">Open buyer workspace</Link>
+        </section>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Heading
+        eyebrow="BUYER ACCOUNT SETUP"
+        title="Create your procuring organisation"
+        description="Set up the organisation that will publish tenders, receive supplier bids and manage procurement decisions."
+      />
+      <form
+        className="pw-form mt-5"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setBusy(true);
+          setMessage("");
+          const form = new FormData(event.currentTarget);
+          const list = (name: string) => String(form.get(name) || "").split(",").map((value) => value.trim()).filter(Boolean);
+          const name = String(form.get("name") || "").trim();
+          try {
+            await api("/api/me", { fullName: form.get("fullName") }, "PATCH");
+            await api("/api/organizations", {
+              name,
+              slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "buyer"}-${crypto.randomUUID().slice(0, 8)}`,
+              sectors: list("sectors"),
+              region: form.get("region"),
+              accountType: "buyer",
+              registrationNumber: form.get("registrationNumber"),
+              companyEmail: form.get("companyEmail"),
+              contactPerson: form.get("contactPerson"),
+              organizationType: form.get("organizationType"),
+              services: [],
+              products: [],
+              expectedProcurementCategories: list("expectedProcurementCategories"),
+            });
+            invalidate();
+            setMessage("Your buyer workspace is ready.");
+            router.replace("/procurement/settings?onboarding=buyer");
+          } catch (error) {
+            setMessage(error instanceof Error ? error.message : "Buyer setup could not be completed.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <section className="pw-form-section">
+          <div className="pw-card-heading"><span><Building2 size={18} /><h2>Organisation identity</h2></span><span className="pw-badge gold">Buyer account</span></div>
+          <p>Use the official details of the procuring organisation. Buyer verification is required before a tender can be published.</p>
+          <div className="pw-fields">
+            <label>Account holder<input name="fullName" required autoComplete="name" placeholder="Your full name" /></label>
+            <label>Organisation name<input name="name" required autoComplete="organization" placeholder="Official organisation name" /></label>
+            <label>Organisation type<select name="organizationType" defaultValue="public_entity"><option value="public_entity">Public entity</option><option value="state_owned_enterprise">State-owned enterprise</option><option value="development_partner">Development partner</option><option value="private_buyer">Private buyer</option><option value="ngo">NGO / Non-profit</option></select></label>
+            <label>Registration number<input name="registrationNumber" required placeholder="Official registration or entity number" /></label>
+            <label>Company email<input name="companyEmail" type="email" required autoComplete="email" placeholder="procurement@organisation.com" /></label>
+            <label>Procurement contact<input name="contactPerson" required placeholder="Lead contact name" /></label>
+            <label>Region<input name="region" required placeholder="Greater Accra" /></label>
+            <label>Sectors<input name="sectors" required placeholder="Infrastructure, health, ICT" /></label>
+            <label className="wide">Expected procurement categories<input name="expectedProcurementCategories" required placeholder="Works, professional services, equipment — separate with commas" /></label>
+          </div>
+          {message && <p className={message.includes("ready") ? "pw-notice mt-4" : "pw-error mt-4"}>{message}</p>}
+          <button className="pw-button primary mt-5" disabled={busy}>{busy ? "Creating buyer workspace…" : "Create buyer workspace"}</button>
+        </section>
+      </form>
+    </>
   );
 }
 

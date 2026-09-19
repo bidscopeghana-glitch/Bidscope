@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { storeSession } from "@/lib/client/session";
 import { customerReturnPath } from "@/lib/auth-return";
+import { resolveWorkspaceEntry } from "@/lib/client/workspace-entry";
 
 export default function GoogleAuthCallbackPage() {
   const [state, setState] = useState<"loading" | "success" | "error">("loading");
@@ -46,10 +47,13 @@ export default function GoogleAuthCallbackPage() {
       : Promise.resolve();
     window.history.replaceState({}, document.title, "/auth/callback");
     let redirect: number | undefined;
-    void recordConsent.then(() => {
+    void recordConsent.then(async () => {
+      const requestedMode = query.get("usageMode");
+      const intendedMode = requestedMode === "buyer" || requestedMode === "supplier" ? requestedMode : null;
+      const destination = await resolveWorkspaceEntry(accessToken, { requestedPath: customerReturnPath(query.get("next")), intendedMode });
       setState("success");
       setMessage("You are signed in. Opening your BidScope workspace…");
-      redirect = window.setTimeout(() => router.replace(customerReturnPath(query.get("next"))), 700);
+      redirect = window.setTimeout(() => router.replace(destination), 700);
     }).catch((consentError) => {
       setState("error");
       setMessage(consentError instanceof Error ? consentError.message : "Your legal consent could not be recorded.");

@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || requestUrl.origin).replace(/\/$/, "");
     const endpoint = action === "sign-in"
       ? `${url}/auth/v1/token?grant_type=password`
-      : `${url}/auth/v1/signup?redirect_to=${encodeURIComponent(`${siteUrl}/auth/callback?next=${encodeURIComponent(`/customer/profile?onboarding=${usageMode}`)}`)}`;
+      : `${url}/auth/v1/signup?redirect_to=${encodeURIComponent(`${siteUrl}/auth/callback?next=${encodeURIComponent(usageMode === "buyer" ? "/procurement/onboarding" : "/customer/profile?onboarding=seller")}`)}`;
 
     const response = await fetch(endpoint, {
       method: "POST",

@@ -5,6 +5,7 @@ import { ArrowRight, BriefcaseBusiness, Building2, CheckCircle2, Eye, EyeOff, Lo
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { storeSession } from "@/lib/client/session";
+import { resolveWorkspaceEntry } from "@/lib/client/workspace-entry";
 
 type Mode = "sign-in" | "sign-up";
 type State = "idle" | "submitting" | "success" | "error";
@@ -64,7 +65,11 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
       storeSession({ accessToken: result.accessToken, refreshToken: result.refreshToken, expiresIn: result.expiresIn });
       setState("success");
       setMessage(mode === "sign-up" ? "Your account is ready. Opening BidScope…" : "Welcome back. Opening BidScope…");
-      window.setTimeout(() => router.replace(mode === "sign-up" ? `/customer/profile?onboarding=${usageMode}` : returnTo), 500);
+      const destination = await resolveWorkspaceEntry(result.accessToken, {
+        requestedPath: returnTo,
+        intendedMode: mode === "sign-up" ? usageMode : null,
+      });
+      window.setTimeout(() => router.replace(destination), 500);
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Please try again.");
@@ -128,7 +133,7 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
 
       <div className="my-5 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[.12em] text-[#89958f] before:h-px before:flex-1 before:bg-[#17362d]/10 after:h-px after:flex-1 after:bg-[#17362d]/10">or continue with</div>
 
-      <a href={mode === "sign-up" && (!usageMode || !legalAccepted) ? (!usageMode ? "#account-type" : "#legal-consent") : `/api/auth/google?intent=${mode}&legalAccepted=${legalAccepted}&usageMode=${usageMode}&next=${encodeURIComponent(mode === "sign-up" ? `/customer/profile?onboarding=${usageMode}` : returnTo)}`} onClick={(event) => { if (mode === "sign-up" && !usageMode) { event.preventDefault(); setState("error"); setMessage("Choose a Seller / Supplier account or a Buyer account."); } else if (mode === "sign-up" && !legalAccepted) { event.preventDefault(); setState("error"); setMessage("Accept the legal terms above before signing up with Google."); } }} aria-disabled={mode === "sign-up" && (!usageMode || !legalAccepted)} className={`group flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-[#17362d]/15 bg-white px-4 text-sm font-bold text-[#17362d] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#116149]/30 ${mode === "sign-up" && (!usageMode || !legalAccepted) ? "cursor-not-allowed opacity-60" : "hover:-translate-y-0.5 hover:border-[#116149]/30 hover:shadow-md"}`}>
+      <a href={mode === "sign-up" && (!usageMode || !legalAccepted) ? (!usageMode ? "#account-type" : "#legal-consent") : `/api/auth/google?intent=${mode}&legalAccepted=${legalAccepted}&usageMode=${usageMode}&next=${encodeURIComponent(returnTo)}`} onClick={(event) => { if (mode === "sign-up" && !usageMode) { event.preventDefault(); setState("error"); setMessage("Choose a Seller / Supplier account or a Buyer account."); } else if (mode === "sign-up" && !legalAccepted) { event.preventDefault(); setState("error"); setMessage("Accept the legal terms above before signing up with Google."); } }} aria-disabled={mode === "sign-up" && (!usageMode || !legalAccepted)} className={`group flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-[#17362d]/15 bg-white px-4 text-sm font-bold text-[#17362d] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#116149]/30 ${mode === "sign-up" && (!usageMode || !legalAccepted) ? "cursor-not-allowed opacity-60" : "hover:-translate-y-0.5 hover:border-[#116149]/30 hover:shadow-md"}`}>
         <span aria-hidden="true" className="grid size-7 place-items-center rounded-full border border-[#17362d]/10 bg-white font-extrabold text-[#4285f4] shadow-sm">G</span>
         {mode === "sign-up" ? "Sign up with Google" : "Sign in with Google"}
       </a>

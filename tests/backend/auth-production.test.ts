@@ -62,16 +62,25 @@ test("administrator control is restricted to the builder identity and database f
 test("sign-up account type configures the correct organisation workspace", () => {
   const panel = read("app/sign-in/auth-panel.tsx");
   const password = read("app/api/auth/password/route.ts");
+  const workspace = read("app/api/auth/workspace/route.ts");
+  const entry = read("lib/client/workspace-entry.ts");
+  const callback = read("app/auth/callback/page.tsx");
+  const buyerWorkspace = read("components/procurement/buyer-workspace.tsx");
   const organizations = read("app/api/organizations/route.ts");
-  const profile = read("components/customer/pages.tsx");
   assert.match(panel, /Choose your account type/);
   assert.match(panel, /Seller \/ Supplier account/);
   assert.match(panel, /Buyer \/ Procuring Organisation account/);
-  assert.match(password, /customer\/profile\?onboarding=\$\{usageMode\}/);
+  assert.match(password, /usageMode === "buyer" \? "\/procurement\/onboarding"/);
+  assert.match(panel, /resolveWorkspaceEntry/);
+  assert.match(callback, /resolveWorkspaceEntry/);
+  assert.match(workspace, /organization\.can_procure && !organization\.can_bid/);
+  assert.match(workspace, /"\/procurement\/onboarding"/);
+  assert.match(entry, /intendedMode === "buyer"/);
   assert.match(organizations, /can_bid: !buyer/);
   assert.match(organizations, /can_procure: buyer/);
-  assert.match(profile, /accountType/);
-  assert.match(profile, /\/procurement\/settings\?onboarding=buyer/);
+  assert.match(buyerWorkspace, /function BuyerOnboarding/);
+  assert.match(buyerWorkspace, /accountType: "buyer"/);
+  assert.match(buyerWorkspace, /\/procurement\/settings\?onboarding=buyer/);
 });
 
 test("organisation onboarding captures buyer and supplier operational fields", () => {
