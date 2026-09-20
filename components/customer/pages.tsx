@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   api,
@@ -1390,14 +1390,16 @@ type Preference = {
   alert_type: string;
   in_app_enabled: boolean;
   email_enabled: boolean;
+  sms_enabled: boolean;
   frequency: string;
   urgent_override: boolean;
   reminder_days: number[];
 };
 function Alerts() {
-  const r = useData<{ data: Preference[]; emailConfigured: boolean }>(
+  const r = useData<{ data: Preference[]; emailConfigured: boolean; smsConfigured:boolean; smsEvents:string[]; phone:{masked:string|null;verified:boolean} }>(
     "/api/notification-preferences",
   );
+  const[phone,setPhone]=useState("");const[countryCode,setCountryCode]=useState("GH");const[otp,setOtp]=useState("");const[otpSent,setOtpSent]=useState(false);const[resendSeconds,setResendSeconds]=useState(0);
   const searches = useData<{
     data: {
       id: string;
@@ -1409,6 +1411,7 @@ function Alerts() {
     }[];
   }>("/api/customer?resource=searches");
   const { toast } = useAccount();
+  useEffect(()=>{if(resendSeconds<=0)return;const timer=window.setInterval(()=>setResendSeconds(value=>Math.max(0,value-1)),1000);return()=>window.clearInterval(timer);},[resendSeconds]);
   return (
     <>
       <Heading
@@ -1416,11 +1419,11 @@ function Alerts() {
         description="Choose the procurement events you receive and how often you hear from us."
       />
       <section className="cc-editor">
-        <h2>Delivery preferences</h2>
+        <div className="cc-section-heading"><div><p className="cc-eyebrow">Notification preferences</p><h2>Choose how BidScope contacts you</h2></div><span className="cc-badge positive">Secure & configurable</span></div>
         <p className="cc-quiet">
-          In-app alerts are available now. Email and WhatsApp controls remain
-          disabled until their delivery providers are connected.
+          Select a channel for each event. SMS is restricted to six approved transactional events and requires a verified mobile number.
         </p>
+        {!r.loading&&<div className="cc-phone-card"><div><strong>Mobile number</strong><p className="cc-quiet">{r.data?.phone.verified?`${r.data.phone.masked} · Verified ✓`:"Add and verify a mobile number to receive SMS notifications."}</p>{!r.data?.smsConfigured&&<p className="cc-quiet">SMS setup is not active yet. Your email and in-app alerts continue to work.</p>}</div>{!r.data?.phone.verified&&<div className="cc-phone-actions"><select aria-label="Phone country" value={countryCode} onChange={e=>setCountryCode(e.target.value)}><option value="GH">Ghana +233</option><option value="NG">Nigeria +234</option><option value="ZA">South Africa +27</option><option value="TZ">Tanzania +255</option><option value="OTHER">Other</option></select><input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="024 000 0000" aria-label="Mobile number"/><button className="cc-button primary" disabled={!r.data?.smsConfigured||!phone||resendSeconds>0} onClick={async()=>{try{await api("/api/phone/verification/request",{countryCode,phoneNumber:phone});setOtpSent(true);setResendSeconds(60);toast("Verification code sent.");}catch(error){toast((error as Error).message);}}}>{otpSent?(resendSeconds>0?`Resend in ${resendSeconds}s`:"Resend code"):"Verify number"}</button>{otpSent&&<><input value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,"").slice(0,6))} inputMode="numeric" placeholder="6-digit code" aria-label="Verification code"/><button className="cc-button" disabled={otp.length!==6} onClick={async()=>{try{await api("/api/phone/verification/confirm",{code:otp});toast("Mobile number verified.");setOtpSent(false);setOtp("");setResendSeconds(0);invalidate();}catch(error){toast((error as Error).message);}}}>Confirm code</button></>}</div>}</div>}
         {r.loading ? (
           <Skeleton />
         ) : r.error ? (
@@ -1440,6 +1443,7 @@ function Alerts() {
                       alertType: p.alert_type,
                       inAppEnabled: f.get("inapp") === "on",
                       emailEnabled: f.get("email") === "on",
+                      smsEnabled: f.get("sms") === "on",
                       frequency: f.get("frequency"),
                       urgentOverride: p.urgent_override,
                       reminderDays: p.reminder_days,
@@ -1453,7 +1457,7 @@ function Alerts() {
                 }
               }}
             >
-              <strong>{p.alert_type.replaceAll("_", " ")}</strong>
+              <div className="cc-preference-title"><strong>{{bid_received:"Bid received",meeting_reminder:"Meeting reminder",bid_awarded:"Bid awarded",otp_verification:"OTP verification",matching_tender:"New matching tender",watched_tender_closing:"Watched tender closing soon"}[p.alert_type]||p.alert_type.replaceAll("_"," ")}</strong><small>{p.alert_type==="bid_received"?"Buyer":p.alert_type==="otp_verification"?"Security":"Supplier & team"}</small></div>
               <label>
                 <input
                   type="checkbox"
@@ -1462,6 +1466,10 @@ function Alerts() {
                 />
                 In-app
               </label>
+              {r.data?.smsEvents.includes(p.alert_type)?<label>
+                <input type="checkbox" name="sms" defaultChecked={p.sms_enabled} disabled={!r.data?.smsConfigured||!r.data?.phone.verified}/>
+                SMS {!r.data?.smsConfigured?"(not connected)":!r.data?.phone.verified?"(verify number)":""}
+              </label>:<span className="cc-channel-unavailable">SMS not available for this event</span>}
               <label>
                 <input
                   type="checkbox"

@@ -1372,7 +1372,7 @@ export async function POST(request: Request) {
           dedupeKey: `bid-submitted-${bidId}-${nextVersion}`,
         });
         await notifyOrganisation(tender.organization_id, {
-          type: "system",
+          type: "bid_received",
           title: "New bid received",
           message: `A supplier submitted a bid for ${tender.title}.`,
           relatedEntityType: "supplier_bid",
@@ -2155,7 +2155,7 @@ export async function POST(request: Request) {
       await Promise.all(
         awards.map((award) =>
           notifyOrganisation(award.supplier_organization_id, {
-            type: "award",
+            type: "bid_awarded",
             title: "Contract awarded",
             message: `Your organisation has been awarded ${tender.title}.`,
             relatedEntityType: "procurement_award",

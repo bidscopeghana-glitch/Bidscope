@@ -230,12 +230,13 @@ export const procurementSourceAdminSchema = z.object({
   configuration: z.record(z.string(), z.unknown()).default({}),
 });
 
-export const alertTypeSchema = z.enum(["opportunity_match", "tender_amendment", "deadline", "buyer_activity", "award", "supplier_activity", "document_expiry", "workspace_reminder", "system"]);
+export const alertTypeSchema = z.enum(["opportunity_match", "tender_amendment", "deadline", "buyer_activity", "award", "supplier_activity", "document_expiry", "workspace_reminder", "system", "bid_received", "meeting_reminder", "bid_awarded", "otp_verification", "matching_tender", "watched_tender_closing"]);
 
 export const alertPreferenceUpdateSchema = z.object({
   alertType: alertTypeSchema,
   inAppEnabled: z.boolean(),
   emailEnabled: z.boolean(),
+  smsEnabled: z.boolean().default(false),
   frequency: z.enum(["instant", "daily", "weekly"]),
   urgentOverride: z.boolean().default(false),
   reminderDays: z.array(z.number().int().min(1).max(365)).max(8).default([]),
