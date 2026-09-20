@@ -29,8 +29,8 @@ export async function getEntitlement(organizationId:string,actor?:AuthenticatedU
   if(!adminPlan)throw new ApiError(503,"Subscription configuration is unavailable.","billing_configuration_unavailable");
   return{organizationId,tier:"PREMIUM" as const,plan:adminPlan,subscription:null,status:"ACTIVE" as SubscriptionStatus,manualGrant:null,adminOverride:true,features:Object.fromEntries(PREMIUM_FEATURES.map(feature=>[feature,true])) as Record<EntitlementFeature,boolean>,limits:adminPlan.limits};
  }
- const subscription=subscriptions[0]||null;const manualGrant=grants[0]||null;const premium=Boolean(manualGrant||(subscription&&/^(pro|premium|platinum)(?:_launch)?_(?:monthly|annual)$/.test(subscription.plan_code.toLowerCase())&&periodValid(subscription)));
- let plan=free;if(premium){const code=String(subscription?.metadata?.billing_plan_code||"platinum_monthly");plan=await planByCode(code)||await planByCode("platinum_monthly")||free;}
+ const subscription=subscriptions[0]||null;const manualGrant=grants[0]||null;const billingCode=String(subscription?.metadata?.billing_plan_code||subscription?.plan_code||"").toLowerCase();const premium=Boolean(manualGrant||(subscription&&/^(pro|premium|platinum)(?:_launch)?_(?:monthly|annual|momo_30|momo_365)$/.test(billingCode)&&periodValid(subscription)));
+ let plan=free;if(premium){const code=billingCode||"platinum_monthly";plan=await planByCode(code)||await planByCode("platinum_monthly")||free;}
  if(!plan)throw new ApiError(503,"Subscription configuration is unavailable.","billing_configuration_unavailable");
  return{organizationId,tier:premium?"PREMIUM" as const:"FREE" as const,plan,subscription,status:subscription?.status||"FREE" as SubscriptionStatus,manualGrant,adminOverride:false,features:premium?plan.features:free?.features||{},limits:premium?plan.limits:free?.limits||{}};
 }

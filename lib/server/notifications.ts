@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { escapeHtml } from "./alerts";
+import { createSecureToken } from "./outreach/campaign";
 import { supabaseRest } from "./supabase-rest";
 
 export type AlertType = "opportunity_match" | "tender_amendment" | "deadline" | "buyer_activity" | "award" | "supplier_activity" | "document_expiry" | "workspace_reminder" | "system";
@@ -67,9 +68,13 @@ async function sendEmail(delivery:PendingDelivery) {
   if (!to.length) return { status:"failed", reason:"User email address was not found." } as const;
   const site = process.env.NEXT_PUBLIC_SITE_URL || "https://www.bidscopeghana.com";
   const href = delivery.notification.related_url ? new URL(delivery.notification.related_url, site).toString() : `${site}/notifications`;
+  const unsubscribeToken=createSecureToken({kind:"alerts_unsubscribe",userId:delivery.notification.user_id},365);
+  const unsubscribeUrl=`${site}/unsubscribe/${unsubscribeToken}`;
+  const oneClickUnsubscribeUrl=`${site}/api/outreach/unsubscribe/${unsubscribeToken}`;
   const response = await fetch("https://api.resend.com/emails", { method:"POST", headers:{ Authorization:`Bearer ${key}`, "Content-Type":"application/json" }, body:JSON.stringify({
     from, to, subject:`BidScope: ${delivery.notification.title}`,
-    html:`<div style="background:#f7f2e7;padding:32px;font-family:Arial,sans-serif;color:#17362d"><div style="max-width:620px;margin:auto;background:#fffdf8;border-radius:20px;padding:28px"><p style="color:#116149;font-weight:700;letter-spacing:.12em;font-size:11px">BIDSCOPE PROCUREMENT INTELLIGENCE</p><h2>${escapeHtml(delivery.notification.title)}</h2><p style="line-height:1.7;color:#526a61">${escapeHtml(delivery.notification.message)}</p><p><a href="${escapeHtml(href)}" style="display:inline-block;background:#116149;color:white;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">View in BidScope</a></p><p style="font-size:12px;color:#718078">Always review the official tender documents before submitting a bid.</p></div></div>`,
+    headers:{"List-Unsubscribe":`<${oneClickUnsubscribeUrl}>`,"List-Unsubscribe-Post":"List-Unsubscribe=One-Click"},
+    html:`<div style="background:#f7f2e7;padding:32px;font-family:Arial,sans-serif;color:#17362d"><div style="max-width:620px;margin:auto;background:#fffdf8;border-radius:20px;padding:28px"><p style="color:#116149;font-weight:700;letter-spacing:.12em;font-size:11px">BIDSCOPE PROCUREMENT INTELLIGENCE</p><h2>${escapeHtml(delivery.notification.title)}</h2><p style="line-height:1.7;color:#526a61">${escapeHtml(delivery.notification.message)}</p><p><a href="${escapeHtml(href)}" style="display:inline-block;background:#116149;color:white;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">View in BidScope</a></p><p style="font-size:12px;color:#718078">Always review the official tender documents before submitting a bid.</p><p style="font-size:11px;color:#89968f"><a href="${site}/customer/alerts">Manage alert settings</a> · <a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from alert emails</a></p></div></div>`,
   }) });
   const result = await response.json().catch(() => ({})) as {id?:string;message?:string};
   return response.ok ? { status:"sent", providerMessageId:result.id || null } as const : { status:"failed", reason:result.message || `Email provider returned ${response.status}.` } as const;
