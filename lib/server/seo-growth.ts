@@ -11,7 +11,7 @@ export async function getSeoGrowthOverview(days=30){
   const from=since(safeDays);
   const staleCutoff=since(7);
   const [
-    {data:settings},{data:keywords},{data:content},{data:pageMetrics},{data:alerts},{data:backlinks},{data:experiments},{data:syncRuns},
+    {data:settings},{data:keywords},{data:content},{data:pageMetrics},{data:alerts},{data:backlinks},{data:experiments},{data:syncRuns},{data:insightEvents},
     sessions,organicSessions,signups,subscriptions,buyerSignups,supplierSignups,tenderWatches,bidsStarted,bidsSubmitted,tenderPosts,openTenders,staleTenders,thinTenders,operations
   ]=await Promise.all([
     supabaseRest<Array<Record<string,unknown>>>("seo_settings?singleton_key=eq.default&select=*&limit=1"),
@@ -22,6 +22,7 @@ export async function getSeoGrowthOverview(days=30){
     supabaseRest<Array<Record<string,unknown>>>("seo_backlinks?select=*&order=updated_at.desc&limit=100"),
     supabaseRest<Array<Record<string,unknown>>>("seo_experiments?select=*&order=created_at.desc&limit=50"),
     supabaseRest<Array<Record<string,unknown>>>("seo_sync_runs?select=*&order=started_at.desc&limit=10"),
+    supabaseRest<Array<{page_path:string|null}>>(`seo_conversion_events?event_name=eq.insight_cta_clicked&created_at=gte.${from}&select=page_path&limit=5000`),
     count(`seo_traffic_sessions?select=id&first_seen_at=gte.${from}`),
     count(`seo_traffic_sessions?select=id&first_seen_at=gte.${from}&or=(first_medium.eq.organic,first_source.eq.google)`),
     count(`seo_conversion_events?select=id&event_name=in.(sign_up,buyer_signup,supplier_signup)&created_at=gte.${from}`),
@@ -41,6 +42,7 @@ export async function getSeoGrowthOverview(days=30){
   const totalClicks=pageMetrics.reduce((sum,row)=>sum+Number(row.clicks||0),0);
   const revenueMinor=pageMetrics.reduce((sum,row)=>sum+Number(row.revenue_minor||0),0);
   const avgPosition=pageMetrics.length?pageMetrics.reduce((sum,row)=>sum+Number(row.average_position||0),0)/pageMetrics.filter(row=>row.average_position!=null).length:0;
+  const articleMetrics=content.filter(row=>String(row.slug||"")).map(row=>{const page=`/insights/${String(row.slug)}`,metrics=pageMetrics.filter(metric=>String(metric.page_url)===page||String(metric.page_url)===`https://www.bidscopeghana.com${page}`);return{slug:String(row.slug),impressions:metrics.reduce((sum,metric)=>sum+Number(metric.impressions||0),0),clicks:metrics.reduce((sum,metric)=>sum+Number(metric.clicks||0),0),sessions:metrics.reduce((sum,metric)=>sum+Number(metric.organic_sessions||0),0),signups:metrics.reduce((sum,metric)=>sum+Number(metric.signups||0),0),tenderViews:metrics.reduce((sum,metric)=>sum+Number(metric.tender_views||0),0),tenderWatches:metrics.reduce((sum,metric)=>sum+Number(metric.tender_watches||0),0),subscriptions:metrics.reduce((sum,metric)=>sum+Number(metric.subscriptions||0),0),buyerRegistrations:metrics.reduce((sum,metric)=>sum+Number(metric.buyer_registrations||0),0),ctaClicks:insightEvents.filter(event=>event.page_path===page).length}});
   return {
     rangeDays:safeDays,
     settings:settings[0]||null,
@@ -52,7 +54,7 @@ export async function getSeoGrowthOverview(days=30){
       sitemap:"https://www.bidscopeghana.com/sitemap.xml",
     },
     metrics:{sessions,organicSessions,signups,subscriptions,buyerSignups,supplierSignups,tenderWatches,bidsStarted,bidsSubmitted,tenderPosts,totalImpressions,totalClicks,ctr:totalImpressions?totalClicks/totalImpressions:0,averagePosition:Number.isFinite(avgPosition)?avgPosition:0,revenueMinor,openTenders,staleTenders,thinTenders},
-    keywords,content,pageMetrics,alerts,backlinks,experiments,syncRuns,operations,
+    keywords,content,pageMetrics,articleMetrics,alerts,backlinks,experiments,syncRuns,operations,
   };
 }
 

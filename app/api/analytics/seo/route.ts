@@ -4,7 +4,7 @@ import {apiErrorResponse} from "@/lib/server/api-error";
 import {supabaseRest} from "@/lib/server/supabase-rest";
 
 const touch=z.object({source:z.string().max(120).nullable().optional(),medium:z.string().max(120).nullable().optional(),campaign:z.string().max(200).nullable().optional()});
-const eventNames=["sign_up","sign_in","supplier_signup","buyer_signup","tender_view","tender_watch","alert_created","tender_alert_created","subscription_click","subscription_started","subscription_completed","subscription_paid","bid_started","bid_submitted","tender_post_started","tender_post_completed","related_tender_click","protected_details_click","service_request","official_source_opened"] as const;
+const eventNames=["sign_up","sign_in","supplier_signup","buyer_signup","tender_view","tender_watch","alert_created","tender_alert_created","subscription_click","subscription_started","subscription_completed","subscription_paid","bid_started","bid_submitted","tender_post_started","tender_post_completed","related_tender_click","protected_details_click","service_request","official_source_opened","insight_cta_clicked","insight_to_tender","insight_to_signup","insight_to_buyer_signup","insight_to_supplier_signup","insight_to_post_tender","insight_to_alert"] as const;
 const schema=z.object({
   visitorId:z.string().uuid(),sessionId:z.string().uuid(),landingPath:z.string().startsWith("/").max(500),pagePath:z.string().startsWith("/").max(500),
   referrerHost:z.string().max(255).nullable().optional(),deviceType:z.enum(["mobile","tablet","desktop"]),first:touch,last:touch,

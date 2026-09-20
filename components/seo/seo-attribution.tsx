@@ -2,7 +2,7 @@
 import{useEffect}from"react";
 import{usePathname,useSearchParams}from"next/navigation";
 type Touch={source:string|null;medium:string|null;campaign:string|null};
-type SeoEvent="sign_up"|"sign_in"|"supplier_signup"|"buyer_signup"|"tender_view"|"tender_watch"|"alert_created"|"tender_alert_created"|"subscription_click"|"subscription_started"|"subscription_completed"|"subscription_paid"|"bid_started"|"bid_submitted"|"tender_post_started"|"tender_post_completed"|"related_tender_click"|"protected_details_click"|"service_request"|"official_source_opened";
+type SeoEvent="sign_up"|"sign_in"|"supplier_signup"|"buyer_signup"|"tender_view"|"tender_watch"|"alert_created"|"tender_alert_created"|"subscription_click"|"subscription_started"|"subscription_completed"|"subscription_paid"|"bid_started"|"bid_submitted"|"tender_post_started"|"tender_post_completed"|"related_tender_click"|"protected_details_click"|"service_request"|"official_source_opened"|"insight_cta_clicked"|"insight_to_tender"|"insight_to_signup"|"insight_to_buyer_signup"|"insight_to_supplier_signup"|"insight_to_post_tender"|"insight_to_alert";
 declare global{interface Window{trackBidScopeSeoConversion?:(eventName:SeoEvent,options?:{valueMinor?:number;currency?:string;metadata?:Record<string,unknown>})=>void;trackBidScopeInternalSearch?:(query:string,resultCount:number)=>void}}
 const key="bidscope_seo_first_touch",visitorKey="bidscope_seo_visitor",sessionKey="bidscope_seo_session";
 function identifier(storage:Storage,name:string){let value=storage.getItem(name);if(!value){value=crypto.randomUUID();storage.setItem(name,value)}return value}

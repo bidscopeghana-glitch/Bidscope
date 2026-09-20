@@ -70,7 +70,7 @@ test("editorial publishing is review first and only exposes published indexable 
   const editor=read("components/admin/seo-content-workspace.tsx"),content=read("lib/server/seo-content.ts");
   assert.match(editor,/Nothing auto-publishes/);
   assert.match(editor,/quality warnings/);
-  assert.match(content,/status=eq\.published&indexable=eq\.true/);
+  assert.match(content,/status=in\.\(published,refresh_due\)&indexable=eq\.true/);
   assert.match(read("app/sitemap.ts"),/listPublishedSeoContent/);
 });
 
@@ -95,4 +95,40 @@ test("organic attribution supports required acquisition and procurement events",
   for(const event of["buyer_signup","supplier_signup","tender_watch","tender_alert_created","subscription_completed","bid_started","bid_submitted","tender_post_started","tender_post_completed"])assert.match(route,new RegExp(`\\"${event}\\"`));
   assert.match(client,/trackBidScopeInternalSearch/);
   assert.match(client,/medium:\"organic\"/);
+});
+
+test("Insights authority activation publishes a complete reviewed cluster and planned calendar",()=>{
+  const sql=read("supabase/migrations/20260920235900_activate_insights_content_authority.sql");
+  const slugs=["how-to-find-tenders-in-ghana","how-to-bid-for-contracts-in-ghana","rfq-vs-rfp-vs-tender","documents-suppliers-should-prepare-before-bidding","how-businesses-can-run-private-tenders-on-bidscope","how-to-compare-supplier-bids-fairly","how-tender-alerts-work-on-bidscope","common-tendering-mistakes-suppliers-should-avoid","how-smes-can-find-contract-opportunities-in-ghana","public-tenders-vs-private-tenders-in-ghana"];
+  for(const slug of slugs)assert.match(sql,new RegExp(`'${slug}'`),slug);
+  assert.match(sql,/BidScope Editorial Team/);
+  assert.match(sql,/'published',excerpt,body/);
+  assert.match(sql,/recommended_internal_links,true,published_at/);
+  assert.match(sql,/current_date\+\(week_no\*7\)/);
+  assert.match(sql,/Category placeholder only\. Verify the organisation/);
+  assert.doesNotMatch(sql,/@(?:gmail|yahoo|hotmail)\.com/i);
+});
+
+test("published Insights use rich metadata, schema, related content, live tenders and sharing",()=>{
+  const page=read("app/insights/[slug]/page.tsx"),index=read("app/insights/page.tsx");
+  for(const requirement of["generateMetadata","Article","InsightCta","InsightShare","listRelatedSeoContent","listTendersForInsight","TenderCards"])assert.match(page,new RegExp(requirement));
+  for(const service of["wa.me","linkedin.com/sharing","facebook.com/sharer","twitter.com/intent"])assert.match(read("components/seo/insight-actions.tsx"),new RegExp(service.replaceAll(".","\\.")));
+  for(const cluster of["Finding tenders","Bidding","For suppliers","For buyers","Procurement"])assert.match(index,new RegExp(cluster));
+});
+
+test("Insight conversion events and per-article reporting are wired without PII",()=>{
+  const events=["insight_cta_clicked","insight_to_tender","insight_to_signup","insight_to_buyer_signup","insight_to_supplier_signup","insight_to_post_tender","insight_to_alert"];
+  const client=read("components/seo/seo-attribution.tsx"),route=read("app/api/analytics/seo/route.ts"),migration=read("supabase/migrations/20260920235900_activate_insights_content_authority.sql"),growth=read("lib/server/seo-growth.ts");
+  for(const event of events){assert.match(client,new RegExp(event));assert.match(route,new RegExp(event));assert.match(migration,new RegExp(event))}
+  assert.match(growth,/articleMetrics/);
+  assert.match(growth,/ctaClicks/);
+  assert.doesNotMatch(read("components/seo/insight-actions.tsx"),/userEmail|phoneNumber|contactEmail/);
+});
+
+test("content refresh review keeps due Insights indexable while admin controls remain protected",()=>{
+  assert.match(read("lib/server/seo-content.ts"),/status=in\.\(published,refresh_due\)&indexable=eq\.true/);
+  const maintenance=read("lib/server/seo-maintenance.ts");
+  assert.match(maintenance,/180\*86400000/);
+  assert.match(maintenance,/status:"refresh_due"/);
+  assert.match(read("app/api/admin/seo/route.ts"),/requireSuperAdmin/);
 });

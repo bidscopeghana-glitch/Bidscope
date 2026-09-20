@@ -84,3 +84,8 @@ export async function listRelatedTenders(tender:PublicTender,limit=4){
   const{data}=await supabaseRest<GuestOpportunityInput[]>(`procurement_opportunities?${params}`);
   return data.slice(0,limit).map(guestOpportunityPreview);
 }
+
+export async function listTendersForInsight(categories:string[],limit=3){
+  const valid=categories.find((category):category is TenderCategorySlug=>category in tenderCategories);
+  return (await listPublicTenders({limit,category:valid,ghanaOnly:true})).items;
+}
