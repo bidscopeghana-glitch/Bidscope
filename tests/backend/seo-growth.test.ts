@@ -39,3 +39,42 @@ test("Search Console integration uses read-only scope and server credentials",()
   assert.match(source,/searchAnalytics\/query/);
   assert.doesNotMatch(source,/NEXT_PUBLIC_GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY/);
 });
+
+test("Phase 2 operations migration covers demand, referrals, outreach, reporting and RLS",()=>{
+  const sql=read("supabase/migrations/20260920224000_seo_growth_operations.sql");
+  for(const table of["seo_internal_searches","seo_search_synonyms","seo_referral_metrics","seo_search_dimensions","seo_outreach_targets","seo_utm_links","seo_reports","seo_technical_checks","seo_social_drafts"]){
+    assert.match(sql,new RegExp(`create table if not exists public\\.${table}\\b`,"i"),table);
+    assert.match(sql,new RegExp(`'${table}'`,"i"),`${table} RLS loop`);
+  }
+  for(const event of["buyer_signup","supplier_signup","tender_watch","subscription_completed","bid_started","bid_submitted","tender_post_completed"])assert.match(sql,new RegExp(`'${event}'`),event);
+});
+
+test("Phase 2 admin workspaces are protected by the growth admin layout",()=>{
+  assert.match(read("app/admin/growth/seo/operations/page.tsx"),/SeoOperationsWorkspace/);
+  assert.match(read("app/admin/growth/seo/content/page.tsx"),/SeoContentWorkspace/);
+  assert.match(read("app/admin/growth/layout.tsx"),/robots:\{index:false/);
+  assert.match(read("app/api/admin/seo/route.ts"),/requireSuperAdmin/);
+});
+
+test("editorial publishing is review first and only exposes published indexable content",()=>{
+  const editor=read("components/admin/seo-content-workspace.tsx"),content=read("lib/server/seo-content.ts");
+  assert.match(editor,/Nothing auto-publishes/);
+  assert.match(editor,/quality warnings/);
+  assert.match(content,/status=eq\.published&indexable=eq\.true/);
+  assert.match(read("app/sitemap.ts"),/listPublishedSeoContent/);
+});
+
+test("scheduled SEO maintenance is protected and registered",()=>{
+  assert.match(read("app/api/internal/seo/maintenance/route.ts"),/requireCronOrInternalSecret/);
+  assert.match(read("lib/server/seo-maintenance.ts"),/robots_accessible/);
+  assert.match(read("lib/server/seo-maintenance.ts"),/syncSearchConsole/);
+  assert.match(read("app/api/internal/notifications/process/route.ts"),/runSeoMaintenance/);
+  assert.match(read("vercel.json"),/\/api\/internal\/notifications\/process/);
+});
+
+test("organic attribution supports required acquisition and procurement events",()=>{
+  const route=read("app/api/analytics/seo/route.ts"),client=read("components/seo/seo-attribution.tsx");
+  for(const event of["buyer_signup","supplier_signup","tender_watch","tender_alert_created","subscription_completed","bid_started","bid_submitted","tender_post_started","tender_post_completed"])assert.match(route,new RegExp(`\\"${event}\\"`));
+  assert.match(client,/trackBidScopeInternalSearch/);
+  assert.match(client,/medium:\"organic\"/);
+});

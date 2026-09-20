@@ -9,8 +9,8 @@ export function absoluteUrl(path="/"){
   return `${SITE_URL}${path.startsWith("/")?path:`/${path}`}`;
 }
 
-export function publicMetadata(input:{title:string;description:string;path:string;image?:string;type?:"website"|"article";noindex?:boolean}):Metadata{
-  const canonical=absoluteUrl(input.path);
+export function publicMetadata(input:{title:string;description:string;path:string;image?:string;type?:"website"|"article";noindex?:boolean;canonical?:string}):Metadata{
+  const canonical=input.canonical?absoluteUrl(input.canonical):absoluteUrl(input.path);
   const image=absoluteUrl(input.image||DEFAULT_OG_IMAGE);
   return{
     title:input.title,
@@ -23,4 +23,3 @@ export function publicMetadata(input:{title:string;description:string;path:strin
 }
 
 export function safeJsonLd(value:unknown){return JSON.stringify(value).replace(/</g,"\\u003c");}
-

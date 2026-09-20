@@ -3,9 +3,10 @@
 import{useEffect,useMemo,useState}from"react";
 import{AlertTriangle,ArrowUpRight,CheckCircle2,Link2,LoaderCircle,MousePointerClick,Plus,Settings2,Sparkles,TrendingUp,UsersRound}from"lucide-react";
 import{api,invalidate}from"@/components/customer/data";
+import type{SeoOperations}from"@/components/admin/seo-growth-operations";
 type Row=Record<string,unknown>;
-type Data={rangeDays:number;settings:Row|null;connection:Record<string,boolean|string>;metrics:Record<string,number>;keywords:Row[];content:Row[];pageMetrics:Row[];alerts:Row[];backlinks:Row[];experiments:Row[];syncRuns:Row[]};
-const tabs=["Overview","Keywords","Content","Technical health","Links","Settings"] as const;type Tab=typeof tabs[number];const fmt=(v:unknown)=>new Intl.NumberFormat("en-GB").format(Number(v||0));
+type Data={rangeDays:number;settings:Row|null;connection:Record<string,boolean|string>;metrics:Record<string,number>;keywords:Row[];content:Row[];pageMetrics:Row[];alerts:Row[];backlinks:Row[];experiments:Row[];syncRuns:Row[];operations:SeoOperations};
+const tabs=["Overview","Keywords","Content","Landing pages","Demand","Technical health","Links","Reports & tools","Settings"] as const;type Tab=typeof tabs[number];const fmt=(v:unknown)=>new Intl.NumberFormat("en-GB").format(Number(v||0));
 function Pill({children,tone="green"}:{children:React.ReactNode;tone?:"green"|"gold"|"red"|"grey"}){const s={green:"bg-emerald-100 text-emerald-800",gold:"bg-amber-100 text-amber-800",red:"bg-rose-100 text-rose-800",grey:"bg-slate-100 text-slate-700"};return <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[.1em] ${s[tone]}`}>{children}</span>}
 function Metric({label,value,detail,Icon}:{label:string;value:string;detail:string;Icon:React.ComponentType<{size?:number}>}){return <div className="rounded-[22px] border border-[#17362d]/10 bg-[#fffdf8] p-5 shadow-[0_10px_30px_rgba(20,58,46,.05)]"><div className="flex items-start justify-between"><p className="text-xs font-bold uppercase tracking-[.12em] text-[#718078]">{label}</p><span className="rounded-xl bg-[#e3efe8] p-2 text-[#116149]"><Icon size={17}/></span></div><p className="mt-4 text-3xl font-black">{value}</p><p className="mt-2 text-xs leading-5 text-[#6b7a74]">{detail}</p></div>}
 function Empty({children}:{children:string}){return <div className="rounded-2xl border border-dashed border-[#17362d]/15 p-8 text-center text-sm text-[#708079]">{children}</div>}
