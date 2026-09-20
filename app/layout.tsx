@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { CookieConsent } from "@/components/legal/cookie-consent";
 import {SeoAnalytics} from "@/components/seo/seo-analytics";
+import {SeoAttribution} from "@/components/seo/seo-attribution";
 import {DEFAULT_OG_IMAGE,SITE_URL} from "@/lib/seo/site";
 
 export const metadata: Metadata = {
@@ -44,5 +46,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}<CookieConsent /><SeoAnalytics/></body></html>;
+  return <html lang="en"><body>{children}<CookieConsent /><SeoAnalytics/><Suspense fallback={null}><SeoAttribution/></Suspense></body></html>;
 }
