@@ -14,6 +14,13 @@ test("password and refresh auth use the public Supabase credential", () => {
   assert.match(refresh, /apikey: publicKey/);
 });
 
+test("Supabase secret keys are not sent as invalid bearer JWTs", () => {
+  const config = read("lib/server/supabase-rest.ts");
+  assert.match(config, /key\.split\("\."\)\.length === 3/);
+  assert.match(config, /headers\.delete\("Authorization"\)/);
+  assert.match(config, /options\.accessToken \|\|/);
+});
+
 test("customer requests renew an expired session and retry once", () => {
   const session = read("lib/client/session.ts");
   const data = read("components/customer/data.ts");

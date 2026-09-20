@@ -20,7 +20,12 @@ export async function supabaseRest<T>(path: string, options: SupabaseOptions = {
   if (!key) throw new ApiError(503, "Database credentials are not configured.", "database_unavailable");
   const headers = new Headers(options.headers);
   headers.set("apikey", key);
-  headers.set("Authorization", `Bearer ${options.accessToken || key}`);
+  // Supabase's current sb_secret_/sb_publishable_ keys belong in apikey only.
+  // Legacy JWT keys may still be used as Bearer credentials, while an actual
+  // user access token must always take precedence for RLS-scoped requests.
+  const bearer = options.accessToken || (key.split(".").length === 3 ? key : null);
+  if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
+  else headers.delete("Authorization");
   if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (options.count) headers.set("Prefer", `count=${options.count}`);
 
