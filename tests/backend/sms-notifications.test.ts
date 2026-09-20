@@ -55,12 +55,12 @@ test("transactional workflows enqueue the correct SMS-capable events",()=>{
   assert.match(scheduled,/type:\s*"watched_tender_closing"/);
 });
 
-test("SMS reminders run frequently without rerunning all daily engagement work",()=>{
+test("SMS reminders run in an isolated Hobby-compatible daily job",()=>{
   const config=read("vercel.json");
   const reminders=read("app/api/internal/notifications/reminders/route.ts");
   const daily=read("app/api/internal/notifications/process/route.ts");
   assert.match(config,/notifications\/reminders/);
-  assert.match(config,/\*\/10 \* \* \* \*/);
+  assert.match(config,/"schedule":\s*"0 7 \* \* \*"/);
   assert.match(reminders,/generateMeetingReminders/);
   assert.match(reminders,/processPendingDeliveries/);
   assert.doesNotMatch(daily,/generateMeetingReminders/);
