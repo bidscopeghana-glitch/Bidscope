@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CalendarDays, Plus, Video } from "lucide-react";
+import { CalendarDays, Check, ExternalLink, Plus, Video } from "lucide-react";
 import { api, invalidate, useData } from "@/components/customer/data";
 import { MeetingsWorkspace } from "@/components/meetings/meetings-workspace";
 
@@ -30,12 +30,28 @@ function ProcurementMeetingList() {
     result = useData<{
       data: Meeting[];
       settings: { max_duration_minutes: number } | null;
+      googleConnected: boolean;
     }>("/api/meetings");
+  async function connectGoogle() {
+    try {
+      const response = await api<{ data: { url: string } }>(
+        "/api/meetings/google/connect",
+        { returnPath: "/procurement/meetings" },
+      );
+      window.location.assign(response.data.url);
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  }
   async function schedule(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true);
     setMessage("");
     const f = new FormData(event.currentTarget);
+    if (f.get("provider") === "google_meet" && !result.data?.googleConnected) {
+      setMessage("Connect Google Calendar before scheduling a Google Meet.");
+      return;
+    }
+    setBusy(true);
     try {
       await api("/api/meetings", {
         title: f.get("title"),
@@ -94,6 +110,13 @@ function ProcurementMeetingList() {
           <a className="pw-button" href="#procurement-calendar">
             Open procurement calendar
           </a>
+          <button className="pw-button" onClick={connectGoogle}>
+            {result.data?.googleConnected ? (
+              <><Check size={15} /> Google Calendar connected</>
+            ) : (
+              <>Connect Google Calendar <ExternalLink size={14} /></>
+            )}
+          </button>
         </div>
       </div>
       {message && (
@@ -188,7 +211,9 @@ function ProcurementMeetingList() {
                   Platform
                   <select name="provider">
                     <option value="daily">BidScope Meet</option>
-                    <option value="google_meet">Google Meet</option>
+                    <option value="google_meet" disabled={!result.data?.googleConnected}>
+                      {result.data?.googleConnected ? "Google Meet" : "Google Meet — connect Calendar first"}
+                    </option>
                   </select>
                 </label>
                 <label className="wide">

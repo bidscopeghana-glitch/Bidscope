@@ -76,6 +76,10 @@ export async function POST(request:Request){
     if(1+input.participantUserIds.length+input.guestEmails.length>guardrails.max_participants)throw new ApiError(400,`This workspace allows up to ${guardrails.max_participants} participants per meeting.`,"meeting_participant_limit");
     if(input.recordingEnabled&&!guardrails.recording_allowed)throw new ApiError(403,"Recording is not enabled for this workspace.","recording_not_allowed");
     if(input.transcriptionEnabled&&!guardrails.transcription_allowed)throw new ApiError(403,"Transcription is not enabled for this workspace.","transcription_not_allowed");
+    if(input.provider==="google_meet"){
+      const{data:connection}=await supabaseRest<Array<{user_id:string}>>(`meeting_oauth_connections?select=user_id&user_id=eq.${user.id}&provider=eq.google&limit=1`);
+      if(!connection[0])throw new ApiError(409,"Connect Google Calendar before scheduling a Google Meet.","google_calendar_not_connected");
+    }
     const memberIds=[...new Set(input.participantUserIds.filter((id)=>id!==user.id))];
     if(memberIds.length){const{data}=await supabaseRest<Array<{user_id:string}>>(`organization_members?select=user_id&organization_id=eq.${membership.organization_id}&user_id=in.(${memberIds.join(",")})`);if(data.length!==memberIds.length)throw new ApiError(400,"Every selected team attendee must belong to this workspace.","invalid_meeting_attendee");}
     const startsAt=new Date(input.startsAt),endsAt=new Date(startsAt.getTime()+input.durationMinutes*60_000);

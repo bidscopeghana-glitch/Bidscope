@@ -57,3 +57,17 @@ test("buyer meeting navigation stays inside the procurement workspace",()=>{
   assert.doesNotMatch(procurement,/href="\/customer\/meetings"/);
   assert.match(shell,/<ProcurementMeetings meetingId={identifier}/);
 });
+
+test("Google Meet requires a connected Calendar account and preserves the originating workspace",()=>{
+  const connect=read("app/api/meetings/google/connect/route.ts");
+  const route=read("app/api/meetings/route.ts");
+  const seller=read("components/meetings/meetings-workspace.tsx");
+  const buyer=read("components/procurement/procurement-meetings.tsx");
+  assert.match(connect,/z\.enum\(\["\/customer\/meetings","\/procurement\/meetings"\]\)/);
+  assert.match(seller,/returnPath:"\/customer\/meetings"/);
+  assert.match(buyer,/returnPath: "\/procurement\/meetings"/);
+  assert.match(buyer,/googleConnected: boolean/);
+  assert.match(buyer,/Connect Google Calendar before scheduling a Google Meet/);
+  assert.match(route,/google_calendar_not_connected/);
+  assert.ok(route.indexOf("google_calendar_not_connected")<route.indexOf('supabaseRest<MeetingRecord[]>("meetings"'));
+});
