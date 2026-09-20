@@ -1,29 +1,30 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { CookieConsent } from "@/components/legal/cookie-consent";
+import {SeoAnalytics} from "@/components/seo/seo-analytics";
+import {DEFAULT_OG_IMAGE,SITE_URL} from "@/lib/seo/site";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.bidscopeghana.com"),
+  metadataBase: new URL(SITE_URL),
   applicationName: "BidScope",
-  title: "BidScope | Procurement Intelligence for Ghana & Beyond",
-  description: "Discover public-sector and development-funded procurement opportunities, research buyers and past awards, track opportunities and prepare your business with BidScope.",
+  title: "BidScope | Tenders, Procurement & Contract Opportunities in Ghana",
+  description: "Find tenders and contract opportunities in Ghana, receive matched alerts, evaluate requirements and manage procurement workflows for buyers and suppliers.",
   manifest: "/manifest.webmanifest",
-  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     url: "/",
     siteName: "BidScope Ghana",
-    title: "BidScope | Procurement Intelligence for Ghana & Beyond",
-    description: "Discover public-sector and development-funded procurement opportunities, research buyers and past awards, track opportunities and prepare your business with BidScope.",
-    images: [{ url: "/brand/social/bidscope-og.png", width: 1200, height: 630, alt: "BidScope — Where Opportunity Finds You" }],
+    title: "BidScope | Tenders, Procurement & Contract Opportunities in Ghana",
+    description: "Find tenders and contract opportunities in Ghana and manage procurement workflows for buyers and suppliers.",
+    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: "BidScope procurement intelligence" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "BidScope | Procurement Intelligence for Ghana & Beyond",
-    description: "Discover public-sector and development-funded procurement opportunities, research buyers and past awards, track opportunities and prepare your business with BidScope.",
-    images: ["/brand/social/bidscope-og.png"],
+    title: "BidScope | Tenders, Procurement & Contract Opportunities in Ghana",
+    description: "Find tenders and contract opportunities in Ghana and manage procurement workflows for buyers and suppliers.",
+    images: [DEFAULT_OG_IMAGE],
   },
-  other: { "codex-preview": "development" },
+  verification:process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?{google:process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION}:undefined,
   icons: {
     icon: [
       { url: "/brand/icons/favicon.ico" },
@@ -43,5 +44,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}<CookieConsent /></body></html>;
+  return <html lang="en"><body>{children}<CookieConsent /><SeoAnalytics/></body></html>;
 }

@@ -1,3 +1,4 @@
 import {PlansClient} from "../plans/plans-client";
-export const metadata={title:"Pricing and packages | BidScope",description:"Compare BidScope Pro, Premium and Platinum packages for procurement discovery, intelligence and bid preparation."};
+import {publicMetadata} from "@/lib/seo/site";
+export const metadata=publicMetadata({title:"BidScope Pricing | Tender Intelligence Packages",description:"Compare monthly and annual BidScope packages for tender alerts, procurement intelligence, AI evaluation and team access.",path:"/pricing"});
 export default function Page(){return <PlansClient/>;}

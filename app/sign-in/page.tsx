@@ -9,6 +9,8 @@ import { customerReturnPath } from "@/lib/auth-return";
 export const metadata: Metadata = {
   title: "Sign in or create an account | BidScope",
   description: "Access your BidScope account to explore live procurement opportunities, research awards and manage your bidding workspace.",
+  robots:{index:false,follow:false},
+  alternates:{canonical:"/sign-in"},
 };
 
 const benefits = [

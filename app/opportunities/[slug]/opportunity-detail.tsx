@@ -5,23 +5,24 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, LockKeyhole, Check } from "lucide-react";
 import { type OpportunityPreview, previewDate } from "../opportunity-browser";
 
-export function OpportunityDetail({slug}:{slug:string}) {
-  const [item,setItem] = useState<OpportunityPreview|null>(null);
+export function OpportunityDetail({slug,initialItem}:{slug:string;initialItem?:OpportunityPreview|null}) {
+  const [item,setItem] = useState<OpportunityPreview|null>(initialItem||null);
   const [error,setError] = useState("");
   useEffect(()=>{
+    if(initialItem)return;
     const controller=new AbortController();
     fetch(`/api/opportunities/${encodeURIComponent(slug)}`,{signal:controller.signal}).then(async response=>{
       const body=await response.json() as {data?:OpportunityPreview;error?:string};if(!response.ok||!body.data)throw new Error(body.error||"Opportunity could not be loaded.");setItem(body.data);
     }).catch((caught:unknown)=>{if(!controller.signal.aborted)setError(caught instanceof Error?caught.message:"Please try again.");});
     return ()=>controller.abort();
-  },[slug]);
+  },[slug,initialItem]);
   const next=encodeURIComponent(`/customer/opportunity/${slug}`);
   return <section className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
     <Link href="/opportunities" className="inline-flex items-center gap-2 font-semibold text-[#547067]"><ArrowLeft size={17}/>All opportunities</Link>
     {error ? <p role="alert" className="mt-6 rounded-2xl bg-amber-50 p-5 text-amber-900">{error}</p> : !item ? <p role="status" className="py-16">Loading opportunity preview…</p> : <>
       <div className="mt-8 flex flex-wrap gap-3 text-sm font-bold uppercase tracking-wider text-[#315b4e]"><span>{item.category}</span><span>{item.status.replaceAll("_"," ")}</span><span className="inline-flex items-center gap-1"><LockKeyhole size={15}/>Guest preview</span></div>
       <h1 className="serif mt-5 max-w-4xl text-3xl leading-tight text-[#17362d] sm:text-5xl">{item.title}</h1>
-      <p className="mt-5 max-w-3xl text-lg leading-8 text-[#65776f]">{item.teaser}</p>
+      <p className="mt-5 max-w-3xl text-lg leading-8 text-[#65776f]">{item.summary||item.teaser}</p>
       <dl className="mt-7 flex flex-wrap gap-x-12 gap-y-5 rounded-2xl bg-white p-6"><div><dt className="text-sm text-[#65776f]">Location</dt><dd className="mt-1 font-semibold">{[item.region,item.country].filter(Boolean).join(", ")||"Not stated"}</dd></div><div><dt className="text-sm text-[#65776f]">Deadline</dt><dd className="mt-1 font-semibold">{previewDate(item.deadline_at)}</dd></div></dl>
       <div className="mt-8 grid overflow-hidden rounded-3xl border border-[#17362d]/10 bg-[#fffdf8] lg:grid-cols-2">
         <div className="p-6 sm:p-9"><LockKeyhole className="text-[#116149]" size={30}/><h2 className="serif mt-4 text-3xl">Unlock the full tender record.</h2><p className="mt-4 leading-7 text-[#65776f]">Choose a BidScope subscription to review verified buyer, requirement, document and application information. A free account keeps your discovery workspace ready while sensitive source details remain protected.</p><ul className="mt-6 space-y-4">{["Buyer and official tender reference","Published scope, requirements and eligibility","Available documents and registration guidance","Official source and application route"].map(label=><li key={label} className="flex items-start gap-3"><Check size={19} className="mt-1 shrink-0 text-[#116149]"/>{label}</li>)}</ul></div>

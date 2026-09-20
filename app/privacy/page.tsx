@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ProcurementFooter, ProcurementHeader } from "@/components/procurement/site-shell";
 import { LEGAL_CONTACT_EMAIL, PRIVACY_VERSION } from "@/lib/legal";
+import {publicMetadata} from "@/lib/seo/site";
 
-export const metadata: Metadata = { title: "Privacy Policy | BidScope Ghana", description: "How BidScope Ghana collects, uses, protects and shares personal information." };
+export const metadata: Metadata = publicMetadata({title:"Privacy Policy | BidScope Ghana",description:"How BidScope Ghana collects, uses, protects and shares personal information.",path:"/privacy"});
 
 export default function PrivacyPage() {
   return <main className="min-h-screen bg-[#f7f4eb] text-[#12352a]"><ProcurementHeader/><article className="mx-auto max-w-4xl px-5 py-14 sm:px-6 sm:py-20"><header className="max-w-3xl"><p className="text-sm font-semibold uppercase tracking-[.2em] text-[#84651f]">BidScope Ghana · Legal</p><h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Privacy Policy</h1><p className="mt-5 text-base leading-8 text-[#496159]">Effective and last updated: 16 September 2026 · Version {PRIVACY_VERSION}</p><p className="mt-6 text-lg leading-8 text-[#334d45]">This policy explains how BidScope Ghana collects and handles personal data when you visit our website, create an account, use procurement-intelligence features, subscribe to a plan or communicate with us.</p></header>

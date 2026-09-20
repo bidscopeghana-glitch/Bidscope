@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { CookieSettingsButton } from "@/components/legal/cookie-consent";
 import { ProcurementFooter, ProcurementHeader } from "@/components/procurement/site-shell";
 import { COOKIE_POLICY_VERSION, LEGAL_CONTACT_EMAIL } from "@/lib/legal";
+import {publicMetadata} from "@/lib/seo/site";
 
-export const metadata: Metadata = { title: "Cookie Policy | BidScope Ghana", description: "The cookies and browser storage BidScope Ghana uses and how to control optional categories." };
+export const metadata: Metadata = publicMetadata({title:"Cookie Policy | BidScope Ghana",description:"The cookies and browser storage BidScope Ghana uses and how to control optional categories.",path:"/cookies"});
 
 export default function CookiePolicyPage() {
   return <main className="min-h-screen bg-[#f7f4eb] text-[#12352a]"><ProcurementHeader/><article className="mx-auto max-w-4xl px-5 py-14 sm:px-6 sm:py-20"><header className="max-w-3xl"><p className="text-sm font-semibold uppercase tracking-[.2em] text-[#84651f]">BidScope Ghana · Legal</p><h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Cookie Policy</h1><p className="mt-5 text-base leading-8 text-[#496159]">Effective and last updated: 16 September 2026 · Version {COOKIE_POLICY_VERSION}</p><p className="mt-6 text-lg leading-8 text-[#334d45]">This policy explains how BidScope uses cookies and similar browser storage. Optional categories are off until you choose to allow them.</p><CookieSettingsButton className="mt-6 rounded-full bg-[#116149] px-5 py-3 text-sm font-bold text-white hover:bg-[#0d523e]"/></header>
@@ -12,4 +13,3 @@ export default function CookiePolicyPage() {
 }
 
 function CookieSection({title,children}:{title:string;children:React.ReactNode}) { return <section className="border-t border-[#12352a]/10 pt-8 first:border-0 first:pt-0"><h2 className="text-2xl font-semibold tracking-tight text-[#12352a]">{title}</h2><div className="mt-3 space-y-3">{children}</div></section>; }
-

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ProcurementFooter, ProcurementHeader } from "@/components/procurement/site-shell";
 import { LEGAL_CONTACT_EMAIL, TERMS_VERSION } from "@/lib/legal";
+import {publicMetadata} from "@/lib/seo/site";
 
-export const metadata: Metadata = { title: "Terms of Service | BidScope Ghana", description: "The terms governing accounts, subscriptions, procurement intelligence and use of BidScope Ghana." };
+export const metadata: Metadata = publicMetadata({title:"Terms of Service | BidScope Ghana",description:"The terms governing accounts, subscriptions, procurement intelligence and use of BidScope Ghana.",path:"/terms"});
 
 const sections = [
   ["agreement", "Agreement to these terms"], ["service", "The BidScope service"], ["eligibility", "Eligibility and accounts"], ["procurement", "Procurement information"], ["ai", "BidScope AI"], ["subscriptions", "Plans, trials and payments"], ["acceptable-use", "Acceptable use"], ["content", "Your content and licence"], ["intellectual-property", "Our intellectual property"], ["third-parties", "Third-party services and sources"], ["communications", "Service communications"], ["availability", "Availability and changes"], ["termination", "Suspension and termination"], ["warranties", "Disclaimers"], ["liability", "Limitation of liability"], ["indemnity", "Indemnity"], ["law", "Governing law and disputes"], ["changes", "Changes to these terms"], ["contact", "Contact us"],

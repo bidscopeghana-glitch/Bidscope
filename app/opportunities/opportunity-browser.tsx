@@ -4,18 +4,19 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarClock, LockKeyhole, MapPin, Search } from "lucide-react";
 
-export type OpportunityPreview = { slug:string; title:string; teaser:string; country:string|null; region:string|null; category:string; deadline_at:string|null; status:string };
+export type OpportunityPreview = { slug:string; title:string; summary?:string; teaser:string; country:string|null; country_code?:string|null; region:string|null; category:string; sector?:string|null; published_at?:string|null; deadline_at:string|null; status:string };
 type Result = { data: OpportunityPreview[]; pagination: { total: number | null; page:number; pageSize:number } };
 export function previewDate(value:string|null) { return value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat("en-GB", {dateStyle:"medium"}).format(new Date(value)) : "Deadline not stated"; }
 const control = "h-12 min-w-0 rounded-xl border border-[#17362d]/15 bg-white px-4 text-base text-[#27493f] focus:border-[#187052]";
 
-export function OpportunityBrowser() {
-  const [result,setResult] = useState<Result|null>(null);
+export function OpportunityBrowser({initialResult}:{initialResult?:Result}) {
+  const [result,setResult] = useState<Result|null>(initialResult||null);
   const [query,setQuery] = useState("");
   const [revision,setRevision] = useState(0);
-  const [loading,setLoading] = useState(true);
+  const [loading,setLoading] = useState(!initialResult);
   const [error,setError] = useState("");
   useEffect(() => {
+    if(initialResult&&!query&&revision===0)return;
     const controller = new AbortController();
     fetch(`/api/opportunities?${query}`, {signal:controller.signal}).then(async response => {
       const body = await response.json() as Result & {error?:string};
@@ -24,7 +25,7 @@ export function OpportunityBrowser() {
     }).catch((caught:unknown) => { if(!controller.signal.aborted) setError(caught instanceof Error ? caught.message : "Please try again."); })
       .finally(() => {if(!controller.signal.aborted) setLoading(false);});
     return () => controller.abort();
-  },[query,revision]);
+  },[query,revision,initialResult]);
   function navigate(next:URLSearchParams) {setLoading(true);setError("");setQuery(next.toString());setRevision(value=>value+1);}
   function search(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();const next = new URLSearchParams();

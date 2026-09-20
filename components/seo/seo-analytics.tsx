@@ -1,0 +1,6 @@
+"use client";
+import Script from "next/script";import {usePathname} from "next/navigation";import {useEffect,useState} from "react";
+declare global{interface Window{dataLayer?:unknown[];gtag?:(...args:unknown[])=>void}}
+const measurementId=process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+export function SeoAnalytics(){const pathname=usePathname();const[allowed,setAllowed]=useState(false);useEffect(()=>{const update=()=>setAllowed(document.documentElement.dataset.cookieAnalytics==="granted");update();const observer=new MutationObserver(update);observer.observe(document.documentElement,{attributes:true,attributeFilter:["data-cookie-analytics"]});return()=>observer.disconnect()},[]);useEffect(()=>{if(allowed&&measurementId&&window.gtag)window.gtag("event","page_view",{page_path:pathname})},[allowed,pathname]);if(!allowed||!measurementId)return null;return <><Script src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`} strategy="afterInteractive"/><Script id="bidscope-analytics" strategy="afterInteractive">{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}window.gtag=gtag;gtag('js',new Date());gtag('config','${measurementId}',{send_page_view:false,anonymize_ip:true});`}</Script></>}
+
