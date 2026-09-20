@@ -51,16 +51,27 @@ export async function listPublicTenders(input:{limit?:number;offset?:number;cate
   return{items:data.map(guestOpportunityPreview),total:Number.isFinite(total)?total:data.length};
 }
 
+async function listIndexableRows<T extends{slug:string}>(select:string,limit:number){
+  const requested=Math.max(0,Math.floor(limit));
+  if(!requested)return[] as T[];
+  const rows:T[]=[];
+  const seen=new Set<string>();
+  for(let offset=0;offset<requested;offset+=1000){
+    const batchSize=Math.min(1000,requested-offset);
+    const params=new URLSearchParams({select,source_removed_at:"is.null",published_at:"not.is.null",status:"not.in.(DRAFT,WITHDRAWN)",order:"published_at.desc,slug.asc",limit:String(batchSize),offset:String(offset)});
+    const{data}=await supabaseRest<T[]>(`procurement_opportunities?${params}`);
+    for(const row of data)if(!seen.has(row.slug)){seen.add(row.slug);rows.push(row)}
+    if(data.length<batchSize)break;
+  }
+  return rows.slice(0,requested);
+}
+
 export async function listIndexableTenderSlugs(limit=5000){
-  const params=new URLSearchParams({select:"slug,published_at",source_removed_at:"is.null",published_at:"not.is.null",status:"not.in.(DRAFT,WITHDRAWN)",order:"published_at.desc",limit:String(limit)});
-  const{data}=await supabaseRest<Array<{slug:string;published_at:string|null}>>(`procurement_opportunities?${params}`);
-  return data;
+  return listIndexableRows<{slug:string;published_at:string|null}>("slug,published_at",limit);
 }
 
 export async function listSeoInventory(limit=5000){
-  const params=new URLSearchParams({select:"slug,title,summary,sector,category,region,country_code,published_at",source_removed_at:"is.null",published_at:"not.is.null",status:"not.in.(DRAFT,WITHDRAWN)",order:"published_at.desc",limit:String(limit)});
-  const{data}=await supabaseRest<Array<{slug:string;title:string;summary:string|null;sector:string|null;category:string|null;region:string|null;country_code:string|null;published_at:string|null}>>(`procurement_opportunities?${params}`);
-  return data;
+  return listIndexableRows<{slug:string;title:string;summary:string|null;sector:string|null;category:string|null;region:string|null;country_code:string|null;published_at:string|null}>("slug,title,summary,sector,category,region,country_code,published_at",limit);
 }
 
 export async function listRelatedTenders(tender:PublicTender,limit=4){

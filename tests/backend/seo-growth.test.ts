@@ -38,6 +38,16 @@ test("Search Console integration uses read-only scope and server credentials",()
   assert.match(source,/GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY/);
   assert.match(source,/searchAnalytics\/query/);
   assert.doesNotMatch(source,/NEXT_PUBLIC_GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY/);
+  const example=read(".env.example");
+  assert.match(example,/GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL=/);
+  assert.match(example,/GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY=/);
+});
+
+test("SEO sitemap inventory paginates past the Supabase one-thousand-row response cap",()=>{
+  const source=read("lib/server/seo-opportunities.ts");
+  assert.match(source,/offset:String\(offset\)/);
+  assert.match(source,/Math\.min\(1000,requested-offset\)/);
+  assert.match(source,/published_at\.desc,slug\.asc/);
 });
 
 test("Phase 2 operations migration covers demand, referrals, outreach, reporting and RLS",()=>{
@@ -70,6 +80,14 @@ test("scheduled SEO maintenance is protected and registered",()=>{
   assert.match(read("lib/server/seo-maintenance.ts"),/syncSearchConsole/);
   assert.match(read("app/api/internal/notifications/process/route.ts"),/runSeoMaintenance/);
   assert.match(read("vercel.json"),/\/api\/internal\/notifications\/process/);
+});
+
+test("growth centre exposes truthful Search Console status and manual synchronization",()=>{
+  const dashboard=read("components/admin/seo-growth-dashboard.tsx");
+  assert.match(dashboard,/Sync Search Console now/);
+  assert.match(dashboard,/search_console_last_synced_at/);
+  assert.match(dashboard,/error_summary/);
+  assert.match(dashboard,/\/api\/admin\/seo\/sync/);
 });
 
 test("organic attribution supports required acquisition and procurement events",()=>{
