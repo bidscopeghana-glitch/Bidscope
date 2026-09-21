@@ -32,3 +32,11 @@ test("chat interface contains embedded voice-call controls", () => {
   assert.match(component, /End call/);
   assert.match(component, /agora-rtc-sdk-ng/);
 });
+
+test("production content security policy permits Agora signalling and media endpoints", () => {
+  const config = read("next.config.ts");
+  for (const domain of ["agora.io", "sd-rtn.com", "rtnsvc.com", "rtesvc.com"]) {
+    assert.ok(config.includes(`https://*.${domain}`));
+    assert.ok(config.includes(`wss://*.${domain}`));
+  }
+});
