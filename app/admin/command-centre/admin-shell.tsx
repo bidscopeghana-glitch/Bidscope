@@ -21,6 +21,7 @@ const navigation=[
   ["SEO growth","/admin/growth/seo",SearchCheck],
   ["SEO content","/admin/growth/seo/content",FilePenLine],
   ["SEO operations","/admin/growth/seo/operations",BarChart3],
+  ["Growth outreach","/admin/growth/outreach",ContactRound],
   ["Tender submissions","/admin/tenders/submissions",Send],
   ["Buyer verification","/admin/command-centre/buyer-verifications",BadgeCheck],
   ["BidScope Meet usage","/admin/command-centre/meetings",Video],

@@ -59,7 +59,7 @@ export async function getSeoGrowthOverview(days=30){
 }
 
 export async function updateSeoSettings(input:Record<string,unknown>,userId:string){
-  const allowed=["search_console_property","reporting_email","weekly_report_enabled","monthly_report_enabled","stale_content_days","minimum_indexable_tenders"];
+  const allowed=["search_console_property","reporting_email","weekly_report_enabled","monthly_report_enabled","stale_content_days","minimum_indexable_tenders","search_opportunity_min_impressions","search_opportunity_default_snooze_days"];
   const changes=Object.fromEntries(Object.entries(input).filter(([key])=>allowed.includes(key)));
   await supabaseRest("seo_settings?singleton_key=eq.default",{method:"PATCH",body:JSON.stringify({...changes,updated_by:userId,updated_at:now()})});
   return changes;
