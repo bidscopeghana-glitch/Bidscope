@@ -21,6 +21,8 @@
     "@daily-co/daily-js": "^0.92.2",
     "@hookform/resolvers": "^5.7.1",
     "@shadcn/react": "^0.3.0",
+    "agora-rtc-sdk-ng": "^4.24.8",
+    "agora-token": "^2.0.6",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "^1.1.1",
