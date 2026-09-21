@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   Menu,
   MessageCircleQuestion,
+  MessageSquareText,
   Plus,
   Search,
   Settings,
@@ -34,6 +35,7 @@ import { useBidScopeSession } from "@/components/procurement/auth-nav";
 import { EvaluationsWorkspace } from "@/components/procurement/evaluations-workspace";
 import { ProcurementBidInbox } from "@/components/procurement/bid-inbox";
 import { ProcurementMeetings } from "@/components/procurement/procurement-meetings";
+import { TenderChatWorkspace } from "@/components/chat/tender-chat";
 
 type Capabilities = {
   organizationId: string;
@@ -150,6 +152,7 @@ const navigation = [
   ["Procurement Home", "/procurement", LayoutDashboard],
   ["My Tenders", "/procurement/tenders", FileText],
   ["Bids Received", "/procurement/bids", BriefcaseBusiness],
+  ["Tender Messages", "/procurement/messages", MessageSquareText],
   ["Evaluations", "/procurement/evaluations", ClipboardCheck],
   ["Meetings", "/procurement/meetings", Video],
   ["Suppliers", "/procurement/suppliers", Building2],
@@ -271,6 +274,8 @@ export function ProcurementPage({
         <Evaluations />
       ) : section === "meetings" ? (
         <ProcurementMeetings meetingId={identifier} />
+      ) : section === "messages" ? (
+        <TenderChatWorkspace workspace="buyer" conversationId={identifier} />
       ) : section === "suppliers" ? (
         <Suppliers />
       ) : section === "reports" ? (

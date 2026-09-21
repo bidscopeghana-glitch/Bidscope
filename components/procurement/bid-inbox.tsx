@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   CalendarDays,
   CheckCircle2,
+  MessageSquareText,
   Scale,
   ShieldCheck,
   Trophy,
@@ -422,6 +423,13 @@ export function ProcurementBidInbox() {
                         >
                           <CalendarDays size={14} />
                           Interview
+                        </Link>
+                        <Link
+                          className="pw-button"
+                          href={`/procurement/messages?bid=${b.id}`}
+                        >
+                          <MessageSquareText size={14} />
+                          Message supplier
                         </Link>
                         {[
                           "shortlisted",

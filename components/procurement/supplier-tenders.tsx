@@ -12,6 +12,7 @@ import {
   Gavel,
   LockKeyhole,
   MessageCircleQuestion,
+  MessageSquareText,
   Send,
   UploadCloud,
 } from "lucide-react";
@@ -207,6 +208,10 @@ function SupplierTenderDetail({ id }: { id: string }) {
   if (result.loading) return <Loading />;
   if (result.error) return <ErrorBox message={result.error} />;
   const t = result.data!.data;
+  const chatAvailable = Boolean(
+    t.currentBid &&
+      !["draft", "withdrawn"].includes(t.currentBid.status),
+  );
   return (
     <>
       <Heading
@@ -375,6 +380,14 @@ function SupplierTenderDetail({ id }: { id: string }) {
             >
               <MessageCircleQuestion size={15} /> Ask the buyer
             </button>
+          )}
+          {chatAvailable && (
+            <Link
+              className="cc-button"
+              href={`/customer/messages?bid=${t.currentBid!.id}`}
+            >
+              <MessageSquareText size={15} /> Message buyer
+            </Link>
           )}
         </div>
         {showQuestion && (
