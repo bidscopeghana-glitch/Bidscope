@@ -49,7 +49,7 @@ export default async function BlogPage() {
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[.17em] text-[#a8e2ca]"><BookOpen size={16}/>BidScope Intelligence Journal</span>
           <h1 className="serif mt-6 text-4xl leading-[1.04] sm:text-6xl">The thinking behind better tender decisions.</h1>
           <p className="mt-6 max-w-3xl text-lg leading-8 text-white/80">Original, source-conscious guidance for Ghanaian suppliers, procurement teams and business leaders—from opportunity discovery to contract mobilisation.</p>
-          <div className="mt-8 flex flex-wrap gap-3 text-sm font-bold"><span className="rounded-full bg-white px-4 py-2 text-[#103f32]">{items.length} expert guides</span><span className="rounded-full border border-white/25 bg-white/10 px-4 py-2">Ghana-first context</span><span className="rounded-full border border-white/25 bg-white/10 px-4 py-2">Official sources linked</span></div>
+          <div className="mt-8 flex flex-wrap gap-3 text-sm font-bold"><span className="rounded-full bg-white px-4 py-2 text-[#103f32]">Original expert guidance</span><span className="rounded-full border border-white/25 bg-white/10 px-4 py-2">Ghana-first context</span><span className="rounded-full border border-white/25 bg-white/10 px-4 py-2">Official sources linked</span></div>
         </div>
       </header>
 
@@ -70,7 +70,7 @@ export default async function BlogPage() {
 
       <div className="mt-16"><SeoCta /></div>
     </section>
-    <JsonLd data={{ "@context": "https://schema.org", "@type": "CollectionPage", name: "BidScope Tender Blog Ghana", description: "Expert procurement and tender guidance for Ghanaian businesses.", url: absoluteUrl("/blog"), mainEntity: { "@type": "ItemList", numberOfItems: items.length, itemListElement: items.map((item, index) => ({ "@type": "ListItem", position: index + 1, name: item.title, url: absoluteUrl(`/insights/${item.slug}`) })) } }} />
+    <JsonLd data={{ "@context": "https://schema.org", "@type": "CollectionPage", name: "BidScope Tender Blog Ghana", description: "Expert procurement and tender guidance for Ghanaian businesses.", url: absoluteUrl("/blog"), mainEntity: { "@type": "ItemList", itemListElement: items.map((item, index) => ({ "@type": "ListItem", position: index + 1, name: item.title, url: absoluteUrl(`/insights/${item.slug}`) })) } }} />
     <ProcurementFooter />
   </main>;
 }
