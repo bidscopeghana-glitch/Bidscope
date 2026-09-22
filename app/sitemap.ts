@@ -3,7 +3,7 @@ import{guides}from"@/lib/seo/resources";
 import{SITE_URL}from"@/lib/seo/site";
 import{listPublishedSeoContent}from"@/lib/server/seo-content";
 import{listSeoInventory,tenderCategories,tenderLocations}from"@/lib/server/seo-opportunities";
-const staticPaths=["","/opportunities","/tenders","/tenders/ghana","/public-tenders","/private-tenders","/for-buyers","/for-suppliers","/how-it-works","/resources","/insights","/services","/plans","/pricing","/about","/contact","/privacy","/terms","/cookies"];
+const staticPaths=["","/opportunities","/tenders","/tenders/ghana","/public-tenders","/private-tenders","/for-buyers","/for-suppliers","/how-it-works","/resources","/insights","/blog","/services","/plans","/pricing","/about","/contact","/privacy","/terms","/cookies"];
 export default async function sitemap():Promise<MetadataRoute.Sitemap>{
  const now=new Date();let inventory:Awaited<ReturnType<typeof listSeoInventory>>=[],content:Awaited<ReturnType<typeof listPublishedSeoContent>>=[];
  try{[inventory,content]=await Promise.all([listSeoInventory(),listPublishedSeoContent()])}catch{inventory=[];content=[]}
