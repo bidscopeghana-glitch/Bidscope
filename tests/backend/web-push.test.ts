@@ -40,4 +40,5 @@ test("subscription endpoint is authenticated, validates provider URL, and return
   assert.match(route, /allowedPushEndpoint/);
   assert.match(route, /createHash\("sha256"\)/);
   assert.match(route, /existing\[0\]\.user_id !== user\.id/);
+  assert.match(read("lib/server/web-push.ts"), /hostname === "jmt17\.google\.com" && url\.pathname\.startsWith\("\/fcm\/send\/"\)/);
 });

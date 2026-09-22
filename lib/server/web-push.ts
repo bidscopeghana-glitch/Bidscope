@@ -31,6 +31,7 @@ export function allowedPushEndpoint(value: string) {
     if (url.protocol !== "https:" || url.username || url.password || url.port && url.port !== "443") return false;
     const hostname = url.hostname.toLowerCase();
     return hostname === "fcm.googleapis.com" || hostname === "android.googleapis.com" ||
+      (hostname === "jmt17.google.com" && url.pathname.startsWith("/fcm/send/")) ||
       hostname === "updates.push.services.mozilla.com" || hostname === "web.push.apple.com" ||
       hostname === "webpush.push.apple.com" || hostname.endsWith(".notify.windows.com");
   } catch { return false; }
