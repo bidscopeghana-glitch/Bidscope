@@ -112,7 +112,7 @@ export async function processPendingDeliveries(limit = 100, channel?: "push") {
     if(!claimed.length)continue;
     const result = delivery.channel === "push" ? await (async()=>{const sent=await sendPushDelivery(delivery.notification.id,delivery.notification.user_id);return sent.accepted>0?{status:"sent" as const,providerMessageId:null}:sent.failed>0?{status:"failed" as const,reason:"Push service did not accept the notification."}:{status:"skipped" as const,reason:"No active push subscription accepted the notification."};})() : delivery.channel === "email" ? await sendEmail(delivery) : delivery.channel === "sms" ? await sendSmsAlert(delivery) : await sendWhatsAppAlert();
     counts[result.status]++;
-    const retry=result.status==="failed"&&"transient" in result&&result.transient&&delivery.retry_count<2;
+    const retry=result.status==="failed"&&delivery.retry_count<2&&(delivery.channel==="push"||("transient" in result&&result.transient));
     await supabaseRest(`notification_deliveries?id=eq.${delivery.id}`, { method:"PATCH", body:JSON.stringify(result.status === "sent" ? {status:"sent",sent_at:new Date().toISOString(),provider_message_id:"providerMessageId" in result ? result.providerMessageId : null,failure_reason:null} : retry ? {status:"pending",scheduled_for:new Date(Date.now()+Math.pow(2,delivery.retry_count)*60_000).toISOString(),failure_reason:result.reason,retry_count:delivery.retry_count+1} : {status:result.status,failed_at:result.status === "failed" ? new Date().toISOString() : null,failure_reason:result.reason,retry_count:delivery.retry_count + (result.status === "failed" ? 1 : 0)}) });
   }
   return { processed:data.length, ...counts };
