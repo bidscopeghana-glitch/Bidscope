@@ -35,6 +35,11 @@ type VoiceCall = {
 };
 type VoiceAccess = { appId: string; channel: string; token: string; uid: string; expiresAt: string };
 
+function voiceErrorMessage(caught: unknown) {
+  const message = caught instanceof Error ? caught.message : "The voice call could not connect.";
+  return /WS_ABORT|\bLEAVE\b|OPERATION_ABORTED/i.test(message) ? "" : message;
+}
+
 export function TenderChatWorkspace({
   workspace,
   conversationId,
@@ -103,7 +108,8 @@ export function TenderChatWorkspace({
       setCallState("connected");
     } catch (caught) {
       await leaveVoiceChannel();
-      setError(caught instanceof Error ? caught.message : "The voice call could not connect.");
+      const message = voiceErrorMessage(caught);
+      if (message) setError(message);
     }
   }, [callState, leaveVoiceChannel]);
 
