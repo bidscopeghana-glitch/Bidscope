@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { after } from "next/server";
 import { escapeHtml } from "./alerts";
 import { createSecureToken } from "./outreach/campaign";
 import { phoneForUser, sendSms, smsProviderConfigured, SMS_EVENT_ALLOWLIST, type SmsEventType } from "./sms";
@@ -53,6 +54,10 @@ export async function createNotification(input:NotificationInput) {
     method:"POST", headers:{ Prefer:"resolution=ignore-duplicates" }, body:JSON.stringify(channels.map((channel) => ({
       notification_id:notification.id, channel, status:channel === "in_app" ? "sent" : "pending", provider:channel === "email" ? (process.env.RESEND_API_KEY ? "resend" : null) : channel === "whatsapp" ? process.env.WHATSAPP_PROVIDER : channel === "sms" ? "arkesel" : channel === "push" ? "web_push" : "bidscope", scheduled_for:channel === "push" ? new Date().toISOString() : scheduledFor, sent_at:channel === "in_app" ? new Date().toISOString() : null,
     }))),
+  });
+  if (pushAllowed) after(async () => {
+    try { await processPendingDeliveries(10, "push"); }
+    catch (error) { console.error("Web Push background delivery failed", error); }
   });
   return notification;
 }

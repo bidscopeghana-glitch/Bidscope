@@ -11,7 +11,7 @@ Production variables:
 
 Generate a key pair once with `web-push.generateVAPIDKeys()`; keep the public/private pair together. Rotating the key invalidates existing browser subscriptions, so users must enable push again. Do not log or commit the private key.
 
-`/api/internal/notifications/push` is called by Vercel Cron every five minutes and requires the existing scheduler bearer secret. The route handles meeting reminders and up to 50 queued push deliveries. Push-service HTTP acceptance is recorded as `sent` at the notification-delivery level and `accepted` per device; neither means the phone displayed the notification. Invalid endpoints (404/410) are disabled. The worker intentionally caches no private pages.
+New push notices are dispatched after the request using Next.js `after`, without delaying the response. `/api/internal/notifications/push` is also called by Vercel Cron daily at 07:30 UTC (Hobby-compatible) and requires the existing scheduler bearer secret; it creates meeting reminders and sweeps up to 50 queued push deliveries. The daily sweep is a fallback, not a near-real-time retry guarantee. Push-service HTTP acceptance is recorded as `sent` at the notification-delivery level and `accepted` per device; neither means the phone displayed the notification. Invalid endpoints (404/410) are disabled. The worker intentionally caches no private pages.
 
 Lock-screen payloads are generic. Tender titles, eligibility, bid content, message text, and billing details remain behind the existing authenticated destination. In-app records retain unread/read state independently of push delivery.
 

@@ -15,7 +15,7 @@
     },
     {
       "path": "/api/internal/notifications/push",
-      "schedule": "*/5 * * * *"
+      "schedule": "30 7 * * *"
     },
     {
       "path": "/api/internal/outreach/process",
