@@ -1363,6 +1363,7 @@ export async function POST(request: Request) {
           organizationId: context.organizationId,
           type: "system",
           title: "Bid submitted",
+          pushEventKey: "bid_submitted",
           message: `Your bid for ${tender.title} was submitted successfully.`,
           relatedEntityType: "supplier_bid",
           relatedEntityId: bidId,
@@ -1374,6 +1375,7 @@ export async function POST(request: Request) {
         await notifyOrganisation(tender.organization_id, {
           type: "bid_received",
           title: "New bid received",
+          pushEventKey: "new_bid",
           message: `A supplier submitted a bid for ${tender.title}.`,
           relatedEntityType: "supplier_bid",
           relatedEntityId: bidId,
@@ -1485,6 +1487,7 @@ export async function POST(request: Request) {
         });
         await notifyOrganisation(tender.organization_id, {
           type: "system",
+          pushEventKey: "supplier_question",
           title: "New tender question",
           message: `${input.subject} — ${tender.title}`,
           relatedEntityType: "tender_clarification",
@@ -1530,6 +1533,7 @@ export async function POST(request: Request) {
         });
         await notifyOrganisation(input.recipientOrganizationId, {
           type: "system",
+          pushEventKey: "clarification_requested",
           title: "Tender clarification requested",
           message: `${input.subject} — ${tender.title}`,
           relatedEntityType: "tender_clarification",
@@ -1663,6 +1667,7 @@ export async function POST(request: Request) {
         organizationId: tender.organization_id,
         type: "system",
         title: "Evaluation assigned",
+        pushEventKey: "evaluation_reminder",
         message: `You have been assigned to evaluate ${tender.title}.`,
         relatedEntityType: "procurement_tender",
         relatedEntityId: tender.id,
@@ -1841,6 +1846,7 @@ export async function POST(request: Request) {
         };
         await notifyOrganisation(supplierOrganizationId, {
           type: "system",
+          pushEventKey: input.decision === "shortlist" ? "bid_shortlisted" : input.decision === "clarification" ? "clarification_requested" : input.decision === "unsuccessful" ? "bid_rejected" : "bid_status",
           title: titles[input.decision],
           message:
             input.decision === "unsuccessful"
@@ -1888,6 +1894,7 @@ export async function POST(request: Request) {
       );
       await notifyOrganisation(input.supplierOrganizationId, {
         type: "system",
+        pushEventKey: "private_tender",
         title: "Invited to tender",
         message: `Your organisation has been invited to ${tender.title}.`,
         relatedEntityType: "procurement_tender",
@@ -2046,6 +2053,7 @@ export async function POST(request: Request) {
               organizationId: tender.organization_id,
               type: "system",
               title: "Award approval required",
+              pushEventKey: "tender_approval",
               message: `An award recommendation for ${tender.title} is awaiting approval.`,
               relatedEntityType: "procurement_award",
               relatedEntityId: id,
@@ -2156,6 +2164,7 @@ export async function POST(request: Request) {
         awards.map((award) =>
           notifyOrganisation(award.supplier_organization_id, {
             type: "bid_awarded",
+            pushEventKey: "bid_accepted",
             title: "Contract awarded",
             message: `Your organisation has been awarded ${tender.title}.`,
             relatedEntityType: "procurement_award",
@@ -2180,6 +2189,7 @@ export async function POST(request: Request) {
           });
           await notifyOrganisation(bid.supplier_organization_id, {
             type: "award",
+            pushEventKey: "bid_rejected",
             title: "Tender outcome",
             message: `Your bid for ${tender.title} was not selected. Thank you for participating.`,
             relatedEntityType: "supplier_bid",

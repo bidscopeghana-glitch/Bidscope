@@ -3,10 +3,11 @@ import { escapeHtml } from "./alerts";
 import { createSecureToken } from "./outreach/campaign";
 import { phoneForUser, sendSms, smsProviderConfigured, SMS_EVENT_ALLOWLIST, type SmsEventType } from "./sms";
 import { supabaseRest } from "./supabase-rest";
+import { eligiblePushSubscriptions, pushEventKeyFor, sendPushDelivery, type PushEventKey } from "./web-push";
 
 export type AlertType = "opportunity_match" | "tender_amendment" | "deadline" | "buyer_activity" | "award" | "supplier_activity" | "document_expiry" | "workspace_reminder" | "system" | "bid_received" | "meeting_reminder" | "bid_awarded" | "otp_verification" | "matching_tender" | "watched_tender_closing";
-export type AlertPreference = { user_id:string; alert_type:AlertType; in_app_enabled:boolean; email_enabled:boolean; sms_enabled:boolean; whatsapp_enabled:boolean; frequency:"instant"|"daily"|"weekly"; urgent_override:boolean; reminder_days:number[] };
-export type NotificationInput = { userId:string; organizationId?:string|null; type:AlertType; title:string; message:string; relatedEntityType?:string|null; relatedEntityId?:string|null; relatedUrl?:string|null; priority?:"low"|"normal"|"high"|"urgent"; matchScore?:number|null; matchReasons?:string[]; metadata?:Record<string,unknown>; frequencyOverride?:AlertPreference["frequency"]; dedupeKey:string };
+export type AlertPreference = { user_id:string; alert_type:AlertType; in_app_enabled:boolean; email_enabled:boolean; sms_enabled:boolean; push_enabled:boolean; whatsapp_enabled:boolean; frequency:"instant"|"daily"|"weekly"; urgent_override:boolean; reminder_days:number[] };
+export type NotificationInput = { userId:string; organizationId?:string|null; type:AlertType; title:string; message:string; relatedEntityType?:string|null; relatedEntityId?:string|null; relatedUrl?:string|null; priority?:"low"|"normal"|"high"|"urgent"; matchScore?:number|null; matchReasons?:string[]; metadata?:Record<string,unknown>; pushEventKey?:PushEventKey; frequencyOverride?:AlertPreference["frequency"]; dedupeKey:string };
 
 export const WHATSAPP_ENABLED = Boolean(process.env.WHATSAPP_PROVIDER && process.env.WHATSAPP_API_KEY);
 
@@ -27,19 +28,21 @@ export function stableDedupe(parts: Array<string | number | null | undefined>) {
 export async function preferenceFor(userId:string, type:AlertType) {
   const query = new URLSearchParams({ select:"*", user_id:`eq.${userId}`, alert_type:`eq.${type}`, limit:"1" });
   const { data } = await supabaseRest<AlertPreference[]>(`alert_preferences?${query}`);
-  return data[0] || { user_id:userId, alert_type:type, in_app_enabled:true, email_enabled:false, sms_enabled:false, whatsapp_enabled:false, frequency:"daily" as const, urgent_override:false, reminder_days:[] };
+  return data[0] || { user_id:userId, alert_type:type, in_app_enabled:true, email_enabled:false, sms_enabled:false, push_enabled:true, whatsapp_enabled:false, frequency:"daily" as const, urgent_override:false, reminder_days:[] };
 }
 
 export async function createNotification(input:NotificationInput) {
   const preference = await preferenceFor(input.userId, input.type);
   const smsAllowed=preference.sms_enabled&&SMS_EVENT_ALLOWLIST.has(input.type)&&smsProviderConfigured();
-  const channels = [preference.in_app_enabled ? "in_app" : null, preference.email_enabled ? "email" : null, preference.whatsapp_enabled && WHATSAPP_ENABLED ? "whatsapp" : null, smsAllowed ? "sms" : null].filter(Boolean) as Array<"in_app"|"email"|"whatsapp"|"sms">;
+  const eventKey=pushEventKeyFor(input.type,input.relatedEntityType||null,input.pushEventKey);
+  const pushAllowed=preference.push_enabled && input.type!=="otp_verification" && (await eligiblePushSubscriptions(input.userId,eventKey)).length>0;
+  const channels = [preference.in_app_enabled ? "in_app" : null, preference.email_enabled ? "email" : null, preference.whatsapp_enabled && WHATSAPP_ENABLED ? "whatsapp" : null, smsAllowed ? "sms" : null, pushAllowed ? "push" : null].filter(Boolean) as Array<"in_app"|"email"|"whatsapp"|"sms"|"push">;
   if (!channels.length) return null;
   const { data } = await supabaseRest<Array<{id:string}>>("notifications?on_conflict=user_id,dedupe_key", {
     method:"POST", headers:{ Prefer:"resolution=ignore-duplicates,return=representation" }, body:JSON.stringify({
       user_id:input.userId, organization_id:input.organizationId || null, type:input.type, title:input.title, message:input.message,
       related_entity_type:input.relatedEntityType || null, related_entity_id:input.relatedEntityId || null, related_url:input.relatedUrl || null,
-      priority:input.priority || "normal", match_score:input.matchScore ?? null, match_reasons:input.matchReasons || [], metadata:input.metadata || {}, dedupe_key:input.dedupeKey,
+      priority:input.priority || "normal", match_score:input.matchScore ?? null, match_reasons:input.matchReasons || [], metadata:{...input.metadata,pushEventKey:eventKey}, dedupe_key:input.dedupeKey,
     }),
   });
   const notification = data[0];
@@ -48,13 +51,13 @@ export async function createNotification(input:NotificationInput) {
   const scheduledFor = digestDate(urgent && preference.urgent_override ? "instant" : input.frequencyOverride||preference.frequency);
   await supabaseRest("notification_deliveries?on_conflict=notification_id,channel", {
     method:"POST", headers:{ Prefer:"resolution=ignore-duplicates" }, body:JSON.stringify(channels.map((channel) => ({
-      notification_id:notification.id, channel, status:channel === "in_app" ? "sent" : "pending", provider:channel === "email" ? (process.env.RESEND_API_KEY ? "resend" : null) : channel === "whatsapp" ? process.env.WHATSAPP_PROVIDER : channel === "sms" ? "arkesel" : "bidscope", scheduled_for:scheduledFor, sent_at:channel === "in_app" ? new Date().toISOString() : null,
+      notification_id:notification.id, channel, status:channel === "in_app" ? "sent" : "pending", provider:channel === "email" ? (process.env.RESEND_API_KEY ? "resend" : null) : channel === "whatsapp" ? process.env.WHATSAPP_PROVIDER : channel === "sms" ? "arkesel" : channel === "push" ? "web_push" : "bidscope", scheduled_for:channel === "push" ? new Date().toISOString() : scheduledFor, sent_at:channel === "in_app" ? new Date().toISOString() : null,
     }))),
   });
   return notification;
 }
 
-type PendingDelivery = { id:string; channel:"email"|"whatsapp"|"sms"; retry_count:number; notification:{id:string;user_id:string;type:AlertType;title:string;message:string;related_url:string|null;metadata:Record<string,unknown>;dedupe_key:string} };
+type PendingDelivery = { id:string; channel:"email"|"whatsapp"|"sms"|"push"; retry_count:number; notification:{id:string;user_id:string;type:AlertType;title:string;message:string;related_url:string|null;metadata:Record<string,unknown>;dedupe_key:string} };
 
 async function emailAddress(userId:string) {
   const { data } = await supabaseRest<Array<{email:string}>>(`profiles?select=email&id=eq.${userId}&limit=1`);
@@ -94,13 +97,15 @@ async function sendSmsAlert(delivery:PendingDelivery){
   return sendSms({userId:delivery.notification.user_id,phoneNumber:phone,eventType:delivery.notification.type as SmsEventType,message:`BidScope: ${delivery.notification.message}`.slice(0,480),dedupeKey:`notification:${delivery.notification.dedupe_key}`,notificationId:delivery.notification.id,deliveryId:delivery.id,metadata:{relatedUrl:delivery.notification.related_url}});
 }
 
-export async function processPendingDeliveries(limit = 100) {
+export async function processPendingDeliveries(limit = 100, channel?: "push") {
   const query = new URLSearchParams({ select:"id,channel,retry_count,notification:notifications(id,user_id,type,title,message,related_url,metadata,dedupe_key)", status:"eq.pending", scheduled_for:`lte.${new Date().toISOString()}`, order:"scheduled_for.asc", limit:String(limit) });
+  if(channel)query.set("channel",`eq.${channel}`);
   const { data } = await supabaseRest<PendingDelivery[]>(`notification_deliveries?${query}`);
   const counts = { sent:0, failed:0, skipped:0 };
   for (const delivery of data) {
-    await supabaseRest(`notification_deliveries?id=eq.${delivery.id}`, { method:"PATCH", body:JSON.stringify({status:"processing"}) });
-    const result = delivery.channel === "email" ? await sendEmail(delivery) : delivery.channel === "sms" ? await sendSmsAlert(delivery) : await sendWhatsAppAlert();
+    const {data:claimed}=await supabaseRest<Array<{id:string}>>(`notification_deliveries?id=eq.${delivery.id}&status=eq.pending`, { method:"PATCH", headers:{Prefer:"return=representation"}, body:JSON.stringify({status:"processing"}) });
+    if(!claimed.length)continue;
+    const result = delivery.channel === "push" ? await (async()=>{const sent=await sendPushDelivery(delivery.notification.id,delivery.notification.user_id);return sent.accepted>0?{status:"sent" as const,providerMessageId:null}:sent.failed>0?{status:"failed" as const,reason:"Push service did not accept the notification."}:{status:"skipped" as const,reason:"No active push subscription accepted the notification."};})() : delivery.channel === "email" ? await sendEmail(delivery) : delivery.channel === "sms" ? await sendSmsAlert(delivery) : await sendWhatsAppAlert();
     counts[result.status]++;
     const retry=result.status==="failed"&&"transient" in result&&result.transient&&delivery.retry_count<2;
     await supabaseRest(`notification_deliveries?id=eq.${delivery.id}`, { method:"PATCH", body:JSON.stringify(result.status === "sent" ? {status:"sent",sent_at:new Date().toISOString(),provider_message_id:"providerMessageId" in result ? result.providerMessageId : null,failure_reason:null} : retry ? {status:"pending",scheduled_for:new Date(Date.now()+Math.pow(2,delivery.retry_count)*60_000).toISOString(),failure_reason:result.reason,retry_count:delivery.retry_count+1} : {status:result.status,failed_at:result.status === "failed" ? new Date().toISOString() : null,failure_reason:result.reason,retry_count:delivery.retry_count + (result.status === "failed" ? 1 : 0)}) });

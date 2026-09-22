@@ -8,9 +8,13 @@ export async function generateMeetingReminders(now=new Date()){
   const maximum=new Date(now.getTime()+7*24*60*60_000).toISOString();
   const{data}=await supabaseRest<Participant[]>(`meeting_participants?select=user_id,response_status,meeting:meetings(id,organization_id,title,starts_at,status,reminder_minutes,procurement_tender_id)&user_id=not.is.null&response_status=not.eq.declined&meeting.status=eq.scheduled&meeting.starts_at=gt.${now.toISOString()}&meeting.starts_at=lte.${maximum}&limit=2000`);
   let generated=0;
-  for(const participant of data){const meeting=participant.meeting;if(!participant.user_id||!meeting)continue;const dueAt=new Date(new Date(meeting.starts_at).getTime()-meeting.reminder_minutes*60_000);if(dueAt>now)continue;
-    const notice=await createNotification({userId:participant.user_id,organizationId:meeting.organization_id,type:"meeting_reminder",title:"Meeting reminder",message:`Your meeting regarding ${meeting.title} starts in ${meeting.reminder_minutes} minute${meeting.reminder_minutes===1?"":"s"}.`,relatedEntityType:"meeting",relatedEntityId:meeting.id,relatedUrl:meeting.procurement_tender_id?`/procurement/meetings/${meeting.id}`:`/customer/meetings/${meeting.id}`,priority:"urgent",frequencyOverride:"instant",dedupeKey:stableDedupe(["meeting-reminder",meeting.id,participant.user_id,meeting.reminder_minutes])});
-    if(notice)generated++;
+  for(const participant of data){const meeting=participant.meeting;if(!participant.user_id||!meeting)continue;
+    for(const minutes of new Set([30,10,meeting.reminder_minutes])){
+      const dueAt=new Date(new Date(meeting.starts_at).getTime()-minutes*60_000);
+      if(dueAt>now || now.getTime()-dueAt.getTime()>6*60_000)continue;
+      const notice=await createNotification({userId:participant.user_id,organizationId:meeting.organization_id,type:"meeting_reminder",title:"Meeting reminder",message:`Your meeting regarding ${meeting.title} starts in ${minutes} minute${minutes===1?"":"s"}.`,pushEventKey:"meeting_reminder",relatedEntityType:"meeting",relatedEntityId:meeting.id,relatedUrl:meeting.procurement_tender_id?`/procurement/meetings/${meeting.id}`:`/customer/meetings/${meeting.id}`,priority:"urgent",frequencyOverride:"instant",dedupeKey:stableDedupe(["meeting-reminder",meeting.id,participant.user_id,minutes])});
+      if(notice)generated++;
+    }
   }
   return generated;
 }

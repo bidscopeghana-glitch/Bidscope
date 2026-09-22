@@ -3,6 +3,7 @@ export type MeetingProviderName = "daily" | "google_meet";
 export type MeetingRecord = {
   id: string;
   organization_id: string;
+  procurement_tender_id?: string | null;
   organizer_user_id: string;
   provider: MeetingProviderName;
   title: string;

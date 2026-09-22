@@ -20,6 +20,7 @@ import { HomePage, PanelTitle } from "./home";
 import { Discovery } from "./opportunities";
 import { SupplierTenders } from "@/components/procurement/supplier-tenders";
 import { TenderChatWorkspace } from "@/components/chat/tender-chat";
+import { PushSettings } from "@/components/customer/push-settings";
 const Detail = dynamic(() => import("./detail").then((m) => m.Detail), {
   loading: Skeleton,
 });
@@ -1420,6 +1421,7 @@ function Alerts() {
         title="Alert Centre"
         description="Choose the procurement events you receive and how often you hear from us."
       />
+      <PushSettings />
       <section className="cc-editor">
         <div className="cc-section-heading"><div><p className="cc-eyebrow">Notification preferences</p><h2>Choose how BidScope contacts you</h2></div><span className="cc-badge positive">Secure & configurable</span></div>
         <p className="cc-quiet">

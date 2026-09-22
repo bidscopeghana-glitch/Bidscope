@@ -30,7 +30,7 @@ test("chat API rejects external notices and sealed or draft bids", () => {
 
 test("buyer and seller workspaces expose only managed tender messages", () => {
   const buyer = read("components/procurement/buyer-workspace.tsx");
-  const seller = read("components/customer/shell.tsx");
+  const seller = read("components/customer/navigation.ts");
   const inbox = read("components/procurement/bid-inbox.tsx");
   const tenders = read("components/procurement/supplier-tenders.tsx");
   const chat = read("components/chat/tender-chat.tsx");

@@ -255,6 +255,7 @@ export async function POST(request: Request) {
       organizationId: recipientOrganizationId,
       type: "system",
       title: "New managed tender message",
+      pushEventKey: "new_message",
       message: "A participant sent a message in a BidScope-managed tender conversation.",
       relatedEntityType: "tender_conversation",
       relatedEntityId: access.conversation.id,
