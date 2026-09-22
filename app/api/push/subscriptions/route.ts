@@ -33,7 +33,10 @@ export async function POST(request: Request) {
     const { user } = await requireUser(request);
     if (!pushConfigured()) throw new ApiError(503, "Push notifications are not configured yet.", "push_unavailable");
     const input = subscriptionSchema.parse(await request.json());
-    if (!allowedPushEndpoint(input.endpoint)) throw new ApiError(400, "This browser push endpoint is not supported.", "invalid_push_endpoint");
+    if (!allowedPushEndpoint(input.endpoint)) {
+      const endpointHost = new URL(input.endpoint).hostname.toLowerCase();
+      throw new ApiError(400, `This browser push endpoint (${endpointHost}) is not supported.`, "invalid_push_endpoint");
+    }
     const { data: existing } = await supabaseRest<Array<{ id: string; user_id: string }>>(`push_subscriptions?select=id,user_id&endpoint=eq.${encodeURIComponent(input.endpoint)}&limit=1`);
     if (existing[0] && existing[0].user_id !== user.id) throw new ApiError(409, "This browser is already linked to another account. Disable its existing notifications first.", "device_already_linked");
     const body = { user_id: user.id, endpoint: input.endpoint, p256dh: input.keys.p256dh, auth: input.keys.auth, browser: input.browser || null, platform: input.platform || null, enabled: true, invalidated_at: null, updated_at: new Date().toISOString() };
