@@ -36,8 +36,8 @@ test("chat interface contains embedded voice-call controls", () => {
   assert.match(component, /Incoming call • phone ringing/);
   assert.match(component, /Decline voice call/);
   assert.match(component, /new AudioContext\(\)/);
-  assert.match(css, /position:fixed/);
-  assert.match(css, /safe-area-inset-bottom/);
+  assert.match(css, /flex:0 0 auto/);
+  assert.match(css, /position:relative;z-index:5/);
   assert.match(component, /counterpartyAvatar/);
   assert.match(component, /Private tender voice channel/);
 });
