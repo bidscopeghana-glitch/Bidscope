@@ -26,12 +26,18 @@ test("voice-call API issues short-lived server tokens after conversation authori
 
 test("chat interface contains embedded voice-call controls", () => {
   const component = read("components/chat/tender-chat.tsx");
+  const css = read("components/chat/tender-call.css");
   assert.match(component, /Start voice call/);
   assert.match(component, /Answer call/);
   assert.match(component, /Mute/);
   assert.match(component, /End call/);
   assert.match(component, /agora-rtc-sdk-ng/);
   assert.match(component, /tc-call-avatar/);
+  assert.match(component, /Incoming call • phone ringing/);
+  assert.match(component, /Decline voice call/);
+  assert.match(component, /new AudioContext\(\)/);
+  assert.match(css, /position:fixed/);
+  assert.match(css, /safe-area-inset-bottom/);
   assert.match(component, /counterpartyAvatar/);
   assert.match(component, /Private tender voice channel/);
 });

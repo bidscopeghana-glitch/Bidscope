@@ -68,6 +68,8 @@ export function TenderChatWorkspace({
   const rtcClient = useRef<IAgoraRTCClient | null>(null);
   const microphone = useRef<IMicrophoneAudioTrack | null>(null);
   const joinedCallId = useRef("");
+  const ringingCallId = call?.id;
+  const ringingStartedByMe = Boolean(call?.startedByMe);
 
   const leaveVoiceChannel = useCallback(async () => {
     microphone.current?.stop();
@@ -193,6 +195,42 @@ export function TenderChatWorkspace({
     const timer = window.setInterval(() => setCallSeconds(Math.floor((Date.now() - started) / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, [callState]);
+
+  useEffect(() => {
+    if (!ringingCallId || callState !== "idle") return;
+    let audioContext: AudioContext | null = null;
+    const ring = () => {
+      if (!ringingStartedByMe && "vibrate" in navigator) navigator.vibrate([220, 100, 220]);
+      try {
+        audioContext ||= new AudioContext();
+        void audioContext.resume().then(() => {
+          const start = audioContext?.currentTime || 0;
+          [0, 0.18].forEach((offset) => {
+            if (!audioContext) return;
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            oscillator.type = "sine";
+            oscillator.frequency.value = ringingStartedByMe ? 440 : 660;
+            gain.gain.setValueAtTime(0.0001, start + offset);
+            gain.gain.exponentialRampToValueAtTime(0.12, start + offset + 0.025);
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.15);
+            oscillator.connect(gain).connect(audioContext.destination);
+            oscillator.start(start + offset);
+            oscillator.stop(start + offset + 0.16);
+          });
+        }).catch(() => undefined);
+      } catch {
+        // Some mobile browsers require a prior gesture; vibration and visual ringing remain available.
+      }
+    };
+    ring();
+    const timer = window.setInterval(ring, 2400);
+    return () => {
+      window.clearInterval(timer);
+      if ("vibrate" in navigator) navigator.vibrate(0);
+      void audioContext?.close().catch(() => undefined);
+    };
+  }, [ringingCallId, ringingStartedByMe, callState]);
 
   useEffect(() => {
     if (!bidId || openedBid.current === bidId) return;
@@ -335,7 +373,7 @@ export function TenderChatWorkspace({
                 </div>
               </div>
               <div className="tc-notice">This private thread belongs only to this BidScope-managed tender and bidding organisation. Keep decisions and formal submissions in the appropriate procurement workflow.</div>
-              {call && callState === "idle" && <div className="tc-call-card tc-call-invite"><div className="tc-call-portrait"><span className={`tc-call-avatar${counterpartyAvatar ? " has-image" : ""}`} style={callAvatarStyle} role="img" aria-label={`${counterpartyName} profile image`}>{!counterpartyAvatar && counterpartyInitials}</span><span className="tc-call-ring"><Phone size={17} /></span></div><div className="tc-call-identity"><span className="tc-call-eyebrow">{call.startedByMe ? "Outgoing BidScope voice call" : "Incoming BidScope voice call"}</span><strong>{counterpartyName}</strong><span>{active.tender?.title || "Managed tender conversation"}</span><small>{call.startedByMe ? "Calling securely — waiting for them to join" : "Would like to speak with you about this tender"}</small></div><div className="tc-call-invite-actions"><button disabled={busy} onClick={joinVoiceCall} type="button"><Phone size={16} /> {call.startedByMe ? "Reconnect" : "Answer call"}</button>{call.startedByMe && <button className="danger" onClick={endVoiceCall} type="button"><PhoneOff size={16}/> Decline</button>}</div></div>}
+              {call && callState === "idle" && <div className="tc-call-card tc-call-invite" role="status" aria-live="assertive"><div className="tc-call-portrait"><span className={`tc-call-avatar${counterpartyAvatar ? " has-image" : ""}`} style={callAvatarStyle} role="img" aria-label={`${counterpartyName} profile image`}>{!counterpartyAvatar && counterpartyInitials}</span><span className="tc-call-ring"><Phone size={17} /></span></div><div className="tc-call-identity"><span className="tc-call-eyebrow">{call.startedByMe ? "Outgoing BidScope voice call" : "Incoming BidScope voice call"}</span><strong>{counterpartyName}</strong><span>{active.tender?.title || "Managed tender conversation"}</span><small className="tc-call-ringing">{call.startedByMe ? "Ringing… waiting for them to answer" : "Incoming call • phone ringing"}</small></div><div className="tc-call-invite-actions"><button disabled={busy} onClick={joinVoiceCall} type="button"><Phone size={16} /> {call.startedByMe ? "Reconnect" : "Answer call"}</button><button aria-label={call.startedByMe ? "Cancel voice call" : "Decline voice call"} className="danger" onClick={endVoiceCall} type="button"><PhoneOff size={16}/> {call.startedByMe ? "Cancel" : "Decline"}</button></div></div>}
               {callState !== "idle" && <div className="tc-call-card tc-call-live" role="status"><div className="tc-call-visual"><span className={`tc-call-avatar large${counterpartyAvatar ? " has-image" : ""}`} style={callAvatarStyle} role="img" aria-label={`${counterpartyName} profile image`}>{!counterpartyAvatar && counterpartyInitials}</span><span className={`tc-call-presence ${callState}`} aria-hidden="true" /></div><div className="tc-call-live-copy"><span className="tc-call-eyebrow">Private tender voice channel</span><strong>{counterpartyName}</strong><span className="tc-call-state">{callState === "joining" ? "Connecting securely…" : "Voice call connected"}</span><span className="tc-call-meta"><Users size={14} /> {remoteParticipants + 1} participant{remoteParticipants ? "s" : ""}<b>•</b>{formattedCallTime}</span><span className="tc-call-wave" aria-hidden="true"><i/><i/><i/><i/><i/><i/></span></div><div className="tc-call-controls"><button aria-label={muted ? "Unmute microphone" : "Mute microphone"} disabled={callState !== "connected"} onClick={toggleMute} type="button"><span>{muted ? <MicOff size={19}/> : <Mic size={19}/>}</span>{muted ? "Unmute" : "Mute"}</button><button className="danger" onClick={endVoiceCall} type="button"><span><PhoneOff size={19}/></span>End call</button></div></div>}
               <div className="tc-messages" aria-live="polite">
                 {messages.length ? messages.map((message) => (
