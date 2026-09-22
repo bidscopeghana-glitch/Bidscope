@@ -2,8 +2,9 @@
 import { createContext,useContext,useEffect,useRef,useState } from "react";
 import Link from "next/link";
 import { usePathname,useRouter,useSearchParams } from "next/navigation";
-import { Home,Search,Globe2,Bookmark,BriefcaseBusiness,Building2,ChartNoAxesCombined,FileText,CalendarDays,Bell,Settings,PanelLeftClose,PanelLeftOpen,LogOut,ChevronRight,Sparkles,History,Eye,Menu,X,ArrowUpRight,SlidersHorizontal,Compass,CreditCard,Users,ShieldCheck,Video,Gavel,ArrowLeftRight,MessageSquareText,BookOpenText } from "lucide-react";
+import { Home,Search,Bookmark,BriefcaseBusiness,Building2,FileText,PanelLeftClose,PanelLeftOpen,LogOut,ChevronRight,Sparkles,Menu,X,ArrowUpRight,SlidersHorizontal,Compass,ShieldCheck,ArrowLeftRight } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { navGroups } from "@/components/customer/navigation";
 import { useBidScopeSession } from "@/components/procurement/auth-nav";
 import { NotificationBell } from "@/components/procurement/notification-bell";
 import { FloatingHelp } from "@/components/help/floating-help";
@@ -12,16 +13,6 @@ import { api,useData,invalidate,type Organization,type Preferences,type Opportun
 type Account={profile?:{full_name:string;email:string};organization?:Organization;preferences:Preferences;setPreferences:(p:Preferences)=>void;toast:(m:string)=>void};
 const Context=createContext<Account>({preferences:{},setPreferences:()=>{},toast:()=>{}});
 export const useAccount=()=>useContext(Context);
-export const navGroups:ReadonlyArray<{title:string;links:ReadonlyArray<readonly [string,string,typeof Home]>}>=[
- {title:"",links:[["Home","/customer",Home]]},
- {title:"Discover",links:[["All Opportunities","/customer/discover",Compass],["BidScope Tenders","/customer/bidscope-tenders",Gavel],["Ghana","/customer/discover?scope=ghana",Search],["International","/customer/discover?scope=international",Globe2],["Upcoming Procurement","/customer/discover?stage=upcoming",CalendarDays],["Closing Soon","/customer/discover?days=7",History]]},
- {title:"My Opportunities",links:[["Recommended","/customer/recommended",Sparkles],["Saved","/customer/saved",Bookmark],["Following","/customer/following",Eye],["Recently Viewed","/customer/recent",History]]},
- {title:"Bid Workspace",links:[["My Bids","/customer/bids",BriefcaseBusiness],["Tender Messages","/customer/messages",MessageSquareText],["Bid Pipeline","/customer/pipeline",ChartNoAxesCombined],["Documents","/customer/documents",FileText],["Deadlines","/customer/deadlines",CalendarDays],["Meetings","/customer/meetings",Video]]},
- {title:"Intelligence",links:[["Buyers","/customer/buyers",Building2],["Market Intelligence","/customer/intelligence",ChartNoAxesCombined],["Awards & History","/customer/awards",History],["Blog","/blog",BookOpenText]]},
- {title:"",links:[["AI Tender Evaluation","/customer/ai",Sparkles],["Alerts","/customer/alerts",Bell]]},
- {title:"Account",links:[["Business Profile","/customer/profile",Building2],["Team","/customer/team",Users],["Tender Readiness","/customer/readiness",ChartNoAxesCombined],["Billing","/customer/billing",CreditCard],["Notifications","/customer/notifications",Bell],["Settings","/customer/settings",Settings]]}
-] as const;
-
 export function CustomerShell({children}:{children:React.ReactNode}){
  const session=useBidScopeSession(),router=useRouter(),pathname=usePathname(),params=useSearchParams();
  const [expired,setExpired]=useState(false),[mobile,setMobile]=useState(false),[search,setSearch]=useState(false),[message,setMessage]=useState("");

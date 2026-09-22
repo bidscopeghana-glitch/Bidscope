@@ -4,7 +4,9 @@ import "./globals.css";
 import { CookieConsent } from "@/components/legal/cookie-consent";
 import {SeoAnalytics} from "@/components/seo/seo-analytics";
 import {SeoAttribution} from "@/components/seo/seo-attribution";
+import {PersistentSiteSidebar} from "@/components/customer/persistent-site-sidebar";
 import {DEFAULT_OG_IMAGE,SITE_URL} from "@/lib/seo/site";
+import "@/components/customer/persistent-site-sidebar.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -46,5 +48,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}<CookieConsent /><SeoAnalytics/><Suspense fallback={null}><SeoAttribution/></Suspense></body></html>;
+  return <html lang="en"><body><PersistentSiteSidebar/><div id="site-content">{children}</div><CookieConsent /><SeoAnalytics/><Suspense fallback={null}><SeoAttribution/></Suspense></body></html>;
 }
