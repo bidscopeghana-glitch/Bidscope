@@ -49,6 +49,7 @@ export function pushEventKeyFor(type: string, entity: string | null, explicit?: 
   if (explicit && (PUSH_EVENT_KEYS as readonly string[]).includes(explicit)) return explicit as PushEventKey;
   if (type === "matching_tender" || type === "opportunity_match") return "matching_tender";
   if (type === "tender_amendment") return "tender_amendment";
+  if (type === "watched_tender_closing") return "saved_tender_reminder";
   if (type === "deadline" || type === "watched_tender_closing") return "tender_deadline";
   if (type === "meeting_reminder") return "meeting_reminder";
   if (type === "bid_received") return "new_bid";
