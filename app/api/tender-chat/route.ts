@@ -16,6 +16,8 @@ const input = z.discriminatedUnion("action", [
 ]);
 
 type Membership = { organization_id: string; role: string; procurement_role: string };
+type OrganizationContact = { organization_id: string; user_id: string; role: string };
+type ContactProfile = { id: string; full_name: string | null; avatar_url: string | null };
 type Conversation = {
   id: string;
   tender_id: string;
@@ -79,7 +81,7 @@ async function enrich(conversations: Conversation[], user: AuthenticatedUser) {
   const tenderIds = [...new Set(conversations.map((item) => item.tender_id))];
   const organizationIds = [...new Set(conversations.flatMap((item) => [item.buyer_organization_id, item.supplier_organization_id]))];
   const conversationIds = conversations.map((item) => item.id);
-  const [{ data: tenders }, { data: organizations }, { data: messages }] = await Promise.all([
+  const [{ data: tenders }, { data: organizations }, { data: messages }, { data: organizationContacts }] = await Promise.all([
     supabaseRest<Array<{ id: string; title: string; reference_number: string | null; status: string; submission_deadline: string }>>(
       `procurement_tenders?select=id,title,reference_number,status,submission_deadline&id=in.(${tenderIds.join(",")})`,
       { serviceRole: true },
@@ -92,9 +94,27 @@ async function enrich(conversations: Conversation[], user: AuthenticatedUser) {
       `tender_messages?select=id,conversation_id,sender_user_id,sender_organization_id,body,created_at&conversation_id=in.(${conversationIds.join(",")})&order=created_at.desc&limit=1000`,
       { serviceRole: true },
     ),
+    supabaseRest<OrganizationContact[]>(
+      `organization_members?select=organization_id,user_id,role&organization_id=in.(${organizationIds.join(",")})`,
+      { serviceRole: true },
+    ),
   ]);
+  const contactUserIds = [...new Set(organizationContacts.map((item) => item.user_id))];
+  const { data: contactProfiles } = contactUserIds.length
+    ? await supabaseRest<ContactProfile[]>(
+        `profiles?select=id,full_name,avatar_url&id=in.(${contactUserIds.join(",")})`,
+        { serviceRole: true },
+      )
+    : { data: [] };
   const tenderMap = new Map(tenders.map((item) => [item.id, item]));
   const organizationMap = new Map(organizations.map((item) => [item.id, item]));
+  const profileMap = new Map(contactProfiles.map((profile) => [profile.id, profile]));
+  const contactMap = new Map<string, ContactProfile>();
+  const rolePriority = { owner: 0, admin: 1, member: 2 } as const;
+  for (const contact of [...organizationContacts].sort((a, b) => (rolePriority[a.role as keyof typeof rolePriority] ?? 3) - (rolePriority[b.role as keyof typeof rolePriority] ?? 3))) {
+    const profile = profileMap.get(contact.user_id);
+    if (profile && !contactMap.has(contact.organization_id)) contactMap.set(contact.organization_id, profile);
+  }
   const lastMessage = new Map<string, Message>();
   for (const message of messages) if (!lastMessage.has(message.conversation_id)) lastMessage.set(message.conversation_id, message);
   return conversations.map((conversation) => {
@@ -105,13 +125,15 @@ async function enrich(conversations: Conversation[], user: AuthenticatedUser) {
     const unreadCount = messages.filter(
       (message) => message.conversation_id === conversation.id && message.sender_organization_id !== viewerOrganizationId && (!readAt || Date.parse(message.created_at) > Date.parse(readAt)),
     ).length;
+    const counterpartyOrganizationId = side === "buyer" ? conversation.supplier_organization_id : conversation.buyer_organization_id;
+    const counterpartyOrganization = organizationMap.get(counterpartyOrganizationId);
     return {
       ...conversation,
       side,
       tender: tenderMap.get(conversation.tender_id) || null,
       buyer: organizationMap.get(conversation.buyer_organization_id) || null,
       supplier: organizationMap.get(conversation.supplier_organization_id) || null,
-      counterparty: organizationMap.get(side === "buyer" ? conversation.supplier_organization_id : conversation.buyer_organization_id) || null,
+      counterparty: counterpartyOrganization ? { ...counterpartyOrganization, representative: contactMap.get(counterpartyOrganizationId) || null } : null,
       lastMessage: lastMessage.get(conversation.id) || null,
       unreadCount,
     };
@@ -134,8 +156,8 @@ export async function GET(request: Request) {
       ]);
       const senderIds = [...new Set(messages.map((message) => message.sender_user_id))];
       const { data: profiles } = senderIds.length
-        ? await supabaseRest<Array<{ id: string; full_name: string | null; email: string }>>(
-            `profiles?select=id,full_name,email&id=in.(${senderIds.join(",")})`,
+        ? await supabaseRest<Array<{ id: string; full_name: string | null; email: string; avatar_url: string | null }>>(
+            `profiles?select=id,full_name,email,avatar_url&id=in.(${senderIds.join(",")})`,
             { serviceRole: true },
           )
         : { data: [] };

@@ -27,10 +27,22 @@ test("voice-call API issues short-lived server tokens after conversation authori
 test("chat interface contains embedded voice-call controls", () => {
   const component = read("components/chat/tender-chat.tsx");
   assert.match(component, /Start voice call/);
-  assert.match(component, /Join call/);
+  assert.match(component, /Answer call/);
   assert.match(component, /Mute/);
   assert.match(component, /End call/);
   assert.match(component, /agora-rtc-sdk-ng/);
+  assert.match(component, /tc-call-avatar/);
+  assert.match(component, /counterpartyAvatar/);
+  assert.match(component, /Private tender voice channel/);
+});
+
+test("participant avatars are sourced from authenticated profile metadata", () => {
+  const migration = read("supabase/migrations/20260922013000_profile_avatars.sql");
+  const route = read("app/api/tender-chat/route.ts");
+  assert.match(migration, /add column if not exists avatar_url text/);
+  assert.match(migration, /raw_user_meta_data ->> 'avatar_url'/);
+  assert.match(route, /profiles\?select=id,full_name,avatar_url/);
+  assert.match(route, /representative: contactMap/);
 });
 
 test("production content security policy permits Agora signalling and media endpoints", () => {

@@ -13,7 +13,7 @@ type Conversation = {
   status: "open" | "closed";
   side: "buyer" | "supplier";
   tender: { id: string; title: string; reference_number: string | null; status: string; submission_deadline: string } | null;
-  counterparty: { id: string; name: string } | null;
+  counterparty: { id: string; name: string; representative: { full_name: string | null; avatar_url: string | null } | null } | null;
   lastMessage: { body: string; created_at: string } | null;
   unreadCount: number;
 };
@@ -22,7 +22,7 @@ type ChatMessage = {
   body: string;
   created_at: string;
   mine: boolean;
-  sender: { full_name: string | null; email: string } | null;
+  sender: { full_name: string | null; email: string; avatar_url: string | null } | null;
 };
 type VoiceCall = {
   id: string;
@@ -272,6 +272,10 @@ export function TenderChatWorkspace({
   }
 
   const formattedCallTime = `${String(Math.floor(callSeconds / 60)).padStart(2, "0")}:${String(callSeconds % 60).padStart(2, "0")}`;
+  const counterpartyName = active?.counterparty?.representative?.full_name || active?.counterparty?.name || "Tender participant";
+  const counterpartyAvatar = active?.counterparty?.representative?.avatar_url || null;
+  const counterpartyInitials = counterpartyName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "BP";
+  const callAvatarStyle = counterpartyAvatar ? { backgroundImage: `url(${counterpartyAvatar})` } : undefined;
 
   return (
     <div className={`tc-workspace ${selected ? "has-selection" : ""}`}>
@@ -325,8 +329,8 @@ export function TenderChatWorkspace({
                 </div>
               </div>
               <div className="tc-notice">This private thread belongs only to this BidScope-managed tender and bidding organisation. Keep decisions and formal submissions in the appropriate procurement workflow.</div>
-              {call && callState === "idle" && <div className="tc-call-invite"><span className="tc-call-pulse"><Phone size={18} /></span><div><strong>{call.startedByMe ? "Voice call ready" : "Incoming voice call"}</strong><span>{call.startedByMe ? "Waiting for the other participant." : "A tender participant is calling you."}</span></div><div className="tc-call-invite-actions"><button disabled={busy} onClick={joinVoiceCall} type="button"><Phone size={16} /> {call.startedByMe ? "Reconnect" : "Join call"}</button>{call.startedByMe && <button className="danger" onClick={endVoiceCall} type="button"><PhoneOff size={16}/> Cancel</button>}</div></div>}
-              {callState !== "idle" && <div className="tc-call-live" role="status"><div className="tc-call-live-copy"><span className="tc-call-wave"><i/><i/><i/><i/></span><div><strong>{callState === "joining" ? "Connecting secure voice call…" : "Voice call connected"}</strong><span><Users size={13} /> {remoteParticipants + 1} participant{remoteParticipants ? "s" : ""} · {formattedCallTime}</span></div></div><div className="tc-call-controls"><button aria-label={muted ? "Unmute microphone" : "Mute microphone"} disabled={callState !== "connected"} onClick={toggleMute} type="button">{muted ? <MicOff size={17}/> : <Mic size={17}/>} {muted ? "Unmute" : "Mute"}</button><button className="danger" onClick={endVoiceCall} type="button"><PhoneOff size={17}/> End call</button></div></div>}
+              {call && callState === "idle" && <div className="tc-call-card tc-call-invite"><div className="tc-call-portrait"><span className={`tc-call-avatar${counterpartyAvatar ? " has-image" : ""}`} style={callAvatarStyle} role="img" aria-label={`${counterpartyName} profile image`}>{!counterpartyAvatar && counterpartyInitials}</span><span className="tc-call-ring"><Phone size={17} /></span></div><div className="tc-call-identity"><span className="tc-call-eyebrow">{call.startedByMe ? "Outgoing BidScope voice call" : "Incoming BidScope voice call"}</span><strong>{counterpartyName}</strong><span>{active.tender?.title || "Managed tender conversation"}</span><small>{call.startedByMe ? "Calling securely — waiting for them to join" : "Would like to speak with you about this tender"}</small></div><div className="tc-call-invite-actions"><button disabled={busy} onClick={joinVoiceCall} type="button"><Phone size={16} /> {call.startedByMe ? "Reconnect" : "Answer call"}</button>{call.startedByMe && <button className="danger" onClick={endVoiceCall} type="button"><PhoneOff size={16}/> Decline</button>}</div></div>}
+              {callState !== "idle" && <div className="tc-call-card tc-call-live" role="status"><div className="tc-call-visual"><span className={`tc-call-avatar large${counterpartyAvatar ? " has-image" : ""}`} style={callAvatarStyle} role="img" aria-label={`${counterpartyName} profile image`}>{!counterpartyAvatar && counterpartyInitials}</span><span className={`tc-call-presence ${callState}`} aria-hidden="true" /></div><div className="tc-call-live-copy"><span className="tc-call-eyebrow">Private tender voice channel</span><strong>{counterpartyName}</strong><span className="tc-call-state">{callState === "joining" ? "Connecting securely…" : "Voice call connected"}</span><span className="tc-call-meta"><Users size={14} /> {remoteParticipants + 1} participant{remoteParticipants ? "s" : ""}<b>•</b>{formattedCallTime}</span><span className="tc-call-wave" aria-hidden="true"><i/><i/><i/><i/><i/><i/></span></div><div className="tc-call-controls"><button aria-label={muted ? "Unmute microphone" : "Mute microphone"} disabled={callState !== "connected"} onClick={toggleMute} type="button"><span>{muted ? <MicOff size={19}/> : <Mic size={19}/>}</span>{muted ? "Unmute" : "Mute"}</button><button className="danger" onClick={endVoiceCall} type="button"><span><PhoneOff size={19}/></span>End call</button></div></div>}
               <div className="tc-messages" aria-live="polite">
                 {messages.length ? messages.map((message) => (
                   <article className={message.mine ? "mine" : "theirs"} key={message.id}>
