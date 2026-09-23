@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyOcds, extractReleases, latestReleases, ocdsToOpportunity, GHANEPS_REGISTRY_URL } from "../../lib/server/discovery/ocds.ts";
+import { classifyOcds, extractReleases, latestReleases, ocdsToHistory, ocdsToOpportunity, GHANEPS_REGISTRY_URL } from "../../lib/server/discovery/ocds.ts";
 
 const base = { ocid: "ocds-uhveoc-123", id: "release-1", date: "2026-09-01T12:00:00Z", tag: ["tender"], buyer: { id: "buyer-1", name: "Accra Buyer" }, tender: { id: "123", title: "Build a drain", description: "Drain construction", status: "active", tenderPeriod: { startDate: "2026-09-01T09:00:00Z", endDate: "2026-12-01T10:00:00+00:00" } } };
 const now = new Date("2026-09-23T10:00:00Z");
@@ -26,3 +26,14 @@ test("OCID identity is stable across releases", () => { const a = ocdsToOpportun
 test("documents are linked and not mirrored", () => { const r = ocdsToOpportunity([{ ...base, tender: { ...base.tender, documents: [{ title: "Notice", url: "https://www.ghaneps.gov.gh/notice.pdf", format: "application/pdf" }] } }], now); assert.equal(r.documents_url, "https://www.ghaneps.gov.gh/notice.pdf"); assert.equal((r.source_details.documents as Array<{ title: string }>)[0]?.title, "Notice"); });
 test("unsafe document URL is not accepted", () => { const r = ocdsToOpportunity([{ ...base, tender: { ...base.tender, documents: [{ url: "javascript:alert(1)" }] } }], now); assert.equal(r.documents_url, null); });
 test("buyer identity and eligibility are not invented", () => { const r = ocdsToOpportunity([base], now); assert.equal(r.buyer_name, "Accra Buyer"); assert.equal(r.eligibility_text, null); });
+test("historical process retains provenance and releases under one OCID", () => {
+  const award = { ...base, id: "award-1", date: "2026-09-05T12:00:00Z", tag: ["award"], awards: [{ id: "award-a", suppliers: [{ name: "Supplier Ltd" }], value: { amount: 400, currency: "GHS" } }] };
+  const contract = { ...base, id: "contract-1", date: "2026-09-06T12:00:00Z", tag: ["contract"], contracts: [{ id: "contract-a" }] };
+  const row = ocdsToHistory([base, award, contract, award], "source-id", "run-id", now);
+  assert.equal(row.ocid, base.ocid); assert.equal(row.release_history.length, 3);
+  assert.equal(row.award_count, 1); assert.equal(row.contract_count, 1);
+  assert.deepEqual(row.supplier_names, ["Supplier Ltd"]);
+  assert.equal(row.stage, "contracted"); assert.match(row.source_attribution, /Public Procurement Authority/);
+  assert.equal(row.registry_url, GHANEPS_REGISTRY_URL);
+  assert.equal(ocdsToHistory([base, award, contract], "source-id", "run-id", now).source_hash, row.source_hash);
+});

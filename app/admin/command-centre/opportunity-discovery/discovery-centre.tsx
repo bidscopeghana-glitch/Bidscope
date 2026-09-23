@@ -10,7 +10,7 @@ type Job = { id: string; status: string; source_id: string; pages_examined: numb
 type Settings = { enabled: boolean; auto_publish: boolean; max_crawls_per_day: number };
 type RightsAudit = { id: string; source_id: string; old_rights: { reuse_status?: string }; new_rights: { reuse_status?: string }; changed_at: string };
 type Snapshot = { discoveries: Discovery[]; sources: Source[]; jobs: Job[]; rightsAudit: RightsAudit[]; settings: Settings | null };
-const rightsStatuses = ["explicitly_licensed", "written_permission", "official_api", "public_link_only", "permission_unknown", "prohibited"];
+const rightsStatuses = ["official_open_data", "explicitly_licensed", "written_permission", "official_api", "public_link_only", "permission_unknown", "prohibited"];
 
 export function DiscoveryCentre() {
   const [data, setData] = useState<Snapshot | null>(null);

@@ -92,3 +92,54 @@ export function ocdsToOpportunity(releases: Release[], now = new Date()): Normal
     raw_payload: { ocid: current.ocid, release_id: current.id, registry_url: GHANEPS_REGISTRY_URL },
   });
 }
+
+/** A process is one OCID, never one row per release. No attachment bytes are copied. */
+export function ocdsToHistory(releases: Release[], sourceId: string, runId: string | null, now = new Date()) {
+  const { current, ordered, stage, status } = classifyOcds(releases, now);
+  const tender = object(current.tender);
+  const buyer = object(tender.procuringEntity || current.buyer);
+  const awards = ordered.flatMap(release => list(release.awards).map(object));
+  const contracts = ordered.flatMap(release => list(release.contracts).map(object));
+  const byId = (items: Json[]) => [...new Map(items.map(item => [string(item.id) || stableHash(item), item])).values()];
+  const uniqueAwards = byId(awards);
+  const uniqueContracts = byId(contracts);
+  const suppliers = [...new Set(uniqueAwards.flatMap(award => list(award.suppliers).map(item => string(object(item).name)).filter(Boolean)))];
+  const value = object(tender.value);
+  const amount = Number(value.amount);
+  const monetary = (items: Json[]) => {
+    const amounts = items.map(item => object(item.value)).filter(item => Number.isFinite(Number(item.amount)) && Number(item.amount) >= 0 && /^[A-Z]{3}$/.test(string(item.currency)));
+    const currencies = [...new Set(amounts.map(item => string(item.currency)))];
+    return currencies.length === 1 ? { amount: amounts.reduce((total, item) => total + Number(item.amount), 0), currency: currencies[0] } : { amount: null, currency: null };
+  };
+  const contractMoney = monetary(uniqueContracts);
+  const awardMoney = monetary(uniqueAwards);
+  const first = ordered[0];
+  const sourceTenderId = string(tender.id);
+  const documents = ordered.flatMap(release => list(object(release.tender).documents).map(object));
+  return {
+    source_id: sourceId, ocid: current.ocid, source_hash: stableHash(ordered),
+    latest_release_id: current.id, latest_release_date: validDate(current.date),
+    first_publication_date: validDate(first.date),
+    title: string(tender.title) || `Procurement process ${current.ocid}`,
+    description: string(tender.description) || null,
+    buyer_name: string(buyer.name) || null, buyer_id: string(buyer.id) || null,
+    category: string(tender.mainProcurementCategory) || null,
+    procurement_method: string(tender.procurementMethodDetails || tender.procurementMethod) || null,
+    tender_id: sourceTenderId || null,
+    tender_start_at: validDate(object(tender.tenderPeriod).startDate),
+    tender_end_at: validDate(object(tender.tenderPeriod).endDate), stage, status,
+    value: Number.isFinite(amount) && amount >= 0 ? amount : null,
+    currency: /^[A-Z]{3}$/.test(string(value.currency)) ? string(value.currency) : null,
+    contract_value: contractMoney.amount, contract_currency: contractMoney.currency,
+    award_value: awardMoney.amount, award_currency: awardMoney.currency,
+    award_count: uniqueAwards.length, contract_count: uniqueContracts.length,
+    supplier_names: suppliers, award_data: uniqueAwards, contract_data: uniqueContracts,
+    parties: list(current.parties),
+    documents_metadata: byId(documents).map(doc => ({ id: string(doc.id), title: string(doc.title), documentType: string(doc.documentType), url: url(doc.url), datePublished: validDate(doc.datePublished), dateModified: validDate(doc.dateModified), format: string(doc.format) })),
+    release_history: ordered,
+    original_source_url: sourceTenderId ? `${GHANEPS_ORIGINAL_BASE}${encodeURIComponent(sourceTenderId)}` : null,
+    registry_url: GHANEPS_REGISTRY_URL,
+    source_attribution: "GHANEPS / Public Procurement Authority Ghana",
+    last_seen_at: now.toISOString(), last_import_run_id: runId,
+  };
+}

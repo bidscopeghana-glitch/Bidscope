@@ -38,6 +38,16 @@ test("official API is not sent to generic crawler", () => {
   assert.equal(canCrawl(source), false);
   assert.equal(canAutoPublish(source), false);
 });
+test("official open data uses a structured importer and preserves evidence", () => {
+  const source: SourceRights = { ...licensed, reuse_status: "official_open_data", discovery_enabled: false,
+    discovery_auto_publish_enabled: false, permission_evidence: "PPA registry and Ghana open-data policy" };
+  assert.equal(canPublish(source), true);
+  assert.equal(canCrawl(source), false);
+  assert.equal(canAutoPublish(source), false);
+  assert.equal(validateRights(source), null);
+  assert.match(validateRights({ ...source, document_reuse_allowed: true }) || "", /document mirroring/);
+  assert.equal(canPublish({ ...source, permission_evidence: null }), false);
+});
 test("written permission requires evidence and permission date", () => {
   assert.equal(canCrawl({ ...licensed, reuse_status: "written_permission" }), false);
   assert.equal(canCrawl({ ...licensed, reuse_status: "written_permission", permission_evidence: "Signed permission", permission_date: "2026-09-23" }), true);
