@@ -21,20 +21,31 @@ export async function GET(request: Request) {
     const [{data:status},{data:requests},{data:settings},{data:organizations},{data:profiles},{data:existingDocuments}] = await Promise.all([
       supabaseRest<Array<{level:"basic"|"verified"|"enhanced_verified";verified_at:string|null;expires_at:string|null}>>(`supplier_verification_status?select=level,verified_at,expires_at&organization_id=eq.${organizationId}&limit=1`),
       supabaseRest<VerificationRequest[]>(`supplier_verification_requests?select=*&organization_id=eq.${organizationId}&order=created_at.desc&limit=20`),
-      supabaseRest<Array<{enhanced_price_minor:number;currency:string;validity_months:number}>>("supplier_verification_settings?select=enhanced_price_minor,currency,validity_months&id=eq.true&limit=1"),
+      supabaseRest<Array<{enhanced_price_minor:number;currency:string;validity_months:number;ppa_recheck_months:number;ppa_supplier_url:string;ppa_portal_url:string;ppa_barred_url:string}>>("supplier_verification_settings?select=enhanced_price_minor,currency,validity_months,ppa_recheck_months,ppa_supplier_url,ppa_portal_url,ppa_barred_url&id=eq.true&limit=1"),
       supabaseRest<Array<{name:string;registration_number:string|null;region:string|null;sectors:string[];procurement_contact:string|null}>>(`organizations?select=name,registration_number,region,sectors,procurement_contact&id=eq.${organizationId}&limit=1`),
       supabaseRest<Array<{full_name:string;phone_verified_at:string|null}>>(`profiles?select=full_name,phone_verified_at&id=eq.${user.id}&limit=1`),
       supabaseRest<Array<{id:string}>>(`supplier_documents?select=id&organization_id=eq.${organizationId}&limit=1`),
     ]);
     const ids=requests.map(item=>item.id);
     const [{data:checks},{data:documents}]=await Promise.all([
-      ids.length?supabaseRest<Array<{id:string;request_id:string;check_type:string;status:string;source:string|null;reviewed_at:string|null}>>(`supplier_verification_checks?select=id,request_id,check_type,status,source,reviewed_at&request_id=in.(${ids.join(",")})`):Promise.resolve({data:[]}),
+      ids.length?supabaseRest<Array<{id:string;request_id:string;check_type:string;status:string;source:string|null;reviewed_at:string|null;result_code:string|null;checked_at:string|null;next_check_at:string|null}>>(`supplier_verification_checks?select=id,request_id,check_type,status,source,reviewed_at,result_code,checked_at,next_check_at&request_id=in.(${ids.join(",")})`):Promise.resolve({data:[]}),
       ids.length?supabaseRest<Array<{id:string;request_id:string;document_type:string;original_filename:string;size_bytes:number;risk_level:string;integrity_flags:string[];created_at:string}>>(`supplier_verification_documents?select=id,request_id,document_type,original_filename,size_bytes,risk_level,integrity_flags,created_at&request_id=in.(${ids.join(",")})`):Promise.resolve({data:[]}),
     ]);
     const current=status[0];
     const company=organizations[0];
     const basicChecks={account:true,email:Boolean(user.emailConfirmedAt),phone:Boolean(profiles[0]?.phone_verified_at),company:Boolean(company?.name?.trim()),registration:Boolean(company?.registration_number?.trim()),category:Boolean(company?.sectors?.length),location:Boolean(company?.region?.trim()),contact:Boolean(company?.procurement_contact?.trim()||profiles[0]?.full_name?.trim()),documents:Boolean(existingDocuments.length||documents.length)};
-    return Response.json({data:{level:effectiveLevel(current?.level||"basic",current?.expires_at||null),verifiedAt:current?.verified_at||null,expiresAt:current?.expires_at||null,basicChecks,requests,checks,documents,settings:settings[0]||null}},{headers:{"Cache-Control":"private, no-store"}});
+    const level=effectiveLevel(current?.level||"basic",current?.expires_at||null);
+    const latestRequest=requests[0];
+    const latestChecks=new Map(checks.filter(item=>item.request_id===latestRequest?.id).map(item=>[item.check_type,item]));
+    const readiness=[
+      {key:"orc_registration",label:"ORC registration",status:latestChecks.get("company_registration")?.status||"not_recorded"},
+      {key:"tax_clearance",label:"Tax / TCC",status:latestChecks.get("tax_clearance")?.status||"not_recorded"},
+      {key:"ppa_registration",label:"PPA supplier registration",status:latestChecks.get("ppa_supplier_registration")?.result_code||latestChecks.get("ppa_supplier_registration")?.status||"not_recorded"},
+      {key:"ghaneps_account",label:"GHANEPS account",status:"not_recorded"},
+      {key:"sector_licence",label:"Sector licence",status:latestChecks.get("licence_check")?.status||"not_recorded"},
+      {key:"bidscope_verification",label:"BidScope verification",status:level},
+    ];
+    return Response.json({data:{level,verifiedAt:current?.verified_at||null,expiresAt:current?.expires_at||null,basicChecks,requests,checks,documents,settings:settings[0]||null,governmentReadiness:readiness}},{headers:{"Cache-Control":"private, no-store"}});
   }catch(error){return apiErrorResponse(error);}
 }
 

@@ -18,8 +18,8 @@ test("basic status is the safe default; expired badges are inactive",()=>{
  assert.equal(effectiveLevel("verified","2026-01-01T00:00:00Z",new Date("2026-09-23T00:00:00Z")),"basic");
  assert.equal(effectiveLevel("enhanced_verified","2027-01-01T00:00:00Z",new Date("2026-09-23T00:00:00Z")),"enhanced_verified");
 });
-test("verified application requires all five checks",()=>{
- assert.equal(VERIFIED_CHECKS.length,5);
+test("verified application requires all core and PPA checks",()=>{
+ assert.equal(VERIFIED_CHECKS.length,7);
  assert.equal(mayApprove({requested_level:"verified",payment_status:"not_required"},passed(VERIFIED_CHECKS)),true);
  assert.equal(mayApprove({requested_level:"verified",payment_status:"not_required"},passed(VERIFIED_CHECKS.slice(0,4))),false);
 });
@@ -29,8 +29,8 @@ test("enhanced payment alone never grants approval",()=>{
  assert.equal(mayApprove({requested_level:"enhanced_verified",payment_status:"paid"},passed(ENHANCED_CHECKS)),true);
 });
 test("contextual checks may be not applicable but official core checks cannot",()=>{
- const checks=passed(VERIFIED_CHECKS);
- checks.push(...ENHANCED_CHECKS.slice(VERIFIED_CHECKS.length).map(check_type=>({check_type,status:"not_applicable" as const})));
+ const checks=passed(VERIFIED_CHECKS.slice(0,5));
+ checks.push(...ENHANCED_CHECKS.slice(5).map(check_type=>({check_type,status:"not_applicable" as const})));
  assert.equal(mayApprove({requested_level:"enhanced_verified",payment_status:"paid"},checks),true);
  checks[0].status="not_applicable";
  assert.equal(mayApprove({requested_level:"enhanced_verified",payment_status:"paid"},checks),false);
@@ -61,7 +61,7 @@ test("an enhanced application snapshots the configurable fee without editing his
 test("application and review actions are audited",()=>{
  assert.match(supplierRoute,/verificationAudit\(application,user\.id,"application_created"/);
  assert.match(supplierRoute,/verificationAudit\(application,user\.id,"application_submitted"/);
- assert.match(reviewRoute,/verificationAudit\(application,user\.id,"check_reviewed"/);
+ assert.match(reviewRoute,/verificationAudit\(application,user\.id,preserve\?"ppa_source_unavailable":"check_reviewed"/);
  assert.match(migration,/insert into public\.supplier_verification_audit_log\(request_id,organization_id,actor_id,action,details\)/);
 });
 test("expiry reminders, renewal history and lower-tier fallback remain separate",()=>{
