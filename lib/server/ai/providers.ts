@@ -4,6 +4,29 @@ type ProviderConfig = { id: AIProviderId; key?: string; baseUrl: string; default
 const zeroUsage = { inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 };
 const textFromMessages = (request: AIProviderRequest) => request.messages.map(message => `${message.role.toUpperCase()}: ${message.content}`).join("\n\n");
 
+const gatewayProviderPath: Record<string, string> = { groq: "groq", gemini: "google-ai-studio/v1beta", openrouter: "openrouter", openai: "openai" };
+export function aiGatewayBaseUrl(provider: AIProviderId): string | null {
+  const account = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const token = process.env.CLOUDFLARE_AI_GATEWAY_TOKEN?.trim();
+  const path = gatewayProviderPath[provider];
+  if (!account || !token || !path) return null;
+  return `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(account)}/bidscope-ai/${path}`;
+}
+
+async function providerFetch(provider: AIProviderId, originBaseUrl: string, suffix: string, init: RequestInit): Promise<Response> {
+  const gatewayBase = aiGatewayBaseUrl(provider);
+  if (!gatewayBase) return fetch(`${originBaseUrl}${suffix}`, init);
+  const headers = new Headers(init.headers);
+  headers.set("cf-aig-authorization", `Bearer ${process.env.CLOUDFLARE_AI_GATEWAY_TOKEN!.trim()}`);
+  try {
+    // Only a transport failure falls back to the origin. Retrying an HTTP error could double-bill a completed request.
+    return await fetch(`${gatewayBase}${suffix}`, { ...init, headers });
+  } catch (error) {
+    if (init.signal?.aborted) throw error;
+    return fetch(`${originBaseUrl}${suffix}`, init);
+  }
+}
+
 abstract class BaseProvider implements AIProvider {
   readonly id: AIProviderId;
   readonly configured: boolean;
@@ -34,7 +57,7 @@ class OpenAICompatibleProvider extends BaseProvider {
   constructor(config:ProviderConfig, headers:(key:string)=>Record<string,string>){super(config);this.headers=headers;}
   async generateText(request: AIProviderRequest): Promise<AIProviderResult> {
     const key=this.ensureConfigured();
-    const response=await fetch(`${this.baseUrl}/chat/completions`,{method:"POST",headers:{"Content-Type":"application/json",...this.headers(key)},body:JSON.stringify({model:request.model,messages:request.messages,temperature:request.temperature??0.2,[this.maxTokenField]:request.maxOutputTokens,...(request.jsonSchema?{response_format:{type:"json_object"}}:{})}),signal:AbortSignal.timeout(45000)});
+    const response=await providerFetch(this.id,this.baseUrl,"/chat/completions",{method:"POST",headers:{"Content-Type":"application/json",...this.headers(key)},body:JSON.stringify({model:request.model,messages:request.messages,temperature:request.temperature??0.2,[this.maxTokenField]:request.maxOutputTokens,...(request.jsonSchema?{response_format:{type:"json_object"}}:{})}),signal:AbortSignal.timeout(45000)});
     if(!response.ok){const body=await response.text();throw new Error(`${this.id} returned ${response.status}: ${safeProviderError(body)}`);}
     const body=await response.json() as {choices?:Array<{message?:{content?:string}}> ;usage?:{prompt_tokens?:number;completion_tokens?:number}};
     const text=body.choices?.[0]?.message?.content?.trim();if(!text)throw new Error(`${this.id} returned an empty response`);
@@ -46,7 +69,7 @@ class OpenAICompatibleProvider extends BaseProvider {
 export class GeminiProvider extends BaseProvider {
   async generateText(request:AIProviderRequest):Promise<AIProviderResult>{
     const key=this.ensureConfigured();const system=request.messages.filter(x=>x.role==="system").map(x=>x.content).join("\n");const user=request.messages.filter(x=>x.role!=="system").map(x=>x.content).join("\n\n");
-    const response=await fetch(`${this.baseUrl}/models/${encodeURIComponent(request.model)}:generateContent`,{method:"POST",headers:{"x-goog-api-key":key,"Content-Type":"application/json"},body:JSON.stringify({system_instruction:system?{parts:[{text:system}]}:undefined,contents:[{role:"user",parts:[{text:user}]}],...(request.enableWebResearch?{tools:[{url_context:{}},{google_search:{}}]}:{}),generationConfig:{...(!request.model.startsWith("gemini-3")?{temperature:request.temperature??0.2}:{}),maxOutputTokens:request.maxOutputTokens,...(request.jsonSchema?{responseMimeType:"application/json"}:{})}}),signal:AbortSignal.timeout(45000)});
+    const response=await providerFetch(this.id,this.baseUrl,`/models/${encodeURIComponent(request.model)}:generateContent`,{method:"POST",headers:{"x-goog-api-key":key,"Content-Type":"application/json"},body:JSON.stringify({system_instruction:system?{parts:[{text:system}]}:undefined,contents:[{role:"user",parts:[{text:user}]}],...(request.enableWebResearch?{tools:[{url_context:{}},{google_search:{}}]}:{}),generationConfig:{...(!request.model.startsWith("gemini-3")?{temperature:request.temperature??0.2}:{}),maxOutputTokens:request.maxOutputTokens,...(request.jsonSchema?{responseMimeType:"application/json"}:{})}}),signal:AbortSignal.timeout(45000)});
     if(!response.ok){const body=await response.text();throw new Error(`gemini returned ${response.status}: ${safeProviderError(body)}`);}const body=await response.json() as {candidates?:Array<{content?:{parts?:Array<{text?:string}>};groundingMetadata?:{groundingChunks?:Array<{web?:{uri?:string;title?:string}}>}}> ;usageMetadata?:{promptTokenCount?:number;candidatesTokenCount?:number}};
     const text=(body.candidates||[]).flatMap(x=>x.content?.parts||[]).map(x=>x.text||"").join("\n").trim();if(!text)throw new Error("gemini returned an empty response");const inputTokens=body.usageMetadata?.promptTokenCount||0,outputTokens=body.usageMetadata?.candidatesTokenCount||0;
     const citations=(body.candidates||[]).flatMap(x=>x.groundingMetadata?.groundingChunks||[]).flatMap(x=>x.web?.uri?[{label:x.web.title||"Web research source",url:x.web.uri}]:[]);
@@ -56,7 +79,7 @@ export class GeminiProvider extends BaseProvider {
 
 export class OpenAIProvider extends BaseProvider {
   async generateText(request:AIProviderRequest):Promise<AIProviderResult>{
-    const key=this.ensureConfigured();const response=await fetch(`${this.baseUrl}/responses`,{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model:request.model,input:request.messages.map(message=>({role:message.role==="system"?"developer":message.role,content:message.content})),max_output_tokens:request.maxOutputTokens}),signal:AbortSignal.timeout(60000)});if(!response.ok)throw new Error(`openai returned ${response.status}`);const body=await response.json() as {output_text?:string;usage?:{input_tokens?:number;output_tokens?:number}};if(!body.output_text)throw new Error("openai returned an empty response");const inputTokens=body.usage?.input_tokens||0,outputTokens=body.usage?.output_tokens||0;return{text:body.output_text,structured:request.jsonSchema?safeJson(body.output_text):undefined,citations:[],usage:{inputTokens,outputTokens,estimatedCostUsd:this.estimateCost(request.model,inputTokens,outputTokens)},provider:this.id,model:request.model};
+    const key=this.ensureConfigured();const response=await providerFetch(this.id,this.baseUrl,"/responses",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model:request.model,input:request.messages.map(message=>({role:message.role==="system"?"developer":message.role,content:message.content})),max_output_tokens:request.maxOutputTokens}),signal:AbortSignal.timeout(60000)});if(!response.ok)throw new Error(`openai returned ${response.status}`);const body=await response.json() as {output_text?:string;usage?:{input_tokens?:number;output_tokens?:number}};if(!body.output_text)throw new Error("openai returned an empty response");const inputTokens=body.usage?.input_tokens||0,outputTokens=body.usage?.output_tokens||0;return{text:body.output_text,structured:request.jsonSchema?safeJson(body.output_text):undefined,citations:[],usage:{inputTokens,outputTokens,estimatedCostUsd:this.estimateCost(request.model,inputTokens,outputTokens)},provider:this.id,model:request.model};
   }
 }
 

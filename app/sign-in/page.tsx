@@ -89,7 +89,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
           <p className="mt-3 max-w-md text-[15px] leading-6 text-white/75 lg:text-base lg:leading-7 lg:text-[#64776f]">
             Sign in to continue, or create a free account in a few moments.
           </p>
-          <div className="mt-6"><AuthPanel initialMode={query.mode === "sign-up" ? "sign-up" : "sign-in"} returnTo={customerReturnPath(query.next)} /></div>
+          <div className="mt-6"><AuthPanel initialMode={query.mode === "sign-up" ? "sign-up" : "sign-in"} returnTo={customerReturnPath(query.next)} turnstileSiteKey={process.env.TURNSTILE_SITE_KEY || ""} /></div>
         </div>
       </section>
     </main>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseConfiguration } from "@/lib/server/supabase-rest";
+import { verifyTurnstile } from "@/lib/server/turnstile";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,11 @@ function safeMessage(status:number){
 
 export async function POST(request:Request){
   try{
-    const body=await request.json() as {email?:string};
+    const body=await request.json() as {email?:string;turnstileToken?:string};
     const email=body.email?.trim().toLowerCase();
     if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return NextResponse.json({error:"Enter a valid email address."},{status:400});
+    const verification=await verifyTurnstile(body.turnstileToken,request);
+    if(!verification.ok)return NextResponse.json({error:verification.message},{status:verification.status});
     const{url,publicKey}=supabaseConfiguration();
     if(!publicKey)return NextResponse.json({error:"Account service is not configured."},{status:503});
     const siteUrl=(process.env.NEXT_PUBLIC_SITE_URL||new URL(request.url).origin).replace(/\/$/,"");

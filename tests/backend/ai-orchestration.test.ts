@@ -24,6 +24,19 @@ test("free users cannot force deep premium reasoning",async()=>{const orchestrat
 
 test("premium routing selects a reasoning-capable premium provider",async()=>{const orchestrator=new AIOrchestrator([new FakeProvider("openai")]);const output=await orchestrator.execute({taskType:"deep_tender_analysis",messages:[{role:"user",content:"Compare documents"}],plan:"PREMIUM",requestedMode:"deep"});assert.equal(output.provider,"openai");assert.equal(output.premiumReasoning,true);assert.equal(output.model,"premium");});
 
+test("identified customer analysis never reads or writes the shared AI cache",async()=>{
+  const orchestrator=new AIOrchestrator([new FakeProvider("gemini")]);
+  let cacheCalls=0;
+  Object.assign(orchestrator,{
+    cacheGet:async()=>{cacheCalls++;return result("cache","old");},
+    cacheSet:async()=>{cacheCalls++;},
+    enforceLimits:async()=>{},route:async()=>null,models:async()=>[],providerStates:async()=>new Map(),maxTokens:async()=>1000,log:async()=>{},
+  });
+  const output=await orchestrator.execute({taskType:"tender_summary",messages:[{role:"user",content:"private assessment"}],plan:"STANDARD",userId:"member-1"});
+  assert.equal(output.source,"provider");
+  assert.equal(cacheCalls,0);
+});
+
 test("orchestration schema protects secrets and supplies registries, cache, jobs and RLS",()=>{const migration=readFileSync("supabase/migrations/20260916210000_multi_provider_ai_orchestration.sql","utf8");for(const table of ["ai_providers","ai_models","ai_feature_routes","ai_usage_logs","ai_cache","ai_jobs","company_ai_classifications","ai_budget_settings","ai_user_usage","ai_provider_health"])assert.match(migration,new RegExp(`create table if not exists public\\.${table}`));assert.match(migration,/enable row level security/g);assert.doesNotMatch(migration,/(sk-|gsk_|AIza)[A-Za-z0-9_-]{12,}/);});
 
 test("Groq uses a current production model with explicit pricing",()=>{const providers=readFileSync("lib/server/ai/providers.ts","utf8");const migration=readFileSync("supabase/migrations/20260916220000_update_groq_production_model.sql","utf8");assert.match(providers,/openai\/gpt-oss-20b/);assert.match(providers,/max_completion_tokens/);assert.match(providers,/maxOutputTokens:128/);assert.match(migration,/0\.075/);assert.match(migration,/0\.30/);assert.doesNotMatch(providers,/defaultModel:process\.env\.BIDSCOPE_GROQ_MODEL\|\|"llama-3\.3-70b-versatile"/);});

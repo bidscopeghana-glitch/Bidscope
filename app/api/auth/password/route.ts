@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseConfiguration } from "@/lib/server/supabase-rest";
 import { COOKIE_POLICY_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 import { recordLegalConsent } from "@/lib/server/legal-consent";
+import { verifyTurnstile } from "@/lib/server/turnstile";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ function messageFor(status: number, fallback?: string) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { action?: AuthAction; email?: string; password?: string; fullName?: string; usageMode?: "supplier" | "buyer"; legalAccepted?: boolean };
+    const body = (await request.json()) as { action?: AuthAction; email?: string; password?: string; fullName?: string; usageMode?: "supplier" | "buyer"; legalAccepted?: boolean; turnstileToken?: string };
     const action = body.action;
     const email = body.email?.trim().toLowerCase();
     const password = body.password || "";
@@ -41,6 +42,8 @@ export async function POST(request: Request) {
     if (action === "sign-up" && !usageMode) {
       return NextResponse.json({ error: "Choose a Seller / Supplier account or a Buyer account." }, { status: 400 });
     }
+    const verification = await verifyTurnstile(body.turnstileToken, request);
+    if (!verification.ok) return NextResponse.json({ error: verification.message }, { status: verification.status });
 
     const { url, publicKey } = supabaseConfiguration();
     if (!publicKey) {

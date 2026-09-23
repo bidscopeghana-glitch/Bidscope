@@ -1,22 +1,26 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useRef, useState } from "react";
 import { ArrowRight, BriefcaseBusiness, Building2, CheckCircle2, Eye, EyeOff, LoaderCircle, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { storeSession } from "@/lib/client/session";
 import { resolveWorkspaceEntry } from "@/lib/client/workspace-entry";
+import { TurnstileField } from "./turnstile-field";
 
 type Mode = "sign-in" | "sign-up";
 type State = "idle" | "submitting" | "success" | "error";
 
-export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: { initialMode?: Mode; returnTo?: string }) {
+export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer", turnstileSiteKey = "" }: { initialMode?: Mode; returnTo?: string; turnstileSiteKey?: string }) {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [state, setState] = useState<State>("idle");
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [usageMode, setUsageMode] = useState<"supplier" | "buyer" | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const onTurnstileToken = useCallback((token: string) => setTurnstileToken(token), []);
+  const resetTurnstile = useRef<(() => void) | null>(null);
   const router = useRouter();
 
   function chooseMode(next: Mode) {
@@ -32,6 +36,11 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
     const form = event.currentTarget;
     const values = new FormData(form);
     const password = String(values.get("password") || "");
+    if (turnstileSiteKey && !turnstileToken) {
+      setState("error");
+      setMessage("Complete the security check before continuing.");
+      return;
+    }
     if (mode === "sign-up" && !usageMode) {
       setState("error");
       setMessage("Choose a Seller / Supplier account or a Buyer account.");
@@ -49,7 +58,7 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
       const response = await fetch("/api/auth/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: mode, email: values.get("email"), password, fullName: values.get("fullName"), usageMode: mode === "sign-up" ? usageMode : undefined, legalAccepted: mode === "sign-up" ? legalAccepted : undefined }),
+        body: JSON.stringify({ action: mode, email: values.get("email"), password, fullName: values.get("fullName"), usageMode: mode === "sign-up" ? usageMode : undefined, legalAccepted: mode === "sign-up" ? legalAccepted : undefined, turnstileToken }),
       });
       const result = (await response.json()) as { accessToken?: string | null; refreshToken?: string | null; expiresIn?: number; confirmationRequired?: boolean; message?: string; error?: string };
       if (!response.ok) throw new Error(result.error || "We could not complete that request.");
@@ -73,6 +82,8 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      resetTurnstile.current?.();
     }
   }
 
@@ -87,10 +98,15 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
       emailInput?.focus();
       return;
     }
+    if (turnstileSiteKey && !turnstileToken) {
+      setState("error");
+      setMessage("Complete the security check before requesting a reset link.");
+      return;
+    }
     setState("submitting");
     setMessage("");
     try {
-      const response = await fetch("/api/auth/recovery", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+      const response = await fetch("/api/auth/recovery", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, turnstileToken }) });
       const result = await response.json() as {message?:string;error?:string};
       if(!response.ok)throw new Error(result.error||"A reset link could not be requested.");
       setState("success");
@@ -98,6 +114,8 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
     } catch(error) {
       setState("error");
       setMessage(error instanceof Error?error.message:"Please try again.");
+    } finally {
+      resetTurnstile.current?.();
     }
   }
 
@@ -124,6 +142,7 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer" }: {
 
         {mode === "sign-up" && <label className="flex items-start gap-2.5 rounded-xl border border-[#17362d]/10 bg-[#f3f6f2] p-3 text-xs font-normal leading-5 text-[#51665e]"><input name="terms" type="checkbox" required checked={legalAccepted} onChange={(event) => setLegalAccepted(event.target.checked)} className="mt-1 size-4 shrink-0 accent-[#116149]"/><span>I have read and agree to the <Link href="/terms" target="_blank" className="font-bold text-[#195e49] hover:underline">Terms of Service</Link>, and I acknowledge the <Link href="/privacy" target="_blank" className="font-bold text-[#195e49] hover:underline">Privacy Policy</Link> and <Link href="/cookies" target="_blank" className="font-bold text-[#195e49] hover:underline">Cookie Policy</Link>.</span></label>}
 
+        {turnstileSiteKey && <TurnstileField siteKey={turnstileSiteKey} onToken={onTurnstileToken} resetRef={resetTurnstile} />}
         {message && <p role="status" className={`flex items-start gap-2 rounded-xl px-3.5 py-3 text-xs leading-5 ${state === "success" ? "bg-[#e3f2e9] text-[#176347]" : "bg-red-50 text-red-700"}`}>{state === "success" && <CheckCircle2 className="mt-0.5 shrink-0" size={15}/>} {message}</p>}
 
         <button disabled={busy || state === "success"} className="mt-1 flex h-12 items-center justify-center gap-2 rounded-xl bg-[#116149] px-5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(17,97,73,.2)] hover:-translate-y-0.5 hover:bg-[#0d523e] disabled:cursor-wait disabled:opacity-65">
