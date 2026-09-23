@@ -1,5 +1,9 @@
 # Cloudflare integration audit — 23 September 2026
 
+## Final scope decision
+
+BidScope remains directly on Vercel. Cloudflare WAF and Access on the public domain and R2 storage are not part of the current deployment. The unused, pending `bidscopeghana.com` Cloudflare zone was removed without changing Fasthosts nameservers; the Cloudflare Domains list is empty. The admin page that listed inactive options was removed. Keep the existing account-level Turnstile, AI Gateway, and opportunity-discovery Worker; Workers AI remains staged and cannot serve customer-facing requests. The findings below record the pre-decision audit, not a current activation list.
+
 ## Existing infrastructure
 
 - BidScope's public site is deployed on Vercel, with Supabase for auth and data. Public DNS uses Fasthosts `livedns.co.uk` nameservers; `www` points to Vercel DNS. The Cloudflare account has no BidScope domain zone. Production responses identify Vercel and show no `CF-Cache-Status`. Therefore Cloudflare CDN, cache rules, Brotli, HTTP/3, Early Hints and Crawler Hints cannot be applied to the site without a separately planned DNS/proxy change. No such change is authorised by this work.

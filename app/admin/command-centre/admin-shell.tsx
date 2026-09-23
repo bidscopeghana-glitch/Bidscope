@@ -3,7 +3,7 @@
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import {usePathname,useRouter} from "next/navigation";
-import {Activity,ArrowLeft,BadgeCheck,BarChart3,BellRing,BrainCircuit,Cloud,ContactRound,CreditCard,Database,FilePenLine,LayoutDashboard,LogOut,Menu,ShieldCheck,UsersRound,X,Send,Video,SearchCheck} from "lucide-react";
+import {Activity,ArrowLeft,BadgeCheck,BarChart3,BellRing,BrainCircuit,ContactRound,CreditCard,Database,FilePenLine,LayoutDashboard,LogOut,Menu,ShieldCheck,UsersRound,X,Send,Video,SearchCheck} from "lucide-react";
 import {BrandLogo} from "@/components/brand/brand-logo";
 import {api,invalidate} from "@/components/customer/data";
 import {clearSession} from "@/lib/client/session";
@@ -14,7 +14,6 @@ const navigation=[
   ["Customers & access","/admin/command-centre#customers",UsersRound],
   ["Procurement sources","/admin/command-centre/procurement-data/sources",Database],
   ["Opportunity discovery","/admin/command-centre/opportunity-discovery",SearchCheck],
-  ["Cloudflare infrastructure","/admin/command-centre/cloudflare",Cloud],
   ["Subscriptions & revenue","/admin/command-centre/subscriptions-revenue",CreditCard],
   ["Custom services","/admin/command-centre/services",ContactRound],
   ["Alerts & AI","/admin/command-centre/alerts-ai",BellRing],
