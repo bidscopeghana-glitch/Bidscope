@@ -37,6 +37,16 @@ test("identified customer analysis never reads or writes the shared AI cache",as
   assert.equal(cacheCalls,0);
 });
 
+test("a stale database route cannot send customer help to Workers AI",async()=>{
+  const orchestrator=new AIOrchestrator([new FakeProvider("cloudflare"),new FakeProvider("gemini")]);
+  Object.assign(orchestrator,{
+    enforceLimits:async()=>{},route:async()=>({standard_provider_order:["cloudflare","gemini"],premium_provider_order:["cloudflare","gemini"]}),
+    models:async()=>[],providerStates:async()=>new Map(),maxTokens:async()=>1000,log:async()=>{},
+  });
+  const output=await orchestrator.execute({taskType:"help_assistant",messages:[{role:"user",content:"Where are my alerts?"}],plan:"STANDARD",userId:"member-1"});
+  assert.equal(output.provider,"gemini");
+});
+
 test("orchestration schema protects secrets and supplies registries, cache, jobs and RLS",()=>{const migration=readFileSync("supabase/migrations/20260916210000_multi_provider_ai_orchestration.sql","utf8");for(const table of ["ai_providers","ai_models","ai_feature_routes","ai_usage_logs","ai_cache","ai_jobs","company_ai_classifications","ai_budget_settings","ai_user_usage","ai_provider_health"])assert.match(migration,new RegExp(`create table if not exists public\\.${table}`));assert.match(migration,/enable row level security/g);assert.doesNotMatch(migration,/(sk-|gsk_|AIza)[A-Za-z0-9_-]{12,}/);});
 
 test("Groq uses a current production model with explicit pricing",()=>{const providers=readFileSync("lib/server/ai/providers.ts","utf8");const migration=readFileSync("supabase/migrations/20260916220000_update_groq_production_model.sql","utf8");assert.match(providers,/openai\/gpt-oss-20b/);assert.match(providers,/max_completion_tokens/);assert.match(providers,/maxOutputTokens:128/);assert.match(migration,/0\.075/);assert.match(migration,/0\.30/);assert.doesNotMatch(providers,/defaultModel:process\.env\.BIDSCOPE_GROQ_MODEL\|\|"llama-3\.3-70b-versatile"/);});

@@ -9,6 +9,14 @@ type RouteRow={task_type:string;standard_provider_order:string[];premium_provide
 type BudgetRow={daily_budget_usd:number;monthly_budget_usd:number;premium_daily_budget_usd:number;maximum_tokens_per_task:number;warning_percent:number};
 type ProviderStateRow={id:string;enabled:boolean;allow_sensitive_data:boolean;allow_customer_documents:boolean};
 const degradedUntil=new Map<string,number>();
+// Workers AI is staged for reviewed, non-sensitive classification only. A database
+// route or administrator preset must not silently add it to customer-facing analysis.
+export function workersAITaskAllowed(input:AITaskInput):boolean{
+  return input.taskType==="public_tender_classification_review"
+    && !input.userId && !input.organizationId
+    && !input.containsSensitiveData && !input.containsCustomerDocuments
+    && !input.requiresLongContext && !input.requiresStructuredOutput;
+}
 const defaults:Record<string,{complexity:AIComplexity;maxOutputTokens:number;ttl:number}>={company_classification:{complexity:"LOW",maxOutputTokens:500,ttl:31536000},csv_column_mapping:{complexity:"LOW",maxOutputTokens:700,ttl:2592000},campaign_generation:{complexity:"MEDIUM",maxOutputTokens:1800,ttl:604800},email_personalization:{complexity:"LOW",maxOutputTokens:700,ttl:604800},tender_summary:{complexity:"LOW",maxOutputTokens:1800,ttl:86400},tender_extraction:{complexity:"MEDIUM",maxOutputTokens:2200,ttl:86400},deep_tender_analysis:{complexity:"PREMIUM_REASONING",maxOutputTokens:4000,ttl:86400},bid_no_bid:{complexity:"PREMIUM_REASONING",maxOutputTokens:3000,ttl:43200},opportunity_comparison:{complexity:"HIGH",maxOutputTokens:2600,ttl:43200}};
 
 export function inferComplexity(input:AITaskInput):AIComplexity{
@@ -40,7 +48,7 @@ export class AIOrchestrator{
     throw new ApiError(503,"AI analysis is temporarily unavailable. The tender details remain accessible.","ai_temporarily_unavailable");
   }
   private decorate(result:AIProviderResult,source:AIOrchestrationResult["source"],complexity:AIComplexity,premiumReasoning:boolean,fallbackCount:number,cacheKey:string):AIOrchestrationResult{return{...result,source,complexity,premiumReasoning,fallbackCount,cacheKey};}
-  private supports(provider:AIProvider,input:AITaskInput,premium:boolean,state?:ProviderStateRow){if(premium&&!provider.capabilities.reasoning)return false;if(input.requiresStructuredOutput&&!provider.capabilities.structuredOutput)return false;if(input.requiresLongContext&&!provider.capabilities.longContext)return false;if(input.containsSensitiveData&&(!provider.capabilities.sensitiveData||state?.allow_sensitive_data===false))return false;if(input.containsCustomerDocuments&&(!provider.capabilities.customerDocuments||state?.allow_customer_documents===false))return false;return true;}
+  private supports(provider:AIProvider,input:AITaskInput,premium:boolean,state?:ProviderStateRow){if(provider.id==="cloudflare"&&!workersAITaskAllowed(input))return false;if(premium&&!provider.capabilities.reasoning)return false;if(input.requiresStructuredOutput&&!provider.capabilities.structuredOutput)return false;if(input.requiresLongContext&&!provider.capabilities.longContext)return false;if(input.containsSensitiveData&&(!provider.capabilities.sensitiveData||state?.allow_sensitive_data===false))return false;if(input.containsCustomerDocuments&&(!provider.capabilities.customerDocuments||state?.allow_customer_documents===false))return false;return true;}
   private pickModel(provider:AIProvider,models:ModelRow[],route:RouteRow|null,premium:boolean){const override=(premium?route?.premium_model_overrides:route?.standard_model_overrides)?.[provider.id];if(override)return override;const row=models.filter(x=>x.provider===provider.id&&x.enabled&&(!premium||x.premium_model)).sort((a,b)=>a.priority-b.priority)[0];return row?.model_id||(premium?provider.premiumModel:undefined)||provider.defaultModel;}
   private async route(taskType:string){try{const{data}=await supabaseRest<RouteRow[]>(`ai_feature_routes?select=*&task_type=eq.${encodeURIComponent(taskType)}&enabled=eq.true&limit=1`);return data[0]||null;}catch{return null;}}
   private async models(taskType:string){try{const{data}=await supabaseRest<ModelRow[]>(`ai_models?select=provider,model_id,enabled,task_types,reasoning_level,premium_model,priority,input_cost,output_cost&enabled=eq.true`);return data.filter(x=>!x.task_types?.length||x.task_types.includes(taskType));}catch{return[];}}

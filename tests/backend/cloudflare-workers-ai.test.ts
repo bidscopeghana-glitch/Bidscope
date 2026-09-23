@@ -1,8 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { configuredProviders } from "../../lib/server/ai/providers.ts";
+import { workersAITaskAllowed } from "../../lib/server/ai/orchestrator.ts";
 
 const request = { model: "@cf/meta/llama-3.1-8b-instruct-fp8", messages: [{ role: "user" as const, content: "Reply OK" }], maxOutputTokens: 16 };
+
+test("Workers AI is restricted to reviewed public classification metadata", () => {
+  const base = { taskType: "public_tender_classification_review", messages: [], plan: "STANDARD" as const };
+  assert.equal(workersAITaskAllowed(base), true);
+  for (const taskType of ["help_assistant", "tender_summary", "tender_extraction", "deep_tender_analysis", "bid_no_bid", "company_classification", "campaign_generation"]) {
+    assert.equal(workersAITaskAllowed({ ...base, taskType }), false, taskType);
+  }
+  assert.equal(workersAITaskAllowed({ ...base, userId: "user-1" }), false);
+  assert.equal(workersAITaskAllowed({ ...base, containsSensitiveData: true }), false);
+  assert.equal(workersAITaskAllowed({ ...base, containsCustomerDocuments: true }), false);
+  assert.equal(workersAITaskAllowed({ ...base, requiresStructuredOutput: true }), false);
+});
 
 test("Workers AI is unavailable without both account ID and scoped token", () => {
   const account = process.env.CLOUDFLARE_ACCOUNT_ID;

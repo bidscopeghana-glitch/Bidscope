@@ -8,15 +8,14 @@ type Provider={id:string;display_name:string;enabled:boolean;role:string;health_
 type RouteRow={task_type:string;standard_provider_order:string[];premium_provider_order:string[];premium_allowed:boolean};
 const providerNames:Record<string,string>={gemini:"Gemini",groq:"Groq",openrouter:"OpenRouter",openai:"OpenAI",cloudflare:"Cloudflare Workers AI"};
 const routePresets=[
-  {id:"research",label:"Research first",description:"Gemini → Groq → OpenRouter → OpenAI → Cloudflare",providers:["gemini","groq","openrouter","openai","cloudflare"]},
-  {id:"efficient",label:"Fast and economical",description:"Groq → Gemini → OpenRouter → OpenAI → Cloudflare",providers:["groq","gemini","openrouter","openai","cloudflare"]},
-  {id:"premiumResearch",label:"Premium research first",description:"Gemini → OpenAI → OpenRouter → Groq → Cloudflare",providers:["gemini","openai","openrouter","groq","cloudflare"]},
-  {id:"premium",label:"Premium reasoning first",description:"OpenAI → Gemini → OpenRouter → Groq → Cloudflare",providers:["openai","gemini","openrouter","groq","cloudflare"]},
-  {id:"independent",label:"Independent fallback first",description:"OpenRouter → Gemini → Groq → OpenAI → Cloudflare",providers:["openrouter","gemini","groq","openai","cloudflare"]},
-  {id:"cloudflareFirst",label:"Cloudflare first",description:"Cloudflare → Groq → Gemini → OpenRouter → OpenAI",providers:["cloudflare","groq","gemini","openrouter","openai"]},
+  {id:"research",label:"Research first",description:"Gemini → Groq → OpenRouter → OpenAI",providers:["gemini","groq","openrouter","openai"]},
+  {id:"efficient",label:"Fast and economical",description:"Groq → Gemini → OpenRouter → OpenAI",providers:["groq","gemini","openrouter","openai"]},
+  {id:"premiumResearch",label:"Premium research first",description:"Gemini → OpenAI → OpenRouter → Groq",providers:["gemini","openai","openrouter","groq"]},
+  {id:"premium",label:"Premium reasoning first",description:"OpenAI → Gemini → OpenRouter → Groq",providers:["openai","gemini","openrouter","groq"]},
+  {id:"independent",label:"Independent fallback first",description:"OpenRouter → Gemini → Groq → OpenAI",providers:["openrouter","gemini","groq","openai"]},
 ] as const;
 type RoutePresetId=(typeof routePresets)[number]["id"];
-function presetId(order:string[]){const exact=routePresets.find(preset=>preset.providers.join(",")===order.join(","));if(exact)return exact.id;const first=order[0];return first==="cloudflare"?"cloudflareFirst":first==="gemini"?"research":first==="openai"?"premium":first==="openrouter"?"independent":"efficient";}
+function presetId(order:string[]){const safe=order.filter(id=>id!=="cloudflare");const exact=routePresets.find(preset=>preset.providers.join(",")===safe.join(","));if(exact)return exact.id;const first=safe[0];return first==="gemini"?"research":first==="openai"?"premium":first==="openrouter"?"independent":"efficient";}
 const links:Record<string,string>={groq:"https://console.groq.com/keys",gemini:"https://aistudio.google.com/api-keys",openrouter:"https://openrouter.ai/settings/keys",openai:"https://platform.openai.com/api-keys",cloudflare:"https://dash.cloudflare.com/profile/api-tokens"};
 function PageHeader({title,description}:{title:string;description:string}){return <><p className="text-xs font-black uppercase tracking-[.2em] text-[#16805e]">BidScope AI operations</p><div className="mt-2 flex flex-wrap items-end justify-between gap-5"><div><h1 className="serif text-4xl text-[#17362d] sm:text-5xl">{title}</h1><p className="mt-3 max-w-3xl text-sm leading-7 text-[#64766e]">{description}</p></div><nav className="flex rounded-full border bg-white p-1 text-sm font-bold"><Link href="/admin/ai" className="rounded-full px-4 py-2 hover:bg-[#e9f1e8]">Overview</Link><Link href="/admin/ai/providers" className="rounded-full px-4 py-2 hover:bg-[#e9f1e8]">Providers & routes</Link></nav></div></>}
 const Card=({children}:{children:React.ReactNode})=><section className="rounded-[24px] border border-[#17362d]/10 bg-[#fffdf8] p-5 shadow-sm">{children}</section>;
