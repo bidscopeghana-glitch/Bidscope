@@ -39,9 +39,16 @@ export async function GET(request: Request) {
           ? "supplier"
           : savedMode || "supplier"
       : savedMode || "supplier";
-    const destination = workspace === "buyer"
-      ? organization ? "/procurement" : "/procurement/onboarding"
-      : organization ? customerReturnPath(url.searchParams.get("next")) : "/customer/profile?onboarding=seller";
+    const requestedPath = customerReturnPath(url.searchParams.get("next"));
+    const destination = requestedPath.startsWith("/admin/command-centre") || requestedPath === "/services/requests"
+      ? requestedPath
+      : workspace === "buyer"
+        ? organization
+          ? requestedPath.startsWith("/procurement") ? requestedPath : "/procurement"
+          : "/procurement/onboarding"
+        : organization
+          ? requestedPath.startsWith("/customer") ? requestedPath : "/customer"
+          : "/customer/profile?onboarding=seller";
 
     return Response.json({ data: { workspace, destination, hasOrganization: Boolean(organization) } });
   } catch (error) {
