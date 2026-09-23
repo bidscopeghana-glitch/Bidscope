@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/components/customer/data";
+import { GhanepsOcdsCard } from "./ghaneps-ocds-card";
 
 type Source = { id: string; slug: string; name: string; base_url: string; official_source: boolean; reuse_status: string; license_name: string | null; license_url: string | null; permission_evidence: string | null; permission_date: string | null; permission_expiry: string | null; permission_notes: string | null; content_reuse_allowed: boolean; commercial_reuse_allowed: boolean; document_reuse_allowed: boolean; metadata_reuse_allowed: boolean; last_rights_reviewed_at: string | null; discovery_auto_publish_enabled: boolean; discovery_enabled: boolean; crawl_robots_allowed: boolean; crawl_terms_reviewed: boolean; crawl_last_success_at: string | null; crawl_consecutive_failures: number; crawl_next_at: string | null; crawl_max_pages: number };
 type Discovery = { id: string; source_id: string; raw_title: string | null; raw_text: string; canonical_url: string; extracted_data: { title?: string; buyer?: string; reference?: string; deadline?: string; description?: string }; processing_status: string; duplicate_status: string; matched_tender_id: string | null; confidence_score: number; duplicate_score: number; error_message: string | null; first_seen_at: string };
@@ -56,6 +57,7 @@ export function DiscoveryCentre() {
       <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">Private crawler staging, source health and human review. Nothing enters the customer feed until it passes publication checks.</p>
     </header>
     {message && <p role="status" className="rounded-xl border border-[#c5d8cc] bg-white p-3 text-sm">{message}</p>}
+    <GhanepsOcdsCard />
     <div className="grid gap-4 lg:grid-cols-3">
       <section className="rounded-2xl bg-white p-5 shadow-sm lg:col-span-1"><h2 className="font-bold">Controls</h2><p className="mt-2 text-xs text-[#61736a]">Global crawl access is off until sources and permissions are reviewed.</p><div className="mt-4 space-y-3 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(data?.settings?.enabled)} disabled={busy} onChange={event => void act({ action: "settings", enabled: event.target.checked })}/> Scheduled discovery</label><label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(data?.settings?.auto_publish)} disabled={busy} onChange={event => void act({ action: "settings", autoPublish: event.target.checked })}/> Automatic publication</label><p>Daily crawl cap: {data?.settings?.max_crawls_per_day ?? "—"}</p><button type="button" disabled={busy} onClick={() => void act({ action: "run" })} className="rounded-full bg-[#116149] px-4 py-2 font-bold text-white disabled:opacity-50">Run next due source</button><button type="button" disabled={busy} onClick={() => void act({ action: "poll" })} className="ml-2 rounded-full border border-[#116149] px-4 py-2 font-bold text-[#116149] disabled:opacity-50">Check jobs</button></div></section>
       <section className="rounded-2xl bg-white p-5 shadow-sm lg:col-span-2">
