@@ -5,6 +5,7 @@ import { ingestNormalizedRecords } from "../procurement/ingestion.ts";
 import { stableHash } from "../procurement/safety.ts";
 import type { ProcurementSource } from "../procurement/types.ts";
 import { reviewReason, type ExtractedDiscovery } from "./core.ts";
+import { canCrawl, canPublish, type SourceRights } from "./rights.ts";
 
 type DiscoveryRow = { id: string; source_id: string; canonical_url: string; content_hash: string; raw_text: string; extracted_data: ExtractedDiscovery; duplicate_status: string; matched_tender_id: string | null; processing_status: string; published_at: string | null };
 
@@ -52,8 +53,8 @@ export async function reviewDiscovery(id: string, action: "approve" | "reject" |
     return { status: "needs_review" };
   }
   const { data: sources } = await supabaseRest<ProcurementSource[]>(`procurement_sources?select=*&id=eq.${row.source_id}&limit=1`);
-  const source = sources[0] as ProcurementSource & { discovery_enabled?: boolean; crawl_robots_allowed?: boolean; crawl_terms_reviewed?: boolean };
-  if (!source?.discovery_enabled || !source.crawl_robots_allowed || !source.crawl_terms_reviewed) throw new ApiError(409, "Source is not approved for discovery.");
+  const source = sources[0] as ProcurementSource & SourceRights;
+  if (!source || !canCrawl(source) || !canPublish(source)) throw new ApiError(409, "Source rights do not permit publication.");
   if (action === "merge") {
     const target = payload.matchId || row.matched_tender_id;
     if (!target) throw new ApiError(400, "Select a tender to merge with.");
@@ -68,7 +69,17 @@ export async function reviewDiscovery(id: string, action: "approve" | "reject" |
   if (["exact_duplicate", "probable_duplicate", "possible_duplicate", "manually_confirmed_duplicate"].includes(row.duplicate_status)) throw new ApiError(409, "Resolve the possible duplicate or merge it before publishing.");
   const issue = reviewReason(row.extracted_data);
   if (issue) throw new ApiError(409, issue);
-  const extracted = row.extracted_data;
+  const extracted = source.reuse_status === "public_link_only" ? {
+    ...row.extracted_data,
+    description: "Procurement notice. Review the original source for full requirements and documents.",
+    documentUrls: [], eligibility: null, contactEmail: null,
+  } : {
+    ...row.extracted_data,
+    description: source.content_reuse_allowed ? row.extracted_data.description : "Procurement notice. Review the original source for full details.",
+    documentUrls: source.document_reuse_allowed ? row.extracted_data.documentUrls : [],
+    eligibility: source.content_reuse_allowed ? row.extracted_data.eligibility : null,
+    contactEmail: source.content_reuse_allowed ? row.extracted_data.contactEmail : null,
+  };
   const record = normalize({
     title: extracted.title!, buyer_name: extracted.buyer!, country: source.country_code === "GH" ? "Ghana" : source.country_code,
     country_code: source.country_code, source_name: source.name, source_type: "EXTERNAL",

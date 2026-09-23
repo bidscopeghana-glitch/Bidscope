@@ -1,8 +1,9 @@
 import { ApiError } from "../api-error.ts";
 import { supabaseRest, supabaseRpc, encodeFilter } from "../supabase-rest.ts";
 import { canonicalUrl, classifyDuplicate, contentHash, extractDiscovery, reviewReason, type CrawlRecord, type TenderCandidate } from "./core.ts";
+import { canCrawl, canAutoPublish, type SourceRights } from "./rights.ts";
 
-type Source = { id: string; name: string; organisation: string; base_url: string; country_code: string; trust_level: string; discovery_enabled: boolean; crawl_start_url: string | null; crawl_include_patterns: string[]; crawl_exclude_patterns: string[]; crawl_max_pages: number; crawl_depth: number; crawl_requires_rendering: boolean; crawl_consecutive_failures: number };
+type Source = SourceRights & { id: string; name: string; organisation: string; base_url: string; country_code: string; trust_level: string; discovery_enabled: boolean; crawl_start_url: string | null; crawl_include_patterns: string[]; crawl_exclude_patterns: string[]; crawl_max_pages: number; crawl_depth: number; crawl_requires_rendering: boolean; crawl_consecutive_failures: number };
 type Job = { id: string; source_id: string; cloudflare_job_id: string | null; status: string; started_at: string };
 type Discovery = { id: string; source_id: string; canonical_url: string; content_hash: string; processing_status: string; extracted_data: Record<string, unknown>; duplicate_status: string; matched_tender_id: string | null };
 
@@ -58,6 +59,7 @@ export async function startDueCrawl(sourceId?: string) {
   const source = await sourceById(claim.source_id);
   const job: Job = { id: claim.job_id, source_id: claim.source_id, cloudflare_job_id: null, status: "reserved", started_at: new Date().toISOString() };
   try {
+    if (!canCrawl(source)) throw new Error("Source rights no longer permit crawling.");
     const startUrl = source.crawl_start_url || source.base_url;
     if (!sameHost(startUrl, source)) throw new Error("Crawl start URL must be HTTPS and on the source host.");
     const result = await cloudflareRequest("", "POST", {
@@ -83,6 +85,7 @@ async function candidatesFor(record: ReturnType<typeof extractDiscovery>, url: s
 }
 
 export async function processCrawlRecord(source: Source, job: Job, record: CrawlRecord) {
+  if (!canCrawl(source)) return { skipped: true, reason: "source_rights_blocked" };
   if (record.status !== "completed" || !matchesPatterns(record.url, source)) return { skipped: true, reason: "blocked_or_out_of_scope" };
   const url = canonicalUrl(record.url);
   const hash = contentHash(record);
@@ -97,10 +100,20 @@ export async function processCrawlRecord(source: Source, job: Job, record: Crawl
   const { response: extractionCount } = await supabaseRest<Array<{ id: string }>>(`opportunity_discoveries?select=id&extracted_at=gte.${dayStart.toISOString()}&limit=1`, { count: "exact" });
   const used = Number(extractionCount.headers.get("content-range")?.split("/")[1] || 0);
   if (used >= (settings[0]?.max_extractions_per_day ?? 0)) {
-    await supabaseRest("opportunity_discoveries?on_conflict=source_id,canonical_url", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ source_id: source.id, crawl_job_id: job.id, source_url: record.url, canonical_url: url, content_hash: hash, raw_text: (record.markdown || record.html || "").slice(0, 100_000), processing_status: "discovered", last_seen_at: now, last_checked_at: now, error_message: "Daily extraction cap reached; retry on next crawl." }) });
+    await supabaseRest("opportunity_discoveries?on_conflict=source_id,canonical_url", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ source_id: source.id, crawl_job_id: job.id, source_url: record.url, canonical_url: url, content_hash: hash, raw_text: source.content_reuse_allowed ? (record.markdown || record.html || "").slice(0, 100_000) : "", raw_metadata: {}, processing_status: "discovered", last_seen_at: now, last_checked_at: now, error_message: "Daily extraction cap reached; retry on next crawl." }) });
     return { skipped: true, reason: "extraction_cap" };
   }
-  const extracted = extractDiscovery(record);
+  const found = extractDiscovery(record);
+  const extracted = source.reuse_status === "public_link_only" ? {
+    ...found, title: found.title?.slice(0, 300) || null,
+    description: "Procurement notice. Review the original source for full requirements and documents.",
+    documentUrls: [], eligibility: null, contactEmail: null,
+  } : {
+    ...found, description: source.content_reuse_allowed ? found.description : "Procurement notice. Review the original source for full details.",
+    documentUrls: source.document_reuse_allowed ? found.documentUrls : [],
+    eligibility: source.content_reuse_allowed ? found.eligibility : null,
+    contactEmail: source.content_reuse_allowed ? found.contactEmail : null,
+  };
   const candidates = await candidatesFor(extracted, url);
   const duplicate = classifyDuplicate(extracted, url, candidates);
   const qualityIssue = reviewReason(extracted);
@@ -108,7 +121,8 @@ export async function processCrawlRecord(source: Source, job: Job, record: Crawl
   const payload = {
     source_id: source.id, crawl_job_id: job.id, source_url: record.url, canonical_url: url,
     source_reference: extracted.reference, content_hash: hash, raw_title: extracted.title,
-    raw_text: (record.markdown || record.html || "").slice(0, 100_000), raw_metadata: record.metadata || {},
+    raw_text: source.content_reuse_allowed ? (record.markdown || record.html || "").slice(0, 100_000) : "",
+    raw_metadata: source.content_reuse_allowed ? record.metadata || {} : {},
     extracted_data: extracted, extracted_at: now, last_seen_at: now, last_checked_at: now,
     processing_status: status, duplicate_status: duplicate.status, matched_tender_id: duplicate.matchId,
     confidence_score: extracted.confidence, duplicate_score: duplicate.score, error_message: qualityIssue,
@@ -117,7 +131,7 @@ export async function processCrawlRecord(source: Source, job: Job, record: Crawl
   const { data: saved } = await supabaseRest<Array<{ id: string }>>("opportunity_discoveries?on_conflict=source_id,canonical_url", {
     method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" }, body: JSON.stringify(payload),
   });
-  if (!existing[0] && saved[0] && settings[0]?.auto_publish && !qualityIssue && extracted.confidence >= 0.89 && duplicate.status === "unique" && ["OFFICIAL", "VERIFIED_OFFICIAL"].includes(source.trust_level)) {
+  if (!existing[0] && saved[0] && settings[0]?.auto_publish && canAutoPublish(source) && !qualityIssue && extracted.confidence >= 0.89 && duplicate.status === "unique" && ["OFFICIAL", "VERIFIED_OFFICIAL"].includes(source.trust_level)) {
     try { const { reviewDiscovery } = await import("./review.ts"); await reviewDiscovery(saved[0].id, "approve", null); }
     catch { /* Remains in admin review; automation must never conceal a publication error. */ }
   }
@@ -135,6 +149,7 @@ export async function pollCrawlJobs() {
       if (result.status === "running") { outcomes.push({ jobId: job.id, status: "running" }); continue; }
       if (result.status !== "completed") throw new Error(`Cloudflare crawl ended: ${result.status}`);
       const source = await sourceById(job.source_id);
+      if (!canCrawl(source)) throw new Error("Source rights changed; crawl results discarded.");
       let cursor: string | number | undefined;
       let examined = 0; let found = 0;
       do {
