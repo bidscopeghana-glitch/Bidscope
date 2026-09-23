@@ -32,7 +32,7 @@ export const tenderLocations={
 export type TenderLocationSlug=keyof typeof tenderLocations;
 
 function filterOr(terms:readonly string[]){return `(${terms.flatMap(term=>["title","summary","sector","category"].map(field=>`${field}.ilike.*${term.replace(/[,*()]/g," ")}*`)).join(",")})`;}
-function baseParams(limit:number,offset=0){return new URLSearchParams({select:fields,source_removed_at:"is.null",published_at:"not.is.null",status:"in.(OPEN,CLOSING_SOON)",order:"deadline_at.asc.nullslast",limit:String(limit),offset:String(offset)});}
+function baseParams(limit:number,offset=0){return new URLSearchParams({select:fields,source_removed_at:"is.null",published_at:"not.is.null",status:"in.(OPEN,CLOSING_SOON)",deadline_at:`gt.${new Date().toISOString()}`,order:"deadline_at.asc.nullslast",limit:String(limit),offset:String(offset)});}
 
 export const getPublicTender=cache(async(slug:string):Promise<PublicTender|null>=>{
   const params=new URLSearchParams({select:fields,slug:`eq.${slug.slice(0,220)}`,source_removed_at:"is.null",published_at:"not.is.null",status:"neq.DRAFT",limit:"1"});

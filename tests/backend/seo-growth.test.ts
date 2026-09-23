@@ -50,6 +50,11 @@ test("SEO sitemap inventory paginates past the Supabase one-thousand-row respons
   assert.match(source,/published_at\.desc,slug\.asc/);
 });
 
+test("public live-tender queries exclude records whose deadline has passed",()=>{
+  const source=read("lib/server/seo-opportunities.ts");
+  assert.match(source,/deadline_at:`gt\.\$\{new Date\(\)\.toISOString\(\)\}`/);
+});
+
 test("Phase 2 operations migration covers demand, referrals, outreach, reporting and RLS",()=>{
   const sql=read("supabase/migrations/20260920224000_seo_growth_operations.sql");
   for(const table of["seo_internal_searches","seo_search_synonyms","seo_referral_metrics","seo_search_dimensions","seo_outreach_targets","seo_utm_links","seo_reports","seo_technical_checks","seo_social_drafts"]){
