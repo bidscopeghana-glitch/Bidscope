@@ -83,12 +83,33 @@ export class OpenAIProvider extends BaseProvider {
   }
 }
 
+export class CloudflareWorkersAIProvider extends BaseProvider {
+  async generateText(request:AIProviderRequest):Promise<AIProviderResult>{
+    const key=this.ensureConfigured();
+    const account=process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+    if(!account)throw new Error("Cloudflare account is not configured");
+    const response=await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/v1/chat/completions`,{
+      method:"POST",
+      headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json","cf-aig-gateway-id":"bidscope-ai","cf-aig-skip-cache":"true","cf-aig-collect-log":"false"},
+      body:JSON.stringify({model:request.model,messages:request.messages,max_tokens:request.maxOutputTokens,temperature:request.temperature??0.2}),
+      signal:AbortSignal.timeout(45000),
+    });
+    if(!response.ok)throw new Error(`cloudflare returned ${response.status}`);
+    const body=await response.json() as {choices?:Array<{message?:{content?:string}}>;usage?:{prompt_tokens?:number;completion_tokens?:number}};
+    const text=body.choices?.[0]?.message?.content?.trim();
+    if(!text)throw new Error("cloudflare returned an empty response");
+    const inputTokens=body.usage?.prompt_tokens||0,outputTokens=body.usage?.completion_tokens||0;
+    return{text,citations:[],usage:{inputTokens,outputTokens,estimatedCostUsd:this.estimateCost(request.model,inputTokens,outputTokens)},provider:this.id,model:request.model};
+  }
+}
+
 const standardCapabilities:AICapabilities={reasoning:false,structuredOutput:true,longContext:true,tools:false,images:false,sensitiveData:false,customerDocuments:false};
 export function configuredProviders():AIProvider[]{
   return[
     new OpenAICompatibleProvider({id:"groq",key:process.env.GROQ_API_KEY,baseUrl:"https://api.groq.com/openai/v1",defaultModel:process.env.BIDSCOPE_GROQ_MODEL||"openai/gpt-oss-20b",maxTokenField:"max_completion_tokens",capabilities:{...standardCapabilities,longContext:true}},key=>({Authorization:`Bearer ${key}`})),
     new GeminiProvider({id:"gemini",key:process.env.GOOGLE_GEMINI_API_KEY||process.env.GEMINI_API_KEY,baseUrl:"https://generativelanguage.googleapis.com/v1beta",defaultModel:process.env.BIDSCOPE_GEMINI_MODEL||"gemini-3.6-flash",premiumModel:process.env.BIDSCOPE_GEMINI_REASONING_MODEL||"gemini-3.1-pro-preview",capabilities:{...standardCapabilities,reasoning:true,tools:true,customerDocuments:true}}),
     new OpenAICompatibleProvider({id:"openrouter",key:process.env.OPENROUTER_API_KEY,baseUrl:"https://openrouter.ai/api/v1",defaultModel:process.env.BIDSCOPE_OPENROUTER_MODEL||"openrouter/free",premiumModel:process.env.BIDSCOPE_OPENROUTER_REASONING_MODEL,capabilities:{...standardCapabilities,reasoning:true}},key=>({Authorization:`Bearer ${key}`,"HTTP-Referer":"https://www.bidscopeghana.com","X-Title":"BidScope"})),
+    new CloudflareWorkersAIProvider({id:"cloudflare",key:process.env.CLOUDFLARE_ACCOUNT_ID&&process.env.CLOUDFLARE_WORKERS_AI_TOKEN,baseUrl:"https://api.cloudflare.com/client/v4",defaultModel:process.env.BIDSCOPE_CLOUDFLARE_MODEL||"@cf/meta/llama-3.1-8b-instruct-fp8",capabilities:{...standardCapabilities,structuredOutput:false,longContext:false}}),
     new OpenAIProvider({id:"openai",key:process.env.OPENAI_API_KEY,baseUrl:"https://api.openai.com/v1",defaultModel:process.env.BIDSCOPE_OPENAI_MODEL||"gpt-4.1-mini",premiumModel:process.env.BIDSCOPE_OPENAI_REASONING_MODEL||"o3",capabilities:{...standardCapabilities,reasoning:true,structuredOutput:true,customerDocuments:true,sensitiveData:true}}),
   ];
 }
