@@ -33,6 +33,7 @@ type Tender = {
   award_structure: string;
   bid_opening_model: string;
   visibility: string;
+  supplier_verification_requirement?: "any"|"verified"|"enhanced_verified";
   questions_allowed: boolean;
   eligibility_requirements: string;
   technical_requirements: string;
@@ -258,6 +259,7 @@ function SupplierTenderDetail({ id }: { id: string }) {
         </div>
         {[
           ["Eligibility", t.eligibility_requirements],
+          ["Supplier verification", t.supplier_verification_requirement && t.supplier_verification_requirement!=="any" ? t.supplier_verification_requirement.replaceAll("_"," ") : "Any supplier may bid, subject to the stated eligibility requirements."],
           ["Technical requirements", t.technical_requirements],
           ["Commercial requirements", t.commercial_requirements],
           ["Delivery requirements", t.delivery_requirements],

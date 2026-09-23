@@ -24,6 +24,7 @@ const navigation=[
   ["SEO operations","/admin/growth/seo/operations",BarChart3],
   ["Growth outreach","/admin/growth/outreach",ContactRound],
   ["Buyer verification","/admin/command-centre/buyer-verifications",BadgeCheck],
+  ["Supplier verification","/admin/command-centre/supplier-verifications",ShieldCheck],
   ["BidScope Meet usage","/admin/command-centre/meetings",Video],
 ] as const;
 

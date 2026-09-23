@@ -24,7 +24,7 @@ import { tenderAccessForUser } from "@/lib/server/tender-access";
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
 const tenderSelect =
-  "id,organization_id,created_by,owner_user_id,title,reference_number,description,tender_type,procurement_category,classification,location,currency,estimated_budget,issue_date,clarification_deadline,submission_deadline,expected_award_date,expected_contract_start_date,eligibility_requirements,technical_requirements,commercial_requirements,delivery_requirements,terms_and_conditions,procurement_owner_name,procurement_owner_email,award_structure,bid_opening_model,visibility,questions_allowed,supplier_identity_visible_before_opening,withdrawal_allowed,approval_required,publish_award_publicly,status,published_at,bids_opened_at,created_at,updated_at";
+  "id,organization_id,created_by,owner_user_id,title,reference_number,description,tender_type,procurement_category,classification,location,currency,estimated_budget,issue_date,clarification_deadline,submission_deadline,expected_award_date,expected_contract_start_date,eligibility_requirements,technical_requirements,commercial_requirements,delivery_requirements,terms_and_conditions,procurement_owner_name,procurement_owner_email,award_structure,bid_opening_model,visibility,supplier_verification_requirement,questions_allowed,supplier_identity_visible_before_opening,withdrawal_allowed,approval_required,publish_award_publicly,status,published_at,bids_opened_at,created_at,updated_at";
 
 async function notifyOrganisation(
   organizationId: string,
@@ -569,11 +569,21 @@ export async function GET(request: Request) {
     if (resource === "suppliers") {
       await requireProcurementManager(user);
       const q = params.get("q")?.trim() || "";
+      const verificationFilter = params.get("verification") || "all";
+      if(!["all","verified","enhanced_verified"].includes(verificationFilter))return Response.json({error:"Invalid verification filter."},{status:400});
       let query = `organizations?select=id,name,region,sectors,services,products,certifications,created_at&can_bid=eq.true&order=name.asc&limit=100`;
       if (q)
         query += `&or=(name.ilike.*${encodeFilter(q)}*,services.cs.{${encodeFilter(q)}},products.cs.{${encodeFilter(q)}})`;
-      const { data } = await supabaseRest(query);
-      return Response.json({ data }, { headers: noStore });
+      const { data } = await supabaseRest<Array<{id:string}&Record<string,unknown>>>(query);
+      const ids=data.map(item=>item.id);
+      const {data:statuses}=ids.length?await supabaseRest<Array<{organization_id:string;level:string;verified_at:string|null;expires_at:string|null}>>(`supplier_verification_status?select=organization_id,level,verified_at,expires_at&organization_id=in.(${ids.join(",")})`):{data:[]};
+      const byId=new Map(statuses.map(item=>[item.organization_id,item]));
+      const suppliers=data.map(item=>{const status=byId.get(item.id);const active=Boolean(status?.expires_at&&Date.parse(status.expires_at)>Date.now());return {...item,verification:{level:active?status!.level:"basic",verified_at:active?status!.verified_at:null,expires_at:active?status!.expires_at:null}};}).filter(item=>{
+        if(verificationFilter==="all")return true;
+        if(verificationFilter==="verified")return ["verified","enhanced_verified"].includes(item.verification.level);
+        return item.verification.level==="enhanced_verified";
+      });
+      return Response.json({ data:suppliers }, { headers: noStore });
     }
     if (resource === "reports") {
       await requireProcurementManager(user);
@@ -903,6 +913,7 @@ export async function POST(request: Request) {
         award_structure: value.awardStructure,
         bid_opening_model: value.bidOpeningModel,
         visibility: value.visibility,
+        supplier_verification_requirement: value.supplierVerificationRequirement,
         questions_allowed: value.questionsAllowed,
         supplier_identity_visible_before_opening:
           value.supplierIdentityVisibleBeforeOpening,
@@ -1255,6 +1266,14 @@ export async function POST(request: Request) {
           "bid_already_submitted",
         );
       if (value.submit) {
+        if(tender.supplier_verification_requirement!=="any"){
+          const {data:verification}=await supabaseRest<Array<{level:string;expires_at:string|null}>>(`supplier_verification_status?select=level,expires_at&organization_id=eq.${context.organizationId}&limit=1`);
+          const record=verification[0];
+          const active=Boolean(record?.expires_at&&Date.parse(record.expires_at)>Date.now());
+          const level=active?record.level:"basic";
+          const eligible=tender.supplier_verification_requirement==="verified"?["verified","enhanced_verified"].includes(level):level==="enhanced_verified";
+          if(!eligible)throw new ApiError(403,"This buyer requires a current supplier verification level before bid submission.","supplier_verification_required");
+        }
         const { data: mandatoryDocuments } = await supabaseRest<
             Array<{ id: string; name: string }>
           >(

@@ -36,6 +36,7 @@ import { EvaluationsWorkspace } from "@/components/procurement/evaluations-works
 import { ProcurementBidInbox } from "@/components/procurement/bid-inbox";
 import { ProcurementMeetings } from "@/components/procurement/procurement-meetings";
 import { TenderChatWorkspace } from "@/components/chat/tender-chat";
+import { SupplierVerificationBadge } from "@/components/procurement/supplier-verification-badge";
 
 type Capabilities = {
   organizationId: string;
@@ -68,6 +69,7 @@ type Tender = {
   award_structure: string;
   bid_opening_model: string;
   visibility: string;
+  supplier_verification_requirement?: "any"|"verified"|"enhanced_verified";
   questions_allowed?: boolean;
   withdrawal_allowed?: boolean;
   supplier_identity_visible_before_opening?: boolean;
@@ -895,6 +897,7 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
           awardStructure: f.get("awardStructure"),
           bidOpeningModel: f.get("bidOpeningModel"),
           visibility: f.get("visibility"),
+          supplierVerificationRequirement: f.get("supplierVerificationRequirement"),
           questionsAllowed: f.get("questionsAllowed") === "on",
           supplierIdentityVisibleBeforeOpening:
             f.get("supplierIdentityVisibleBeforeOpening") === "on",
@@ -1278,6 +1281,14 @@ function TenderForm({ tenderId }: { tenderId?: string }) {
                 <option value="open_preferred">
                   Open + preferred invitations
                 </option>
+              </select>
+            </label>
+            <label>
+              Supplier verification requirement
+              <select name="supplierVerificationRequirement" defaultValue={defaults?.supplier_verification_requirement || "any"}>
+                <option value="any">Any supplier</option>
+                <option value="verified">Verified Supplier or higher</option>
+                <option value="enhanced_verified">Enhanced Verified Supplier only</option>
               </select>
             </label>
             <label className="pw-check">
@@ -1947,6 +1958,7 @@ function Meetings() {
 function Suppliers() {
   const params = useSearchParams(),
     q = params.get("q") || "",
+    verification = params.get("verification") || "all",
     result = useData<{
       data: Array<{
         id: string;
@@ -1956,8 +1968,9 @@ function Suppliers() {
         services: string[];
         products: string[];
         certifications: string[];
+        verification: {level:string;verified_at:string|null;expires_at:string|null};
       }>;
-    }>(`/api/procurement?resource=suppliers&q=${encodeURIComponent(q)}`);
+    }>(`/api/procurement?resource=suppliers&q=${encodeURIComponent(q)}&verification=${encodeURIComponent(verification)}`);
   return (
     <>
       <Heading
@@ -1971,6 +1984,7 @@ function Suppliers() {
           defaultValue={q}
           placeholder="Search supplier name, service or product"
         />
+        <select name="verification" aria-label="Supplier verification level" defaultValue={verification} className="rounded-xl border p-3"><option value="all">All suppliers</option><option value="verified">Verified or higher</option><option value="enhanced_verified">Enhanced verified only</option></select>
         <button className="pw-button primary">
           <Search size={15} />
           Search
@@ -1992,7 +2006,7 @@ function Suppliers() {
                     {s.sectors.join(", ") || "No sectors listed"}
                   </small>
                 </span>
-                <span className="pw-badge">BidScope supplier</span>
+                <SupplierVerificationBadge verification={s.verification}/>
               </div>
               <p>
                 {[...s.services, ...s.products].slice(0, 8).join(" · ") ||

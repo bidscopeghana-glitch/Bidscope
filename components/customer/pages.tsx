@@ -19,6 +19,7 @@ import { Empty, Skeleton, useAccount } from "./shell";
 import { HomePage, PanelTitle } from "./home";
 import { Discovery } from "./opportunities";
 import { SupplierTenders } from "@/components/procurement/supplier-tenders";
+import { SupplierVerification } from "@/components/customer/supplier-verification";
 import { TenderChatWorkspace } from "@/components/chat/tender-chat";
 import { PushSettings } from "@/components/customer/push-settings";
 const Detail = dynamic(() => import("./detail").then((m) => m.Detail), {
@@ -61,6 +62,7 @@ export function CustomerPage({
   if (section === "meetings") return <MeetingsWorkspace meetingId={identifier} />;
   if (section === "messages") return <TenderChatWorkspace workspace="supplier" conversationId={identifier} />;
   if (section === "profile") return <BusinessProfile />;
+  if (section === "verification") return <SupplierVerification />;
   if (section === "team") return <TeamPage />;
   if (section === "readiness") return <ReadinessPage />;
   if (section === "billing") return <BillingPage />;

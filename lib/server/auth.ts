@@ -2,7 +2,7 @@ import { ApiError } from "./api-error";
 import { supabaseConfiguration, supabaseRest } from "./supabase-rest";
 import { timingSafeEqual } from "node:crypto";
 
-export type AuthenticatedUser = { id: string; email: string; metadata?: Record<string, unknown> };
+export type AuthenticatedUser = { id: string; email: string; emailConfirmedAt?: string | null; metadata?: Record<string, unknown> };
 export const BIDSCOPE_ADMIN_EMAIL = "basintaleuk@gmail.com";
 
 export async function requireUser(request: Request): Promise<{ user: AuthenticatedUser; accessToken: string }> {
@@ -17,10 +17,10 @@ export async function requireUser(request: Request): Promise<{ user: Authenticat
     headers: { apikey: apiKey, Authorization: `Bearer ${accessToken}` },
     cache: "no-store",
   });
-  const data = (await response.json()) as { id?: string; email?: string; user_metadata?: Record<string, unknown> };
+  const data = (await response.json()) as { id?: string; email?: string; email_confirmed_at?: string | null; user_metadata?: Record<string, unknown> };
   if (!response.ok) throw new ApiError(401, "Your session is invalid or has expired.", "invalid_session");
   if (!data?.id) throw new ApiError(401, "Your session is invalid or has expired.", "invalid_session");
-  return { user: { id: data.id, email: data.email || "", metadata: data.user_metadata || {} }, accessToken };
+  return { user: { id: data.id, email: data.email || "", emailConfirmedAt: data.email_confirmed_at || null, metadata: data.user_metadata || {} }, accessToken };
 }
 
 export async function requireOrganizationMember(userId: string, organizationId: string) {

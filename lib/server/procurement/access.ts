@@ -41,6 +41,7 @@ export type ProcurementTender = {
   award_structure: "single" | "multiple" | "lots";
   bid_opening_model: "sealed" | "open_as_received";
   visibility: "open" | "invite_only" | "open_preferred";
+  supplier_verification_requirement: "any" | "verified" | "enhanced_verified";
   questions_allowed: boolean;
   supplier_identity_visible_before_opening: boolean;
   withdrawal_allowed: boolean;

@@ -3,7 +3,7 @@ import { CustomerPage } from "@/components/customer/pages";
 export const metadata={title:"Your command centre | BidScope",robots:{index:false,follow:false}};
 export default async function Page({params}:{params:Promise<{section?:string[]}>}){
   const {section=[]}=await params;
-  const allowed=["home","discover","bidscope-tenders","recommended","saved","following","recent","bids","pipeline","documents","deadlines","meetings","messages","buyers","intelligence","awards","ai","alerts","profile","team","readiness","billing","notifications","help","settings","opportunity"];
+  const allowed=["home","discover","bidscope-tenders","recommended","saved","following","recent","bids","pipeline","documents","deadlines","meetings","messages","buyers","intelligence","awards","ai","alerts","profile","verification","team","readiness","billing","notifications","help","settings","opportunity"];
   if(!allowed.includes(section[0]||"home")||section.length>2)notFound();
   return <CustomerPage section={section[0]||"home"} identifier={section[1]}/>;
 }

@@ -114,6 +114,7 @@ export const tenderInputSchema = z
     awardStructure: z.enum(["single", "multiple", "lots"]),
     bidOpeningModel: z.enum(["sealed", "open_as_received"]),
     visibility: z.enum(["open", "invite_only", "open_preferred"]),
+    supplierVerificationRequirement: z.enum(["any", "verified", "enhanced_verified"]).default("any"),
     questionsAllowed: z.boolean().default(true),
     supplierIdentityVisibleBeforeOpening: z.boolean().default(false),
     withdrawalAllowed: z.boolean().default(true),
