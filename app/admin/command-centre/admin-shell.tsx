@@ -13,6 +13,7 @@ const navigation=[
   ["Overview","/admin/command-centre",LayoutDashboard],
   ["Customers & access","/admin/command-centre#customers",UsersRound],
   ["Procurement sources","/admin/command-centre/procurement-data/sources",Database],
+  ["Opportunity discovery","/admin/command-centre/opportunity-discovery",SearchCheck],
   ["Subscriptions & revenue","/admin/command-centre/subscriptions-revenue",CreditCard],
   ["Custom services","/admin/command-centre/services",ContactRound],
   ["Alerts & AI","/admin/command-centre/alerts-ai",BellRing],
