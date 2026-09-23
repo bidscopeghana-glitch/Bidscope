@@ -17,6 +17,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     const { data } = await supabaseRest<ProcurementSource[]>(`procurement_sources?select=*&slug=eq.${encodeURIComponent(slug)}&limit=1`);
     const source = data[0];
     if (!source) throw new ApiError(404, "Source not found.", "source_not_found");
+    if (source.reuse_status === "prohibited" || source.reuse_status === "public_link_only") throw new ApiError(409, "This source cannot use the legacy content-fetching connector.", "source_rights_blocked");
     if (source.implementation_status !== "LIVE") throw new ApiError(409, "This source is not live. Use reviewed manual ingestion instead.", "source_not_live");
     const raw = await adapter.fetchOpportunities();
     const normalized = (await Promise.allSettled(raw.map((record) => adapter.normaliseOpportunity(record)))).flatMap((result) => result.status === "fulfilled" ? [result.value] : []);

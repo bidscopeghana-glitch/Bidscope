@@ -40,6 +40,16 @@ async function findExistingSourceRecord(sourceId: string, externalId: string | n
 }
 
 export async function ingestNormalizedRecords(source: ProcurementSource, records: NormalizedOpportunity[], actorUserId?: string) {
+  if (source.reuse_status === "prohibited") throw new Error("Source rights prohibit ingestion.");
+  if (source.reuse_status === "public_link_only") records = records.map(record => ({
+    ...record,
+    summary: "Procurement notice. Review the official source for complete details.",
+    description: "Procurement notice. Review the official source for complete details.",
+    documents_url: null, eligibility_text: null, contact_name: null, contact_email: null,
+    contact_phone: null, contact_address: null, qualification_requirements: null,
+    submission_instructions: null, bid_security_requirement: null, bid_security_text: null,
+    required_documents: [], required_certifications: [], lots: [], source_details: {}, raw_payload: {},
+  }));
   records = records.map(enrichNormalizedOpportunity);
   const totals: IngestionTotals = { fetched: records.length, inserted: 0, updated: 0, duplicates: 0, failed: 0, errors: [] };
   const { data: previousRuns } = await supabaseRest<Array<{ records_fetched: number }>>(

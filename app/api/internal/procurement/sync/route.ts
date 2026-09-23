@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   try {
     requireCronOrInternalSecret(request);
     await supabaseRest("rpc/refresh_procurement_opportunity_statuses", { method: "POST", body: "{}" });
-    const { data: sources } = await supabaseRest<ProcurementSource[]>("procurement_sources?select=*&sync_enabled=eq.true&status=in.(ACTIVE,DEGRADED)&implementation_status=eq.LIVE");
+    const { data: sources } = await supabaseRest<ProcurementSource[]>("procurement_sources?select=*&sync_enabled=eq.true&status=in.(ACTIVE,DEGRADED)&implementation_status=eq.LIVE&reuse_status=not.in.(prohibited,public_link_only)");
     const results = await Promise.all(sources.map(async (source) => {
       const adapter = getProcurementAdapter(source.slug);
       if (!adapter) return { source: source.slug, status: "SKIPPED", reason: "No registered adapter" };
