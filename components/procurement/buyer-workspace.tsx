@@ -1996,6 +1996,7 @@ function Suppliers() {
         <ErrorState message={result.error} />
       ) : (
         <div className="pw-list mt-5">
+          {!result.data?.data.length && <p className="pw-card text-sm text-[#5f7169]">No suppliers match this verification filter yet. Try All suppliers to see the full directory.</p>}
           {result.data?.data.map((s) => (
             <article className="pw-card" key={s.id}>
               <div className="flex justify-between gap-4">
