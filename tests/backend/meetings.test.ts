@@ -56,6 +56,10 @@ test("buyer meeting navigation stays inside the procurement workspace",()=>{
   assert.match(procurement,/href={`\/procurement\/meetings\/\$\{m\.id\}`}/);
   assert.doesNotMatch(procurement,/href="\/customer\/meetings"/);
   assert.match(shell,/<ProcurementMeetings meetingId={identifier}/);
+  assert.match(procurement,/name="tenderId"/);
+  assert.match(procurement,/Select a BidScope-managed tender/);
+  assert.match(procurement,/procurementTenderId/);
+  assert.match(read("app/api/meetings/route.ts"),/procurement_tender_required/);
 });
 
 test("Google Meet requires a connected Calendar account and preserves the originating workspace",()=>{

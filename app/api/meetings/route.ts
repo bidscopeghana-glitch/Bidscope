@@ -69,6 +69,7 @@ export async function POST(request:Request){
     if(!membership)throw new ApiError(400,"Create a business profile before scheduling meetings.","profile_required");
     await requireOrganizationMember(user.id,membership.organization_id);
     const input=schema.parse(await request.json()),guardrails=await settings(membership.organization_id);
+    if(input.procurementMeetingType&&!input.procurementTenderId)throw new ApiError(400,"Select a BidScope-managed tender before scheduling a procurement meeting.","procurement_tender_required");
     if(input.relatedOpportunityId&&!input.procurementTenderId)throw new ApiError(400,"External tenders cannot use the BidScope-managed meeting workflow. Use the issuing authority's official portal.","external_tender_meeting_not_allowed");
     if(input.procurementTenderId){const{tender}=await requireTenderManager(user,input.procurementTenderId);if(input.supplierBidId){const{data:bid}=await supabaseRest<Array<{id:string;supplier_organization_id:string}>>(`supplier_bids?select=id,supplier_organization_id&id=eq.${input.supplierBidId}&tender_id=eq.${tender.id}&limit=1`);if(!bid[0]||input.supplierOrganizationId&&bid[0].supplier_organization_id!==input.supplierOrganizationId)throw new ApiError(400,"The selected supplier bid does not belong to this tender.","invalid_procurement_meeting_link");}}
     if(!guardrails.enabled)throw new ApiError(403,"BidScope Meet is disabled for this workspace.","meetings_disabled");

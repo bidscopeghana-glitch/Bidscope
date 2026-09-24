@@ -17,6 +17,12 @@ type Meeting = {
   procurement_tender_id?: string | null;
   procurement_meeting_type?: string | null;
 };
+type ManagedTender = {
+  id: string;
+  title: string;
+  reference_number: string;
+  status: string;
+};
 export function ProcurementMeetings({ meetingId }: { meetingId?: string }) {
   if (meetingId) return <MeetingsWorkspace meetingId={meetingId} />;
   return <ProcurementMeetingList />;
@@ -31,7 +37,13 @@ function ProcurementMeetingList() {
       data: Meeting[];
       settings: { max_duration_minutes: number } | null;
       googleConnected: boolean;
-    }>("/api/meetings");
+    }>("/api/meetings"),
+    tenders = useData<{ data: ManagedTender[] }>(
+      "/api/procurement?resource=tenders",
+    ),
+    managedTenders = (tenders.data?.data || []).filter(
+      (tender) => tender.status !== "cancelled",
+    );
   async function connectGoogle() {
     try {
       const response = await api<{ data: { url: string } }>(
@@ -47,6 +59,11 @@ function ProcurementMeetingList() {
     event.preventDefault();
     setMessage("");
     const f = new FormData(event.currentTarget);
+    const procurementTenderId = String(f.get("tenderId") || "");
+    if (!procurementTenderId) {
+      setMessage("Select a BidScope-managed tender before scheduling this meeting.");
+      return;
+    }
     if (f.get("provider") === "google_meet" && !result.data?.googleConnected) {
       setMessage("Connect Google Calendar before scheduling a Google Meet.");
       return;
@@ -72,7 +89,7 @@ function ProcurementMeetingList() {
         recordingEnabled: false,
         transcriptionEnabled: false,
         waitingRoomEnabled: true,
-        procurementTenderId: params.get("tender"),
+        procurementTenderId,
         supplierBidId: params.get("bid"),
         supplierOrganizationId: params.get("supplier"),
         tenderLotId: params.get("lot"),
@@ -103,7 +120,11 @@ function ProcurementMeetingList() {
           committee meetings stay linked to the tender and bid.
         </p>
         <div className="pw-actions mt-5">
-          <button className="pw-button gold" onClick={() => setOpen(true)}>
+          <button
+            className="pw-button gold"
+            disabled={tenders.loading || !managedTenders.length}
+            onClick={() => setOpen(true)}
+          >
             <Plus size={15} />
             Schedule meeting
           </button>
@@ -118,6 +139,11 @@ function ProcurementMeetingList() {
             )}
           </button>
         </div>
+        {!tenders.loading && !managedTenders.length && (
+          <p className="mt-3">
+            Create a BidScope-managed tender before scheduling procurement meetings.
+          </p>
+        )}
       </div>
       {message && (
         <p className={/scheduled/.test(message) ? "pw-notice" : "pw-error"}>
@@ -174,6 +200,23 @@ function ProcurementMeetingList() {
             <section className="pw-form-section">
               <h2>Schedule procurement meeting</h2>
               <div className="pw-fields">
+                <label className="wide">
+                  Managed tender
+                  <select
+                    name="tenderId"
+                    required
+                    defaultValue={params.get("tender") || ""}
+                  >
+                    <option value="" disabled>
+                      Select a BidScope-managed tender
+                    </option>
+                    {managedTenders.map((tender) => (
+                      <option value={tender.id} key={tender.id}>
+                        {tender.title} · {tender.reference_number} · {tender.status.replaceAll("_", " ")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="wide">
                   Title
                   <input required minLength={3} name="title" />
