@@ -21,7 +21,7 @@ This matrix tracks outside-in browser acceptance. `PENDING` means no current liv
 | AUTH-01 | Supplier | Password/Google login, refresh, logout and return path | Persistent session and correct supplier workspace | None | PENDING |
 | SUP-01 | Supplier | Onboarding and profile persistence | Business fields persist after refresh/re-login | QA profile | PENDING |
 | SUP-02 | Supplier | Dashboard, recommendations, saved, alerts, documents and settings | Every visible action works | QA saves/alerts | PENDING |
-| SUP-03 | Supplier | Search Ghana/international/external/managed records | Correct filters, empty states and provenance | None | PARTIAL — external discovery and keyword search pass live; Ghana, managed and advanced filters remain |
+| SUP-03 | Supplier | Search Ghana/international/external/managed records | Correct filters, empty states and provenance | None | PARTIAL — external discovery, keyword search, Ghana geography and managed-tender separation pass live; remaining advanced filters remain |
 | SUP-04 | Supplier | Save/watch/unwatch and persistence | No duplicates; correct deep links | QA saves/watch | PARTIAL — save/remove persistence passes live and QA save was removed; watch/unwatch remains |
 | VER-01 | Supplier/admin | Basic, verified and enhanced application lifecycle | No false official claim; GHS 500 disclosure | QA application/files | PENDING |
 | VER-02 | Supplier/admin | Integrity, duplicate and mismatched QA documents | Hash/risk/private-file controls work | QA files | PENDING |
@@ -30,7 +30,7 @@ This matrix tracks outside-in browser acceptance. `PENDING` means no current liv
 | BID-01 | Supplier/buyer | Submit, view, withdraw, shortlist/reject/award | Cross-tenant isolation and correct audit state | QA bid | PENDING |
 | MSG-01 | Supplier/buyer | Managed-tender chat and voice-call controls | Only participants; external tenders excluded | QA messages | PENDING |
 | TEAM-01 | Buyer/supplier | Team and meeting workflow | Workspace-safe routes and permissions | QA invite/meeting | PENDING |
-| NOT-01 | User | In-app, preferences, push subscribe/unsubscribe | Correct recipient, dedupe, deep link and read state | Test notification | PARTIAL — header popover, category controls, notification links and bounded 20-item list pass; read state, preferences and push lifecycle remain |
+| NOT-01 | User | In-app, preferences, push subscribe/unsubscribe | Correct recipient, dedupe, deep link and read state | Test notification | PARTIAL — header popover, category controls, notification links, bounded 20-item list, subscribed-device state and test-push acceptance pass; read state, preference persistence and unsubscribe/resubscribe remain |
 | PAY-01 | User | Plans, checkout success/failure, webhook replay, cancellation | Sandbox only; server-owned prices; idempotent entitlement | Sandbox transaction | BLOCKED until test mode is confirmed |
 | ENT-01 | Guest/free/subscribed/expired | Direct-route and API access matrix | No entitlement bypass or source leakage | None | PENDING |
 | ADM-01 | Admin | Command Centre, verification, discovery, source rights, AI and outreach | Server-enforced super-admin access | None | IN PROGRESS |
@@ -64,6 +64,9 @@ This matrix tracks outside-in browser acceptance. `PENDING` means no current liv
 - `2026-09-24`: release `83b8ec9` deployed Ready. A live AI provider response that had previously inferred a non-competitive sole-source award from the label “Special Notice” was rejected; the replacement summary reported only source-supported facts. Markdown headings, emphasis and source links rendered as elements rather than raw syntax.
 - `2026-09-24`: the authenticated notification icon opened a bounded floating panel with the latest 20 alerts, category controls and working deep links without navigating away. No alert was dismissed or marked read during this non-mutating check.
 - `2026-09-24`: authenticated external discovery loaded 943 open opportunities. Searching for the known live phrase `BALL BEARING` narrowed the list to two correctly linked SAM.gov records; the closed `ASK SAGE TOKENS` record was correctly absent from the open-discovery result set.
+- `2026-09-24`: the Ghana geography filter returned 55 open Ghana records with distinct GHANEPS and World Bank attribution. The managed-tender catalogue remained visibly separate and returned a clear “No open BidScope Tenders” state rather than mixing in external records.
+- `2026-09-24`: the floating help control opened an accessible dialog over the current workspace. A tender-requirements question was refused as product help and redirected to AI Tender Evaluation, opportunity selection and plans.
+- `2026-09-24`: the alert centre recognised the current Win32 browser subscription, exposed granular push categories and correctly disabled SMS until a phone number is verified. The authorised test push was accepted by the push service and the device remained subscribed.
 
 ## Release decision
 
