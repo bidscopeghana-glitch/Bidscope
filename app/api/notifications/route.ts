@@ -1,11 +1,14 @@
 import { apiErrorResponse } from "@/lib/server/api-error";
 import { requireUser } from "@/lib/server/auth";
 import { supabaseRest } from "@/lib/server/supabase-rest";
+import { isFormattingOnlyTenderAmendment } from "@/lib/customer-dashboard";
 
 export const dynamic = "force-dynamic";
 
+type NotificationRow = { type: string; message: string; read_at: string | null } & Record<string, unknown>;
+
 export async function GET(request:Request) {
-  try { const { user }=await requireUser(request); const url=new URL(request.url); const type=url.searchParams.get("type"); const unread=url.searchParams.get("unread")==="true"; const params=new URLSearchParams({select:"*",user_id:`eq.${user.id}`,dismissed_at:"is.null",order:"created_at.desc",limit:"100"}); if(type&&type!=="all")params.set("type",`eq.${type}`); if(unread)params.set("read_at","is.null"); const {data}=await supabaseRest<unknown[]>(`notifications?${params}`); const {response}=await supabaseRest<unknown[]>(`notifications?select=id&user_id=eq.${user.id}&read_at=is.null&dismissed_at=is.null`,{count:"exact"}); return Response.json({data,unreadCount:Number(response.headers.get("content-range")?.split("/")[1]||0)}); }
+  try { const { user }=await requireUser(request); const url=new URL(request.url); const type=url.searchParams.get("type"); const unread=url.searchParams.get("unread")==="true"; const params=new URLSearchParams({select:"*",user_id:`eq.${user.id}`,dismissed_at:"is.null",order:"created_at.desc",limit:"100"}); if(type&&type!=="all")params.set("type",`eq.${type}`); if(unread)params.set("read_at","is.null"); const {data:rows}=await supabaseRest<NotificationRow[]>(`notifications?${params}`); const data=rows.filter(row=>!isFormattingOnlyTenderAmendment(row)); const {data:unreadRows}=await supabaseRest<NotificationRow[]>(`notifications?select=type,message,read_at&user_id=eq.${user.id}&read_at=is.null&dismissed_at=is.null&limit=1000`); const unreadCount=unreadRows.filter(row=>!isFormattingOnlyTenderAmendment(row)).length; return Response.json({data,unreadCount}); }
   catch(error){return apiErrorResponse(error);}
 }
 

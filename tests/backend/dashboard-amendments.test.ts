@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { amendmentFingerprint, meaningfulAmendmentChanges } from "../../lib/server/procurement/amendments.ts";
-import { futureDeadlineItems, uniqueAttentionItems } from "../../lib/customer-dashboard.ts";
+import { futureDeadlineItems, isFormattingOnlyTenderAmendment, uniqueAttentionItems } from "../../lib/customer-dashboard.ts";
 
 test("timestamp formatting alone is not a tender amendment", () => {
   const changes = meaningfulAmendmentChanges([
@@ -30,4 +30,11 @@ test("attention feed collapses duplicate unread high-priority notices", () => {
   const base = { title: "Tender deadline changed", message: "deadline at: old → new", type: "tender_amendment", priority: "urgent", related_url: "/customer/opportunity/one", read_at: null };
   const rows = [{ ...base, id: "1" }, { ...base, id: "2" }, { ...base, id: "3", read_at: "2026-09-24T10:00:00Z" }];
   assert.deepEqual(uniqueAttentionItems(rows).map((row) => row.id), ["1"]);
+});
+
+test("historical timestamp-format-only alerts are suppressed without deleting audit data", () => {
+  const falseChange = { type: "tender_amendment", message: "deadline at: 2026-09-16T12:00:00+00:00 → 2026-09-16T12:00:00.000Z" };
+  const realChange = { type: "tender_amendment", message: "deadline at: 2026-09-16T12:00:00Z → 2026-09-17T12:00:00Z" };
+  assert.equal(isFormattingOnlyTenderAmendment(falseChange), true);
+  assert.equal(isFormattingOnlyTenderAmendment(realChange), false);
 });

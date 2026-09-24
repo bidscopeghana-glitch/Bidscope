@@ -9,6 +9,8 @@ type AttentionItem = {
   read_at: string | null;
 };
 
+type NotificationItem = Pick<AttentionItem, "type" | "message">;
+
 const completedBidStatuses = new Set(["SUBMITTED", "AWARDED", "UNSUCCESSFUL", "WITHDRAWN"]);
 
 export function futureDeadlineItems<T extends DeadlineItem>(items: T[], now = Date.now()) {
@@ -26,10 +28,19 @@ export function futureDeadlineItems<T extends DeadlineItem>(items: T[], now = Da
 export function uniqueAttentionItems<T extends AttentionItem>(items: T[]) {
   const seen = new Set<string>();
   return items.filter((item) => {
-    if (item.read_at || !["urgent", "high"].includes(item.priority)) return false;
+    if (item.read_at || !["urgent", "high"].includes(item.priority) || isFormattingOnlyTenderAmendment(item)) return false;
     const key = [item.type, item.title.trim(), item.message.trim(), item.related_url || ""].join("|");
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+export function isFormattingOnlyTenderAmendment(item: NotificationItem) {
+  if (item.type !== "tender_amendment") return false;
+  const match = item.message.match(/:\s*(.+?)\s*→\s*(.+?)\s*$/);
+  if (!match) return false;
+  const previous = Date.parse(match[1]);
+  const current = Date.parse(match[2]);
+  return Number.isFinite(previous) && Number.isFinite(current) && previous === current;
 }
