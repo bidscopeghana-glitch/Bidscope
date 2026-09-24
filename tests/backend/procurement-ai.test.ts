@@ -7,6 +7,12 @@ const chunks:DocumentChunk[]=[{id:"1",document_id:"d1",chunk_index:0,page_number
 test("retrieval selects tender sections relevant to the question",()=>{const result=retrieveRelevantChunks(chunks,"Which tax clearance document is needed?",1);assert.equal(result[0].page_number,17);});
 test("mandatory document analysis cites source text and does not guarantee an outcome",()=>{const result=groundedFallback("mandatory_documents","",opportunity,chunks);assert.match(result.content,/tax clearance/i);assert.doesNotMatch(result.content,/will win|guaranteed/i);assert.equal(result.citations[1].page,17);});
 test("unknown questions are explicitly labelled unavailable",()=>{const result=groundedFallback("question","Does the buyer prefer us?",opportunity,[]);assert.match(result.content,/Not stated in the available source documents/i);});
+
+test("explanation uses the official title when the source omits a fuller scope",()=>{
+  const result=groundedFallback("question","Explain this tender and its key requirements.",{...opportunity,title:"PURCHASE OF ASK SAGE TOKENS",summary:"",description:""},[]);
+  assert.match(result.content,/official record identifies the purchase as “PURCHASE OF ASK SAGE TOKENS”/);
+  assert.doesNotMatch(result.content,/What is being procured:\*\* Not stated/);
+});
 test("official structured metadata is available to AI retrieval",()=>{const detailed={...opportunity,source_details:{"Evaluation Mechanism":"Lowest Evaluated Responsive Tenderer (LERT)","Bid Security Amount":"2%"}};const chunk=opportunityEvidenceChunk(detailed);assert.match(chunk.content,/LERT/);assert.match(chunk.content,/2%/);assert.equal(chunk.document?.url,opportunity.official_source_url);});
 test("explain questions produce a useful evidence-backed fallback",()=>{const detailed={...opportunity,qualification_requirements:"Postqualification required",bid_security_requirement:"2%",participation_fee_amount:500,participation_fee_currency:"GHS"};const result=groundedFallback("question","Explain this tender and its key requirements.",detailed,[opportunityEvidenceChunk(detailed)]);assert.match(result.content,/Postqualification required/);assert.match(result.content,/GHS 500/);assert.equal(result.groundingStatus,"verified");});
 test("duplicate source links are removed even when sections differ",()=>{const citations=dedupeCitations([{label:"Official",url:"https://example.gov.gh/tender",documentId:"a",section:"Metadata"},{label:"Revision",url:"https://example.gov.gh/tender",documentId:"b",section:"Revision"}]);assert.equal(citations.length,1);});

@@ -62,3 +62,10 @@ test("CSV export is disabled at the API boundary and is not advertised", () => {
   assert.doesNotMatch(read("lib/server/entitlements.ts"), /csv_exports/);
   assert.match(read("supabase/migrations/20260924170000_disable_csv_export_entitlements.sql"), /features\s*=\s*features\s*-\s*'csv_exports'/);
 });
+
+test("saved opportunity control is a true save and remove toggle", () => {
+  const opportunities = read("components/customer/opportunities.tsx");
+  assert.match(opportunities, /if\(o\.saved\)/);
+  assert.match(opportunities, /saved-opportunities\?\$\{query\}[\s\S]*"DELETE"/);
+  assert.match(opportunities, /Opportunity removed from your shortlist/);
+});
