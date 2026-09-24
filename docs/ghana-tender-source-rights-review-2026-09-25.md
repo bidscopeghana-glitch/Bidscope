@@ -1,5 +1,45 @@
 # Ghana tender source review — 25 September 2026
 
+## Ghana-law basis for BidScope's Ghana sources
+
+BidScope is a Ghanaian company, and its [customer Terms](../app/terms/page.tsx)
+already choose the laws of the Republic of Ghana. Ghana law is therefore the
+starting point for this Ghana-source assessment. This is an operational rights
+policy, not a legal opinion or a claim that foreign source terms never apply.
+
+- [Copyright Act, 2005 (Act 690), sections 1–5](https://repository.parliament.gh/server/api/core/bitstreams/4b7ed217-30e6-49bd-80ad-21e081c357cc/content)
+  protects original expression, excludes ideas, concepts and methods, recognises
+  copyright in certain government-created work, and reserves reproduction and
+  public communication of protected work to the rights holder. The practical
+  inference is that BidScope may independently state bare procurement facts
+  (for example, issuer, title, reference and deadline) and link to the official
+  notice, but should not assume the wording, arrangement, PDFs, photos or full
+  tender documents are free to copy. Whether a particular title or extract is
+  sufficiently original or substantial needs case-specific review.
+- [Act 690, section 19](https://repository.parliament.gh/server/api/core/bitstreams/4b7ed217-30e6-49bd-80ad-21e081c357cc/content)
+  provides limited permitted uses, including attributed quotations subject to
+  conditions. It is **not** a blanket licence to reproduce complete notices or
+  attachments in a paid product. BidScope's default link-only listing uses an
+  independently worded pointer instead of relying on that exception.
+- [Public Procurement Act, 2003 (Act 663), as amended by Act 914](https://ppa.gov.gh/online-documents/public-procurement-act/)
+  and [PPA's section-47 guidance](https://ppa.gov.gh/wp-content/uploads/2025/05/COMBINED-2023-NATIONAL-REPORT.pdf)
+  require publication of relevant public tender invitations. This supports
+  discovery of publicly advertised opportunities; it does **not** itself
+  transfer copyright or grant a third-party syndication licence.
+- Where a notice includes identifiable individuals' contact information,
+  [Data Protection Act, 2012 (Act 843)](https://cybersecurity.gov.gh/documents/Data_Protection_Act_2012.pdf)
+  also matters. The link-only record therefore omits personal contacts and
+  sends users to the issuer for current details.
+
+For Ghana sources, review the specific portal's terms and access rules as well
+as Ghana law before enabling automated fetching. A public notice can be a
+candidate for a manually reviewed factual link-only listing without a licence
+to mirror its prose or documents. The `permission_unknown` classification stays
+in force until that review is recorded; no Ministry of Finance crawl or source
+activation follows merely from this legal analysis. For UK, EU, UN and other
+foreign sources, their published licences, contractual terms and applicable
+foreign law remain relevant even though BidScope operates from Ghana.
+
 ## Coverage verified in production
 
 The live `procurement_opportunities` query returned **56** Ghana records with
