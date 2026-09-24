@@ -32,6 +32,14 @@ export function SafeMarkdown({content,className=""}:{content:string;className?:s
   for(let index=0;index<lines.length;){
     const line=lines[index].trim();
     if(!line){index++;continue;}
+    if(/^-{3,}$/.test(line)){blocks.push(<hr key={index}/>);index++;continue;}
+    const next=lines[index+1]?.trim()||"";
+    if(/^\|.*\|$/.test(line)&&/^\|(?:\s*:?-{3,}:?\s*\|)+$/.test(next)){
+      const cells=(row:string)=>row.slice(1,-1).split("|").map(cell=>cell.trim());
+      const headers=cells(line);index+=2;const rows:string[][]=[];
+      while(index<lines.length&&/^\|.*\|$/.test(lines[index].trim())){rows.push(cells(lines[index].trim()));index++;}
+      blocks.push(<div className="markdown-table-wrap" key={`table-${index}`}><table><thead><tr>{headers.map((cell,column)=><th key={column}>{inlineMarkdown(cell)}</th>)}</tr></thead><tbody>{rows.map((row,rowIndex)=><tr key={rowIndex}>{row.map((cell,column)=><td key={column}>{inlineMarkdown(cell)}</td>)}</tr>)}</tbody></table></div>);continue;
+    }
     const heading=line.match(/^(#{1,3})\s+(.+)$/);
     if(heading){
       const text=inlineMarkdown(heading[2]);

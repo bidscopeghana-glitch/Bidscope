@@ -44,9 +44,11 @@ const analystRules="You are BidScope AI, a careful procurement analyst for Ghana
 export function modelContext(input:ModelInput){const{id:_internalId,...opportunity}=input.opportunity;void _internalId;return{opportunity,retrievedSections:input.chunks.map((chunk,index)=>({citation:index+1,page:chunk.page_number,section:chunk.section_label,text:chunk.content})),supplierPassport:input.passport||undefined};}
 
 export function providerAnalysisHasUnsupportedCompetitionClaim(content:string,opportunity:OpportunityContext){
-  const evidence=[opportunity.summary,opportunity.description,opportunity.eligibility_text||"",JSON.stringify(opportunity.source_details||{})].join("\n");
-  const claim=/sole[-\s]?source|single[-\s]?source|non[-\s]?competitive|without (?:a )?competitive|only one (?:responsible )?vendor|chosen to award without/i.test(content);
-  const supported=/sole[-\s]?source|single[-\s]?source|intent to award|non[-\s]?competitive|without competition|only one responsible source/i.test(evidence);
+  const normalize=(value:string)=>value.normalize("NFKC").replace(/[‐‑‒–—−]/g,"-");
+  const evidence=normalize([opportunity.summary,opportunity.description,opportunity.eligibility_text||"",JSON.stringify(opportunity.source_details||{})].join("\n"));
+  const response=normalize(content);
+  const claim=/sole[-\s]?source|single[-\s]?source|non[-\s]?competitive|no competitive (?:bidding|process|procedure)|without (?:a )?competitive|only one (?:responsible )?vendor|chosen to award without/i.test(response);
+  const supported=/sole[-\s]?source|single[-\s]?source|intent to award|non[-\s]?competitive|no competitive (?:bidding|process|procedure)|without competition|only one responsible source/i.test(evidence);
   return claim&&!supported;
 }
 
