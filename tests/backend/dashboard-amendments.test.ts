@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { amendmentFingerprint, meaningfulAmendmentChanges } from "../../lib/server/procurement/amendments.ts";
 import { futureDeadlineItems, isFormattingOnlyTenderAmendment, uniqueAttentionItems } from "../../lib/customer-dashboard.ts";
+import { readFileSync } from "node:fs";
 
 test("timestamp formatting alone is not a tender amendment", () => {
   const changes = meaningfulAmendmentChanges([
@@ -37,4 +38,9 @@ test("historical timestamp-format-only alerts are suppressed without deleting au
   const realChange = { type: "tender_amendment", message: "deadline at: 2026-09-16T12:00:00Z → 2026-09-17T12:00:00Z" };
   assert.equal(isFormattingOnlyTenderAmendment(falseChange), true);
   assert.equal(isFormattingOnlyTenderAmendment(realChange), false);
+});
+
+test("the deadline workspace explains when tracked bids have no future dates", () => {
+  const source = readFileSync(new URL("../../components/customer/bids.tsx", import.meta.url), "utf8");
+  assert.match(source, /No upcoming deadlines/);
 });
