@@ -12,7 +12,7 @@ test("country navigation reuses Discover country filtering and shows live counts
   assert.match(customerApi,/resource==="countries"/);
   assert.match(customerApi,/status:"in\.\(OPEN,CLOSING_SOON\)"/);
   assert.match(customerApi,/DEU:"Germany"/);
-  assert.match(customerApi,/new Set\(raw\.split\(","\)/);
+  assert.match(customerApi,/every\(value=>\/\^\[A-Z\]\{3\}\$\//);
   assert.match(opportunities,/countryName\?`\$\{countryName\} opportunities`/);
 });
 
