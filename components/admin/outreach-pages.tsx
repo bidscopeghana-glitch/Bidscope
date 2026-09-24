@@ -296,14 +296,14 @@ export function OutreachImportCentre() {
     <Shell>
       <Header
         title="Import centre"
-        description="Upload CSV, XLSX or XLS files. BidScope stages and analyses every row before anything reaches the production prospect database."
+        description="Upload CSV files. BidScope stages and analyses every row before anything reaches the production prospect database."
       />
       <div className="mt-6 grid gap-5 xl:grid-cols-[.8fr_1.2fr]">
         <Card>
           <label className="grid min-h-64 cursor-pointer place-items-center rounded-[20px] border-2 border-dashed border-[#16805e]/35 bg-[#eef5ef] p-8 text-center">
             <input
               type="file"
-              accept=".csv,.xlsx,.xls"
+              accept=".csv,text/csv"
               className="sr-only"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
@@ -313,7 +313,7 @@ export function OutreachImportCentre() {
                 {file ? file.name : "Drop a prospect file here"}
               </strong>
               <small className="mt-2 block text-[#687a71]">
-                CSV, XLSX or XLS · up to 50 MB
+                CSV · up to 50 MB
               </small>
             </span>
           </label>

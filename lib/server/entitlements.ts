@@ -1,6 +1,6 @@
 import {ApiError} from "./api-error.ts";
 import {supabaseRest,supabaseRpc} from "./supabase-rest.ts";
-import {BIDSCOPE_ADMIN_EMAIL,type AuthenticatedUser} from "./auth.ts";
+import {isBidscopeSuperAdmin,type AuthenticatedUser} from "./auth.ts";
 
 export const PREMIUM_FEATURES=["advanced_feed","best_match","advanced_matching","smart_alerts","follow_buyers","buyer_intelligence","bid_advisor","procurement_radar","change_monitoring","readiness_score","tender_intelligence_report","ai_assistant","bid_workspace","international_eligibility","market_intelligence","multi_recipient_alerts","tender_source_access","tender_documents","incumbent_intelligence","document_analysis","partner_marketplace","bid_writer","advanced_alerts"] as const;
 export type EntitlementFeature=typeof PREMIUM_FEATURES[number];
@@ -13,9 +13,7 @@ async function planByCode(code:string){const{data}=await supabaseRest<Plan[]>(`b
 function periodValid(subscription:Subscription,now=Date.now()){if(["ACTIVE","CANCEL_AT_PERIOD_END"].includes(subscription.status))return !subscription.current_period_ends_at||Date.parse(subscription.current_period_ends_at)>now;if(subscription.status==="GRACE_PERIOD")return Boolean(subscription.grace_period_end&&Date.parse(subscription.grace_period_end)>now);return false;}
 
 async function isBuilderAdmin(actor?:AuthenticatedUser){
- if(!actor||actor.email.trim().toLowerCase()!==BIDSCOPE_ADMIN_EMAIL)return false;
- const{data}=await supabaseRest<Array<{is_super_admin:boolean}>>(`profiles?select=is_super_admin&id=eq.${actor.id}&limit=1`);
- return data[0]?.is_super_admin===true;
+ return actor?isBidscopeSuperAdmin(actor):false;
 }
 
 export async function getEntitlement(organizationId:string,actor?:AuthenticatedUser){

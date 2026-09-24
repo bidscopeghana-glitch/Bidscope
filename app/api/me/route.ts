@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiErrorResponse } from "@/lib/server/api-error";
-import { requireUser } from "@/lib/server/auth";
+import { isBidscopeSuperAdmin, requireUser } from "@/lib/server/auth";
 import { supabaseRest } from "@/lib/server/supabase-rest";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +15,12 @@ export async function GET(request: Request) {
   try {
     const { user } = await requireUser(request);
     const query = new URLSearchParams({ select: "id,email,full_name,phone,job_title,created_at,updated_at", id: `eq.${user.id}`, limit: "1" });
-    const { data } = await supabaseRest<unknown[]>(`profiles?${query}`);
-    return Response.json({ data: data[0] || { id: user.id, email: user.email, full_name: "", phone: "", job_title: "" } });
+    const [{ data }, isBidscopeAdmin] = await Promise.all([
+      supabaseRest<Array<Record<string, unknown>>>(`profiles?${query}`),
+      isBidscopeSuperAdmin(user),
+    ]);
+    const profile = data[0] || { id: user.id, email: user.email, full_name: "", phone: "", job_title: "" };
+    return Response.json({ data: { ...profile, is_bidscope_admin: isBidscopeAdmin } });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -38,4 +42,3 @@ export async function PATCH(request: Request) {
     return apiErrorResponse(error);
   }
 }
-

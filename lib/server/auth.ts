@@ -3,7 +3,16 @@ import { supabaseConfiguration, supabaseRest } from "./supabase-rest";
 import { timingSafeEqual } from "node:crypto";
 
 export type AuthenticatedUser = { id: string; email: string; emailConfirmedAt?: string | null; metadata?: Record<string, unknown> };
-export const BIDSCOPE_ADMIN_EMAIL = "basintaleuk@gmail.com";
+
+function configuredAdminEmail() {
+  return process.env.BIDSCOPE_ADMIN_EMAIL?.trim().toLowerCase() || null;
+}
+
+export function getBidscopeAdminEmail() {
+  const email = configuredAdminEmail();
+  if (!email) throw new ApiError(503, "Administrator access is not configured.", "admin_configuration_unavailable");
+  return email;
+}
 
 export async function requireUser(request: Request): Promise<{ user: AuthenticatedUser; accessToken: string }> {
   const authorization = request.headers.get("authorization") || "";
@@ -35,14 +44,20 @@ export async function requireOrganizationMember(userId: string, organizationId: 
   return data[0];
 }
 
+export async function isBidscopeSuperAdmin(user: AuthenticatedUser) {
+  const adminEmail = configuredAdminEmail();
+  if (!adminEmail || user.email.trim().toLowerCase() !== adminEmail) return false;
+  const query = new URLSearchParams({ select: "is_super_admin", id: `eq.${user.id}`, limit: "1" });
+  const { data } = await supabaseRest<Array<{ is_super_admin: boolean }>>(`profiles?${query}`);
+  return data[0]?.is_super_admin === true;
+}
+
 export async function requireSuperAdmin(request: Request) {
+  getBidscopeAdminEmail();
   const authenticated = await requireUser(request);
-  if (authenticated.user.email.trim().toLowerCase() !== BIDSCOPE_ADMIN_EMAIL) {
+  if (!(await isBidscopeSuperAdmin(authenticated.user))) {
     throw new ApiError(403, "Administrator access is restricted.", "admin_access_denied");
   }
-  const query = new URLSearchParams({ select: "is_super_admin", id: `eq.${authenticated.user.id}`, limit: "1" });
-  const { data } = await supabaseRest<Array<{ is_super_admin: boolean }>>(`profiles?${query}`);
-  if (!data[0]?.is_super_admin) throw new ApiError(403, "Administrator access is restricted.", "admin_access_denied");
   return authenticated;
 }
 

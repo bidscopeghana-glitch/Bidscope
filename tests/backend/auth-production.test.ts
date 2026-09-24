@@ -59,9 +59,10 @@ test("administrator control is restricted to the builder identity and database f
   const auth=read("lib/server/auth.ts");
   const session=read("app/api/admin/session/route.ts");
   const shell=read("app/admin/command-centre/admin-shell.tsx");
-  assert.match(auth,/BIDSCOPE_ADMIN_EMAIL = "basintaleuk@gmail\.com"/);
-  assert.match(auth,/authenticated\.user\.email\.trim\(\)\.toLowerCase\(\) !== BIDSCOPE_ADMIN_EMAIL/);
+  assert.match(auth,/process\.env\.BIDSCOPE_ADMIN_EMAIL/);
+  assert.match(auth,/user\.email\.trim\(\)\.toLowerCase\(\) !== adminEmail/);
   assert.match(auth,/is_super_admin/);
+  assert.match(auth,/admin_configuration_unavailable/);
   assert.match(session,/requireSuperAdmin\(request\)/);
   assert.match(shell,/\/api\/admin\/session/);
 });

@@ -1,16 +1,39 @@
-import * as XLSX from "xlsx";
 import {createHash} from "node:crypto";
 import {classifyCompany,cleanMappedRow,scoreProspect,suggestColumnMappings,type ColumnSuggestion,type OutreachField} from "./intelligence.ts";
 
 export type ParsedSheet={headers:string[];rows:Record<string,unknown>[]};
 
 export function hashFile(buffer:Buffer){return createHash("sha256").update(buffer).digest("hex");}
+
+function parseCsv(source:string):string[][]{
+  const rows:string[][]=[];
+  let row:string[]=[],field="",quoted=false;
+  for(let index=0;index<source.length;index++){
+    const character=source[index];
+    if(quoted){
+      if(character==='"'&&source[index+1]==='"'){field+='"';index++;continue;}
+      if(character==='"'){quoted=false;continue;}
+      field+=character;continue;
+    }
+    if(character==='"'&&field.length===0){quoted=true;continue;}
+    if(character===","){row.push(field);field="";continue;}
+    if(character==="\n"||character==="\r"){
+      if(character==="\r"&&source[index+1]==="\n")index++;
+      row.push(field);field="";
+      if(row.some(value=>value.length>0))rows.push(row);
+      row=[];continue;
+    }
+    field+=character;
+  }
+  if(quoted)throw new Error("The CSV contains an unterminated quoted field.");
+  row.push(field);
+  if(row.some(value=>value.length>0))rows.push(row);
+  return rows;
+}
+
 export function parseProspectFile(buffer:Buffer,fileType:"csv"|"xlsx"|"xls"):ParsedSheet{
-  const source=fileType==="csv"?Buffer.from(buffer.toString("utf8").replace(/^\uFEFF/,""),"utf8"):buffer;
-  const workbook=XLSX.read(source,{type:"buffer",raw:false,cellDates:true,codepage:65001});
-  const first=workbook.SheetNames[0];
-  if(!first)return{headers:[],rows:[]};
-  const matrix=XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[first],{header:1,defval:"",blankrows:false,raw:false});
+  if(fileType!=="csv")throw new Error("Excel imports are temporarily disabled while BidScope replaces an unsafe spreadsheet parser. Export the file as CSV and upload it again.");
+  const matrix=parseCsv(buffer.toString("utf8").replace(/^\uFEFF/,""));
   const headers=(matrix.shift()||[]).map((value,index)=>String(value||`Column ${index+1}`).trim());
   const rows=matrix.map(values=>Object.fromEntries(headers.map((header,index)=>[header,values[index]??""])));
   return{headers,rows};
