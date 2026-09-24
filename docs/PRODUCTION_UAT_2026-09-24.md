@@ -22,7 +22,7 @@ This matrix tracks outside-in browser acceptance. `PENDING` means no current liv
 | SUP-01 | Supplier | Onboarding and profile persistence | Business fields persist after refresh/re-login | QA profile | PENDING |
 | SUP-02 | Supplier | Dashboard, recommendations, saved, alerts, documents and settings | Every visible action works | QA saves/alerts | PENDING |
 | SUP-03 | Supplier | Search Ghana/international/external/managed records | Correct filters, empty states and provenance | None | PENDING |
-| SUP-04 | Supplier | Save/watch/unwatch and persistence | No duplicates; correct deep links | QA saves/watch | PARTIAL — save and persistence pass; broken remove toggle fixed locally, deployment retest and cleanup pending |
+| SUP-04 | Supplier | Save/watch/unwatch and persistence | No duplicates; correct deep links | QA saves/watch | PARTIAL — save/remove persistence passes live and QA save was removed; watch/unwatch remains |
 | VER-01 | Supplier/admin | Basic, verified and enhanced application lifecycle | No false official claim; GHS 500 disclosure | QA application/files | PENDING |
 | VER-02 | Supplier/admin | Integrity, duplicate and mismatched QA documents | Hash/risk/private-file controls work | QA files | PENDING |
 | BUY-01 | Buyer | Signup, onboarding, dashboard and role isolation | Buyer stays in buyer workspace; safe role switching | QA buyer | PENDING |
@@ -36,9 +36,9 @@ This matrix tracks outside-in browser acceptance. `PENDING` means no current liv
 | ADM-01 | Admin | Command Centre, verification, discovery, source rights, AI and outreach | Server-enforced super-admin access | None | IN PROGRESS |
 | DATA-01 | Admin | GHANEPS OCDS parsing, health, dry run and dedupe | No uncontrolled crawl/import; attribution correct | Safe no-change only | PENDING |
 | CF-01 | Public/internal | Turnstile, controlled rate-limit and internal-secret probes | Fail closed without affecting legitimate users | Controlled requests | PENDING |
-| AI-01 | User/admin | Assistant, tender analysis, routing and provider fallback | Grounded output; no private leakage/cache mixing | Test prompts | PARTIAL — live safety rejection passes; title-only grounded fallback fixed locally, deployment retest pending |
+| AI-01 | User/admin | Assistant, tender analysis, routing and provider fallback | Grounded output; no private leakage/cache mixing | Test prompts | PARTIAL — live safety rejection and title-grounded fallback pass; remaining routes/fallbacks and cache isolation remain |
 | ERR-01 | All | Invalid IDs, expired links and failed operations | Useful error state; no blank page/stack leak | None | PENDING |
-| RESP-01 | All | 360, 390, 768 and desktop key routes | No unintended horizontal overflow; controls reachable | None | PARTIAL — 360px public signup/plans/legal/contact pass; missing mobile primary navigation fixed locally; remaining viewports/routes pending |
+| RESP-01 | All | 360, 390, 768 and desktop key routes | No unintended horizontal overflow; controls reachable | None | PARTIAL — 360px public signup/plans/legal/contact pass and the deployed mobile tender menu exposes all core routes; remaining viewports/routes pending |
 | A11Y-01 | All | Keyboard, labels, focus, dialogs and headings | Operable and named controls | None | PENDING |
 | PERF-01 | Public/authenticated | Home, search, detail, dashboards and login | Record current response and Web Vitals evidence | None | PENDING |
 | SEC-01 | Supplier/buyer/admin | Cross-account/API/private-file isolation | No role, tenant, payment or verification escalation | Controlled probes | PENDING |
@@ -57,6 +57,10 @@ This matrix tracks outside-in browser acceptance. `PENDING` means no current liv
 - `2026-09-24`: authenticated AI provider diagnostics showed Groq, OpenRouter and Cloudflare Workers AI active; Gemini offline and OpenAI rate-limited. A live tender prompt correctly triggered the unsupported-claim safety guard, but its conservative fallback ignored an available official title. The title-grounding defect was fixed locally with regression coverage.
 - `2026-09-24`: an authenticated save persisted across navigation into Saved. Pressing Saved incorrectly repeated the save operation instead of deleting it; a true POST/DELETE toggle and regression test were added locally.
 - `2026-09-24`: after the three fixes, 278 backend tests, lint, TypeScript and the 77-page production build passed.
+- `2026-09-24`: release `a7156d6` deployed Ready to Vercel production and all production aliases, including `www.bidscopeghana.com`.
+- `2026-09-24`: live 360px tender-page menu opened and exposed Tenders, For suppliers, For buyers, Plans and Services.
+- `2026-09-24`: live BidScope AI retest returned the official title as the procurement scope while explicitly stating that the source supplied no fuller scope; no tender requirements were invented.
+- `2026-09-24`: live save/remove retest persisted the saved opportunity, removed it through the same control, returned zero saved results and displayed the correct removal confirmation. The temporary QA save was cleaned up.
 
 ## Release decision
 
