@@ -3,6 +3,8 @@ import { requireCronOrInternalSecret } from "@/lib/server/auth";
 import { ingestAwards, ingestNormalizedRecords, ingestProjects } from "@/lib/server/procurement/ingestion";
 import { getProcurementAdapter } from "@/lib/server/procurement/registry";
 import type { ProcurementSource } from "@/lib/server/procurement/types";
+import { assertLegacySourceRights } from "@/lib/server/procurement/source-rights";
+import type { SourceRights } from "@/lib/server/discovery/rights";
 import { supabaseRest } from "@/lib/server/supabase-rest";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +14,10 @@ export async function GET(request: Request) {
   try {
     requireCronOrInternalSecret(request);
     await supabaseRest("rpc/refresh_procurement_opportunity_statuses", { method: "POST", body: "{}" });
-    const { data: sources } = await supabaseRest<ProcurementSource[]>("procurement_sources?select=*&sync_enabled=eq.true&status=in.(ACTIVE,DEGRADED)&implementation_status=eq.LIVE&reuse_status=not.in.(prohibited,public_link_only)");
+    const { data: sources } = await supabaseRest<Array<ProcurementSource & SourceRights>>("procurement_sources?select=*&sync_enabled=eq.true&status=in.(ACTIVE,DEGRADED)&implementation_status=eq.LIVE");
     const results = await Promise.all(sources.map(async (source) => {
+      try { assertLegacySourceRights(source); }
+      catch { return { source: source.slug, status: "SKIPPED", reason: "Source rights do not permit this connector" }; }
       const adapter = getProcurementAdapter(source.slug);
       if (!adapter) return { source: source.slug, status: "SKIPPED", reason: "No registered adapter" };
       try {

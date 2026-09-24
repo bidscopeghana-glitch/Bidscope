@@ -5,6 +5,8 @@ import { enrichNormalizedOpportunity } from "./enrichment.ts";
 import { meaningfulAmendmentChanges } from "./amendments.ts";
 import { slugify, stableHash } from "./safety.ts";
 import type { NormalizedAward, NormalizedOpportunity, NormalizedProject, ProcurementSource } from "./types.ts";
+import { assertApprovedOpenDataRights, assertLegacySourceRights } from "./source-rights.ts";
+import type { SourceRights } from "../discovery/rights.ts";
 
 type IngestionTotals = { fetched: number; inserted: number; updated: number; duplicates: number; failed: number; errors: string[] };
 const amendmentFields = ["title","deadline_at","opening_at","clarification_deadline_at","estimated_value","currency","eligibility_text","eligibility_status","documents_url","procurement_method","contract_type","category","buyer_name","contact_email","contact_phone","contact_address","official_tender_url","official_submission_url","submission_method","submission_instructions","qualification_requirements","bid_security_requirement","participation_fee_amount","participation_fee_currency","procurement_codes","lots","source_details","status","summary","description"] as const;
@@ -40,17 +42,9 @@ async function findExistingSourceRecord(sourceId: string, externalId: string | n
   return data[0]?.opportunity_id || null;
 }
 
-export async function ingestNormalizedRecords(source: ProcurementSource, records: NormalizedOpportunity[], actorUserId?: string) {
-  if (source.reuse_status === "prohibited") throw new Error("Source rights prohibit ingestion.");
-  if (source.reuse_status === "public_link_only") records = records.map(record => ({
-    ...record,
-    summary: "Procurement notice. Review the official source for complete details.",
-    description: "Procurement notice. Review the official source for complete details.",
-    documents_url: null, eligibility_text: null, contact_name: null, contact_email: null,
-    contact_phone: null, contact_address: null, qualification_requirements: null,
-    submission_instructions: null, bid_security_requirement: null, bid_security_text: null,
-    required_documents: [], required_certifications: [], lots: [], source_details: {}, raw_payload: {},
-  }));
+export async function ingestNormalizedRecords(source: ProcurementSource, records: NormalizedOpportunity[], actorUserId?: string, channel: "legacy" | "approved_open_data" = "legacy") {
+  if (channel === "approved_open_data") assertApprovedOpenDataRights(source as ProcurementSource & SourceRights);
+  else assertLegacySourceRights(source as ProcurementSource & SourceRights);
   records = records.map(enrichNormalizedOpportunity);
   const totals: IngestionTotals = { fetched: records.length, inserted: 0, updated: 0, duplicates: 0, failed: 0, errors: [] };
   const { data: previousRuns } = await supabaseRest<Array<{ records_fetched: number }>>(

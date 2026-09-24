@@ -38,10 +38,14 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
   private readonly projectsEndpoint = process.env.WORLD_BANK_PROJECTS_API_URL || "https://search.worldbank.org/api/v2/projects";
   private readonly awardsEndpoint = process.env.WORLD_BANK_AWARDS_API_URL || "https://datacatalogapi.worldbank.org/dexapps/fone/api/apiservice?datasetId=DS00005&resourceId=RS00005&type=json";
 
-  private async fetchNoticePage(offset: number, pageSize: number) {
+  private async fetchNoticePage(offset: number, pageSize: number, country?: "Ghana") {
     enforceSourceRateLimit(this.slug, 110);
     const url = new URL(this.noticeEndpoint);
     url.searchParams.set("format", "json"); url.searchParams.set("apilang", "en"); url.searchParams.set("rows", String(pageSize)); url.searchParams.set("os", String(offset));
+    if (country) {
+      url.searchParams.set("project_ctry_name_exact", country);
+      url.searchParams.set("deadline_strdate", new Date().toISOString().slice(0, 10));
+    }
     const response = await fetchWithRetry(url.toString(), { headers: { Accept: "application/json", "User-Agent": "BidScopeGhana/1.0" } });
     const envelope = NoticeEnvelope.parse(await response.json());
     return { data: records(envelope.procnotices), total: Number(envelope.total || 0) };
@@ -51,18 +55,20 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
     const pageSize = Math.max(1, Math.min(Number(process.env.WORLD_BANK_PAGE_SIZE || 100), 100));
     const maxPages = Math.max(1, Math.min(Number(process.env.WORLD_BANK_MAX_PAGES || 5), 100));
     const found = new Map<string, WorldBankRaw>();
-    const firstPage = await this.fetchNoticePage(0, pageSize);
-    for (let page = 0; page < maxPages; page += 1) {
-      // The procurement feed is newest-first. Start at offset zero and move
-      // forward; reading backwards from `total` imports the oldest notices.
-      const offset = page * pageSize;
-      const { data, total } = offset === 0 ? firstPage : await this.fetchNoticePage(offset, pageSize);
-      for (const record of data) {
-        const country = stringValue(record, "project_ctry_name", "country_name", "country");
-        const beneficiary = stringValue(record, "beneficiary_countries", "eligibility");
-        if ((africaCode(country) || africaCode(beneficiary)) && !isAwardNotice(record)) { const id = stringValue(record, "id", "notice_id"); if (id) found.set(id, record); }
+    // The global feed can bury Ghana notices beyond its newest pages. Query
+    // current Ghana notices explicitly, then retain the wider Africa feed.
+    for (const country of ["Ghana", undefined] as const) {
+      const firstPage = await this.fetchNoticePage(0, pageSize, country);
+      for (let page = 0; page < maxPages; page += 1) {
+        const offset = page * pageSize;
+        const { data, total } = offset === 0 ? firstPage : await this.fetchNoticePage(offset, pageSize, country);
+        for (const record of data) {
+          const recordCountry = stringValue(record, "project_ctry_name", "country_name", "country");
+          const beneficiary = stringValue(record, "beneficiary_countries", "eligibility");
+          if ((africaCode(recordCountry) || africaCode(beneficiary)) && !isAwardNotice(record)) { const id = stringValue(record, "id", "notice_id"); if (id) found.set(id, record); }
+        }
+        if (!data.length || data.length < pageSize || (total > 0 && offset + data.length >= total)) break;
       }
-      if (!data.length || data.length < pageSize || (total > 0 && offset + data.length >= total)) break;
     }
     return [...found.values()];
   }
@@ -104,7 +110,7 @@ export class WorldBankAdapter implements ProcurementSourceAdapter<WorldBankRaw> 
       bid_security_requirement: null, procurement_codes: [stringValue(raw, "procurement_group_code", "procurement_group")].filter((value): value is string => Boolean(value)), lots: [],
       submission_instructions: stripImportedHtml(stringValue(raw, "submission_method", "submission_instructions") || "", 2000) || null,
       qualification_requirements: stripImportedHtml(stringValue(raw, "eligibility", "qualification_requirements") || "", 3000) || null,
-      source_details: { projectId, noticeType, procurementGroup: group }, quality_score: 75, rejection_reason: null,
+      source_details: { projectId, noticeType, procurementGroup: group, Attribution: "The World Bank: World Bank Procurement Notices dataset (CC BY 4.0). https://datacatalog.worldbank.org/search/dataset/0037795/world-bank-procurement-notices" }, quality_score: 75, rejection_reason: null,
       last_source_update: now, last_verified_at: now, data_confidence: "VERIFIED_OFFICIAL_SOURCE", verification_status: "VERIFIED",
       raw_source_hash: stableHash(raw), document_fingerprint: stableHash([reference, title, deadline]), raw_payload: raw,
     };

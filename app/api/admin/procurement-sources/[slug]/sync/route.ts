@@ -3,6 +3,8 @@ import { requireSuperAdmin } from "@/lib/server/auth";
 import { ingestAwards, ingestNormalizedRecords, ingestProjects } from "@/lib/server/procurement/ingestion";
 import { getProcurementAdapter } from "@/lib/server/procurement/registry";
 import type { ProcurementSource } from "@/lib/server/procurement/types";
+import { assertLegacySourceRights } from "@/lib/server/procurement/source-rights";
+import type { SourceRights } from "@/lib/server/discovery/rights";
 import { supabaseRest } from "@/lib/server/supabase-rest";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +16,10 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     const { slug } = await context.params;
     const adapter = getProcurementAdapter(slug);
     if (!adapter) throw new ApiError(404, "No code adapter exists for this source.", "adapter_not_found");
-    const { data } = await supabaseRest<ProcurementSource[]>(`procurement_sources?select=*&slug=eq.${encodeURIComponent(slug)}&limit=1`);
+    const { data } = await supabaseRest<Array<ProcurementSource & SourceRights>>(`procurement_sources?select=*&slug=eq.${encodeURIComponent(slug)}&limit=1`);
     const source = data[0];
     if (!source) throw new ApiError(404, "Source not found.", "source_not_found");
-    if (source.reuse_status === "prohibited" || source.reuse_status === "public_link_only") throw new ApiError(409, "This source cannot use the legacy content-fetching connector.", "source_rights_blocked");
+    assertLegacySourceRights(source);
     if (source.implementation_status !== "LIVE") throw new ApiError(409, "This source is not live. Use reviewed manual ingestion instead.", "source_not_live");
     const raw = await adapter.fetchOpportunities();
     const normalized = (await Promise.allSettled(raw.map((record) => adapter.normaliseOpportunity(record)))).flatMap((result) => result.status === "fulfilled" ? [result.value] : []);

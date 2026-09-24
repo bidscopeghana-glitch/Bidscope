@@ -25,12 +25,14 @@ test("World Bank notice fetch starts with the newest page instead of the oldest 
   const originalPageSize = process.env.WORLD_BANK_PAGE_SIZE;
   const originalMaxPages = process.env.WORLD_BANK_MAX_PAGES;
   const offsets: string[] = [];
+  const countries: Array<string | null> = [];
   process.env.WORLD_BANK_PAGE_SIZE = "2";
   process.env.WORLD_BANK_MAX_PAGES = "2";
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
     const offset = url.searchParams.get("os") || "0";
     offsets.push(offset);
+    countries.push(url.searchParams.get("project_ctry_name_exact"));
     const records = offset === "0"
       ? [{ id:"NEW-1", project_ctry_name:"Ghana", notice_type:"Invitation for Bids" }, { id:"NEW-2", project_ctry_name:"Ghana", notice_type:"Request for Expressions of Interest" }]
       : [{ id:"NEXT-1", project_ctry_name:"Ghana", notice_type:"Invitation for Bids" }, { id:"NEXT-2", project_ctry_name:"Ghana", notice_type:"Invitation for Bids" }];
@@ -38,7 +40,8 @@ test("World Bank notice fetch starts with the newest page instead of the oldest 
   };
   try {
     const rows = await new WorldBankAdapter().fetchOpportunities();
-    assert.deepEqual(offsets, ["0", "2"]);
+    assert.deepEqual(offsets, ["0", "2", "0", "2"]);
+    assert.deepEqual(countries, ["Ghana", "Ghana", null, null]);
     assert.deepEqual(rows.map((row) => row.id), ["NEW-1", "NEW-2", "NEXT-1", "NEXT-2"]);
   } finally {
     globalThis.fetch = originalFetch;

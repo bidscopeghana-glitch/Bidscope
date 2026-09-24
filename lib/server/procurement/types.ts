@@ -31,7 +31,7 @@ export type ProcurementSource = {
   status: "ACTIVE" | "DEGRADED" | "PAUSED" | "ERROR" | "UNAVAILABLE";
   trust_level: "VERIFIED_OFFICIAL" | "OFFICIAL" | "PUBLIC" | "NEEDS_REVIEW";
   configuration: Record<string, unknown>;
-  reuse_status?: "explicitly_licensed" | "written_permission" | "official_api" | "public_link_only" | "permission_unknown" | "prohibited";
+  reuse_status?: "explicitly_licensed" | "written_permission" | "official_api" | "official_open_data" | "public_link_only" | "permission_unknown" | "prohibited";
   consecutive_failures?: number;
 };
 

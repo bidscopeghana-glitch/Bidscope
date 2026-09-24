@@ -145,7 +145,7 @@ export async function runGhanepsOcds(mode: Mode, actorUserId?: string, scheduled
         }
         const current = changed.filter(item => classifyOcds(item.releases).status === "OPEN");
         if (current.length) {
-          const ingested = await ingestNormalizedRecords(s, current.map(item => ocdsToOpportunity(item.releases)), actorUserId);
+          const ingested = await ingestNormalizedRecords(s, current.map(item => ocdsToOpportunity(item.releases)), actorUserId, "approved_open_data");
           counts.duplicates += ingested.duplicates; counts.errors += ingested.failed;
         }
       }
