@@ -6,6 +6,7 @@ import {ArrowRight,ArrowUpRight,CalendarDays,Check,SlidersHorizontal,Sparkles} f
 import {api,date,days,invalidate,stages,useData,type Bid,type Notice,type Opportunity,type Pulse,type RetentionOverview} from "./data";
 import {Empty,Skeleton,useAccount} from "./shell";
 import {OpportunityActions,OpportunityRow} from "./opportunities";
+import {futureDeadlineItems,uniqueAttentionItems} from "@/lib/customer-dashboard";
 export function PanelTitle({title,href,label="View all"}:{title:string;href?:string;label?:string}){return <div className="cc-panel-heading"><h2>{title}</h2>{href&&<Link href={href}>{label}<ArrowUpRight size={13}/></Link>}</div>;}
 export function HomePage(){
  const {profile,organization,preferences,toast}=useAccount();
@@ -17,8 +18,8 @@ export function HomePage(){
  const bids=useData<{data:Bid[]}>("/api/bids");const notices=useData<{data:Notice[]}>("/api/notifications");
  const watches=useData<{data:{id:string;name:string;alerts_enabled:boolean;frequency:string;last_notified_at:string|null;filters:Record<string,string>}[]}>("/api/customer?resource=searches");
  const p=pulse.data?.data; const africaBeyondGhana=africa.data?.data.filter(o=>o.country_code!=="GH").slice(0,3) || [];
- const attention=notices.data?.data.filter(n=>["urgent","high"].includes(n.priority)&&!n.read_at).slice(0,4)||[];
- const deadlines=bids.data?.data.filter(b=>b.opportunity?.deadline_at&&!["SUBMITTED","AWARDED","UNSUCCESSFUL","WITHDRAWN"].includes(b.status)).sort((a,b)=>Date.parse(a.opportunity.deadline_at!)-Date.parse(b.opportunity.deadline_at!)).slice(0,4)||[];
+ const attention=uniqueAttentionItems(notices.data?.data||[]).slice(0,4);
+ const deadlines=futureDeadlineItems(bids.data?.data||[]).slice(0,4);
  const best=retention.data?.data.bestMatch;const readiness=retention.data?.data.readiness;const radar=retention.data?.data.radar||[];
  const hour=new Date().getHours();
  useEffect(()=>{void api("/api/retention",{resource:"feed_view"}).catch(()=>{});},[]);
