@@ -43,6 +43,14 @@ export async function GET(request:Request) {
       return Response.json({...data,data:previews},{headers:{"Cache-Control":"private, no-store",Vary:"Authorization"}});
     }
     if(resource==="pulse") {const {data}=await supabaseRpc<Record<string,unknown>>("customer_pulse",{p_user:user.id});const access=await tenderAccessForUser(user);return Response.json({data:access.allowed?data:{...data,buyers:[]}},{headers:{"Cache-Control":"private, no-store",Vary:"Authorization"}});}
+    if(resource==="countries") {
+      const query=new URLSearchParams({select:"country,country_code",status:"in.(OPEN,CLOSING_SOON)",deadline_at:`gte.${new Date().toISOString()}`,limit:"5000"});
+      const{data}=await supabaseRest<Array<{country:string|null;country_code:string|null}>>(`procurement_opportunities?${query}`);
+      const totals=new Map<string,{country:string;code:string;count:number}>();
+      for(const row of data){const country=row.country?.trim();if(!country)continue;const key=country.toLocaleLowerCase("en");const current=totals.get(key);if(current)current.count++;else totals.set(key,{country,code:row.country_code||"",count:1});}
+      const countries=[...totals.values()].sort((a,b)=>a.country.localeCompare(b.country,"en"));
+      return Response.json({data:countries},{headers:{"Cache-Control":"private, max-age=300",Vary:"Authorization"}});
+    }
     if(resource==="preferences" || resource==="searches" || resource==="preparation") {
       const table={preferences:"customer_preferences",searches:"customer_saved_searches",preparation:"customer_bid_preparation"}[resource];
       const q=new URLSearchParams({select:"*",user_id:`eq.${user.id}`,limit:resource==="searches"?"100":"1"});

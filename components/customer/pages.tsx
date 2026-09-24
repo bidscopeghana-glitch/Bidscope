@@ -22,6 +22,7 @@ import { SupplierTenders } from "@/components/procurement/supplier-tenders";
 import { SupplierVerification } from "@/components/customer/supplier-verification";
 import { TenderChatWorkspace } from "@/components/chat/tender-chat";
 import { PushSettings } from "@/components/customer/push-settings";
+import {FeedbackPage} from "@/components/customer/feedback";
 const Detail = dynamic(() => import("./detail").then((m) => m.Detail), {
   loading: Skeleton,
 });
@@ -69,6 +70,7 @@ export function CustomerPage({
   if (section === "settings") return <SettingsPage />;
   if (section === "notifications") return <Notifications />;
   if (section === "alerts") return <Alerts />;
+  if (section === "feedback") return <FeedbackPage />;
   if (section === "following") return <Following />;
   if (section === "buyers") return <Buyers />;
   if (section === "intelligence") return <Intelligence />;
