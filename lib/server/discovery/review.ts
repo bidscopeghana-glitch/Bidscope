@@ -92,7 +92,8 @@ export async function reviewDiscovery(id: string, action: "approve" | "reject" |
     verification_status: "NEEDS_REVIEW", raw_source_hash: row.content_hash,
     raw_payload: { discovery_id: id, source_published_at: extracted.published, source_url: row.canonical_url },
   });
-  const result = await ingestNormalizedRecords(source, [record], actor || undefined);
+  const result = await ingestNormalizedRecords(source, [record], actor || undefined,
+    source.reuse_status === "public_link_only" ? "approved_link_only" : "legacy");
   if (result.failed || (!result.inserted && !result.duplicates && !result.updated)) throw new ApiError(503, "Tender publication failed; discovery remains in review.");
   const { data: tender } = await supabaseRest<Array<{ opportunity_id: string }>>(`opportunity_sources?select=opportunity_id&source_id=eq.${source.id}&external_id=eq.${encodeFilter(record.external_opportunity_id || stableHash(row.canonical_url))}&limit=1`);
   if (!tender[0]) throw new ApiError(503, "Tender was ingested but could not be linked to discovery.");

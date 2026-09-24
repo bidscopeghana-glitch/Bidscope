@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { assertApprovedOpenDataRights, assertLegacySourceRights } from "../../lib/server/procurement/source-rights.ts";
+import { assertApprovedLinkOnlyRights, assertApprovedOpenDataRights, assertLegacySourceRights } from "../../lib/server/procurement/source-rights.ts";
+import { linkOnlyRecord } from "../../lib/server/procurement/ingestion.ts";
+import { normalize } from "../../lib/server/procurement/normalization.ts";
 import type { SourceRights } from "../../lib/server/discovery/rights.ts";
 import type { ProcurementSource } from "../../lib/server/procurement/types.ts";
 
@@ -29,6 +31,28 @@ test("approved OCDS importer is restricted to GHANEPS and current publication ri
   assert.doesNotThrow(() => assertApprovedOpenDataRights(ghaneps));
   assert.throws(() => assertApprovedOpenDataRights({ ...ghaneps, slug: "other-source" }), /structured-data/);
   assert.throws(() => assertApprovedOpenDataRights({ ...ghaneps, metadata_reuse_allowed: false }), /structured-data/);
+});
+
+test("link-only discovery requires reviewed crawl rights and strips protected detail", () => {
+  const link = { ...approved, reuse_status: "public_link_only", content_reuse_allowed: false,
+    commercial_reuse_allowed: false, discovery_enabled: true, crawl_robots_allowed: true,
+    crawl_terms_reviewed: true } as SourceRights;
+  const source = { slug: "test-link", ...link } as ProcurementSource & SourceRights;
+  assert.doesNotThrow(() => assertApprovedLinkOnlyRights(source));
+  assert.throws(() => assertApprovedLinkOnlyRights({ ...source, crawl_terms_reviewed: false }), /Link-only/);
+  assert.throws(() => assertApprovedLinkOnlyRights({ ...source, reuse_status: "permission_unknown" }), /Link-only/);
+  const record = linkOnlyRecord(normalize({ title: "Public factual title", description: "Protected original notice body",
+    summary: "Protected summary", documents_url: "https://example.gov/file.pdf", eligibility_text: "Protected requirement",
+    contact_email: "contact@example.gov", source_details: { notice: "Protected text" },
+    raw_payload: { noticeText: "Protected text" }, official_source_url: "https://example.gov/notice",
+    buyer_name: "Official buyer", country: "Ghana", country_code: "GH", source_name: "Official portal",
+    source_type: "EXTERNAL" }));
+  assert.equal(record.title, "Public factual title");
+  assert.equal(record.description.includes("Protected"), false);
+  assert.equal(record.documents_url, null);
+  assert.equal(record.contact_email, null);
+  assert.deepEqual(record.source_details, {});
+  assert.deepEqual(record.raw_payload, { source_url: "https://example.gov/notice" });
 });
 
 test("rights review licences World Bank datasets and pauses UNGM without enabling Ministry of Finance", async () => {

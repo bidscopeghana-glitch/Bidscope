@@ -2,6 +2,9 @@ import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { requireSuperAdmin } from "@/lib/server/auth";
 import { procurementSourceAdminSchema } from "@/lib/server/schemas";
 import { supabaseRest } from "@/lib/server/supabase-rest";
+import { assertLegacySourceRights } from "@/lib/server/procurement/source-rights";
+import type { ProcurementSource } from "@/lib/server/procurement/types";
+import type { SourceRights } from "@/lib/server/discovery/rights";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +14,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ slug:
     const { slug } = await context.params;
     const input = procurementSourceAdminSchema.partial().parse(await request.json());
     if (!Object.keys(input).length) throw new ApiError(400, "At least one setting is required.", "validation_error");
+    if (input.syncEnabled === true || input.status === "ACTIVE") {
+      const { data: sources } = await supabaseRest<(ProcurementSource & SourceRights)[]>(`procurement_sources?slug=eq.${encodeURIComponent(slug)}&select=*&limit=1`);
+      if (!sources[0]) throw new ApiError(404, "Source not found.", "source_not_found");
+      assertLegacySourceRights(sources[0]);
+    }
     const body = {
       ...(input.name !== undefined && { name: input.name }), ...(input.organisation !== undefined && { organisation: input.organisation }),
       ...(input.baseUrl !== undefined && { base_url: input.baseUrl }), ...(input.countryCode !== undefined && { country_code: input.countryCode }),
@@ -26,4 +34,3 @@ export async function PATCH(request: Request, context: { params: Promise<{ slug:
     return Response.json({ data: data[0] });
   } catch (error) { return apiErrorResponse(error); }
 }
-

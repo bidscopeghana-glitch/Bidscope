@@ -5,7 +5,7 @@ import { enrichNormalizedOpportunity } from "./enrichment.ts";
 import { meaningfulAmendmentChanges } from "./amendments.ts";
 import { slugify, stableHash } from "./safety.ts";
 import type { NormalizedAward, NormalizedOpportunity, NormalizedProject, ProcurementSource } from "./types.ts";
-import { assertApprovedOpenDataRights, assertLegacySourceRights } from "./source-rights.ts";
+import { assertApprovedLinkOnlyRights, assertApprovedOpenDataRights, assertLegacySourceRights } from "./source-rights.ts";
 import type { SourceRights } from "../discovery/rights.ts";
 
 type IngestionTotals = { fetched: number; inserted: number; updated: number; duplicates: number; failed: number; errors: string[] };
@@ -42,8 +42,23 @@ async function findExistingSourceRecord(sourceId: string, externalId: string | n
   return data[0]?.opportunity_id || null;
 }
 
-export async function ingestNormalizedRecords(source: ProcurementSource, records: NormalizedOpportunity[], actorUserId?: string, channel: "legacy" | "approved_open_data" = "legacy") {
+export function linkOnlyRecord(record: NormalizedOpportunity): NormalizedOpportunity {
+  const summary = "Procurement notice. Review the official source for full requirements and documents.";
+  return { ...record, summary, description: summary, documents_url: null, eligibility_text: null,
+    eligibility_status: "UNCLEAR", eligibility_summary: "Check the official notice before bidding.",
+    qualification_requirements: null, submission_instructions: null, bid_security_requirement: null,
+    bid_security_text: null, required_documents: [], required_certifications: [], source_details: {},
+    contact_name: null, contact_email: null, contact_phone: null, contact_address: null,
+    official_submission_url: null, registration_url: null, lots: [], raw_payload: { source_url: record.official_source_url },
+  };
+}
+
+export async function ingestNormalizedRecords(source: ProcurementSource, records: NormalizedOpportunity[], actorUserId?: string, channel: "legacy" | "approved_open_data" | "approved_link_only" = "legacy") {
   if (channel === "approved_open_data") assertApprovedOpenDataRights(source as ProcurementSource & SourceRights);
+  else if (channel === "approved_link_only") {
+    assertApprovedLinkOnlyRights(source as ProcurementSource & SourceRights);
+    records = records.map(linkOnlyRecord);
+  }
   else assertLegacySourceRights(source as ProcurementSource & SourceRights);
   records = records.map(enrichNormalizedOpportunity);
   const totals: IngestionTotals = { fetched: records.length, inserted: 0, updated: 0, duplicates: 0, failed: 0, errors: [] };
