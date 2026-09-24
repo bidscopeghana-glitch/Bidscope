@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { dedupeCitations,groundedFallback,modelContext,opportunityEvidenceChunk,providerAnalysisHasUnsupportedCompetitionClaim,providerAnalysisHasUnsupportedRequirementClaim,retrieveRelevantChunks,type DocumentChunk,type OpportunityContext } from "../../lib/server/procurement-ai.ts";
 import { chunkDocument } from "../../lib/server/documents.ts";
 const opportunity:OpportunityContext={id:"00000000-0000-4000-8000-000000000001",title:"Supply of medical equipment",summary:"Equipment for regional hospitals",description:"",buyer_name:"Ghana Health Service",external_reference:"GHS/26/1",bidscope_reference:"BS-1",eligibility_text:null,procurement_method:"Open tender",contract_type:"Goods",estimated_value:null,currency:null,published_at:"2026-09-01T00:00:00Z",deadline_at:"2026-09-24T12:00:00Z",official_source_url:"https://example.gov.gh/tender",official_tender_url:null,documents_url:null,source_name:"Official source",submission_method:null,submission_platform:null};
@@ -7,6 +8,7 @@ const chunks:DocumentChunk[]=[{id:"1",document_id:"d1",chunk_index:0,page_number
 test("retrieval selects tender sections relevant to the question",()=>{const result=retrieveRelevantChunks(chunks,"Which tax clearance document is needed?",1);assert.equal(result[0].page_number,17);});
 test("mandatory document analysis cites source text and does not guarantee an outcome",()=>{const result=groundedFallback("mandatory_documents","",opportunity,chunks);assert.match(result.content,/tax clearance/i);assert.doesNotMatch(result.content,/will win|guaranteed/i);assert.equal(result.citations[1].page,17);});
 test("unknown questions are explicitly labelled unavailable",()=>{const result=groundedFallback("question","Does the buyer prefer us?",opportunity,[]);assert.match(result.content,/Not stated in the available source documents/i);});
+test("AI answers use the safe Markdown renderer instead of exposing formatting characters",()=>{const detail=readFileSync(new URL("../../components/customer/detail.tsx",import.meta.url),"utf8");const renderer=readFileSync(new URL("../../components/ui/safe-markdown.tsx",import.meta.url),"utf8");assert.match(detail,/SafeMarkdown/);assert.match(renderer,/strong/);assert.match(renderer,/h2/);assert.doesNotMatch(renderer,/dangerouslySetInnerHTML/);});
 
 test("explanation uses the official title when the source omits a fuller scope",()=>{
   const result=groundedFallback("question","Explain this tender and its key requirements.",{...opportunity,title:"PURCHASE OF ASK SAGE TOKENS",summary:"",description:""},[]);
