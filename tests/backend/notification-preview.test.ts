@@ -7,6 +7,8 @@ test("notification popup renders a bounded preview while preserving the full cen
   const route=readFileSync("app/api/notifications/route.ts","utf8");
   assert.match(bell,/notifications\?type=\$\{filter\}&limit=20/);
   assert.match(bell,/Latest 20 alerts/);
+  assert.match(bell,/\[scrollbar-width:none\]/);
+  assert.match(bell,/shrink-0 rounded-full/);
   assert.match(bell,/href="\/notifications"/);
   assert.match(route,/Math\.min\(100,Math\.max\(1/);
   assert.match(route,/limit:String\(limit\)/);
