@@ -44,3 +44,8 @@ test("the deadline workspace explains when tracked bids have no future dates", (
   const source = readFileSync(new URL("../../components/customer/bids.tsx", import.meta.url), "utf8");
   assert.match(source, /No upcoming deadlines/);
 });
+
+test("opportunity cards use singular copy for one remaining day", () => {
+  const source = readFileSync(new URL("../../components/customer/opportunities.tsx", import.meta.url), "utf8");
+  assert.match(source, /remaining===1\?"1 day remaining"/);
+});
