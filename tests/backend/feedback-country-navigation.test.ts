@@ -11,7 +11,9 @@ test("country navigation reuses Discover country filtering and shows live counts
   assert.match(navigation,/item\.count/);
   assert.match(customerApi,/resource==="countries"/);
   assert.match(customerApi,/status:"in\.\(OPEN,CLOSING_SOON\)"/);
-  assert.match(opportunities,/country\?`\$\{country\} opportunities`/);
+  assert.match(customerApi,/DEU:"Germany"/);
+  assert.match(customerApi,/new Set\(raw\.split\(","\)/);
+  assert.match(opportunities,/countryName\?`\$\{countryName\} opportunities`/);
 });
 
 test("feedback is authenticated, rate limited and reviewable only by the super administrator",()=>{
