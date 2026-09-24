@@ -20,6 +20,16 @@ test("deterministic results bypass every provider",async()=>{const providers=[ne
 
 test("Groq failure falls back to Gemini without exposing the failure",async()=>{const orchestrator=new AIOrchestrator([new FakeProvider("groq",true),new FakeProvider("gemini")]);const output=await orchestrator.execute({taskType:"tender_summary",messages:[{role:"user",content:"Summarise"}],plan:"STANDARD"});assert.equal(output.provider,"gemini");assert.equal(output.fallbackCount,1);});
 
+test("tender analysis forbids tool calls when the selected provider has no tools",async()=>{
+  let captured:AIProviderRequest|undefined;
+  class RecordingProvider extends FakeProvider{async generateText(request:AIProviderRequest){captured=request;return result(this.id,request.model);}}
+  const orchestrator=new AIOrchestrator([new RecordingProvider("recording")]);
+  Object.assign(orchestrator,{enforceLimits:async()=>{},route:async()=>({standard_provider_order:["recording"],premium_provider_order:["recording"]}),models:async()=>[],providerStates:async()=>new Map(),maxTokens:async()=>1000,log:async()=>{}});
+  await orchestrator.execute({taskType:"tender_summary",messages:[{role:"system",content:"Use official evidence."},{role:"user",content:"Explain the tender."}],plan:"STANDARD"});
+  assert.equal(captured?.enableWebResearch,false);
+  assert.match(captured?.messages.at(-1)?.content||"",/Do not call or simulate tools/);
+});
+
 test("free users cannot force deep premium reasoning",async()=>{const orchestrator=new AIOrchestrator([new FakeProvider("openai")]);await assert.rejects(()=>orchestrator.execute({taskType:"deep_tender_analysis",messages:[],plan:"FREE",requestedMode:"deep"}),/Premium and Platinum/);});
 
 test("premium routing selects a reasoning-capable premium provider",async()=>{const orchestrator=new AIOrchestrator([new FakeProvider("openai")]);const output=await orchestrator.execute({taskType:"deep_tender_analysis",messages:[{role:"user",content:"Compare documents"}],plan:"PREMIUM",requestedMode:"deep"});assert.equal(output.provider,"openai");assert.equal(output.premiumReasoning,true);assert.equal(output.model,"premium");});
