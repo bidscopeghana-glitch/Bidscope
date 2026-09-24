@@ -50,6 +50,16 @@ export function providerAnalysisHasUnsupportedCompetitionClaim(content:string,op
   return claim&&!supported;
 }
 
+export function providerAnalysisHasUnsupportedRequirementClaim(content:string,opportunity:OpportunityContext){
+  const evidence=[opportunity.summary,opportunity.description,opportunity.eligibility_text||"",opportunity.qualification_requirements||"",opportunity.submission_instructions||"",JSON.stringify(opportunity.source_details||{})].join("\n");
+  const normalizedEvidence=evidence.toLowerCase();
+  const unsupportedSamRegistration=/(?:must|required to|ensure (?:that )?(?:your|the) (?:entity|company|business) is|any bidder must be)\s+(?:actively\s+)?registered (?:in|on|with) sam(?:\.gov)?/i.test(content)&&!/(?:must|required to|shall)\s+(?:be\s+)?(?:actively\s+)?registered (?:in|on|with) sam(?:\.gov)?/i.test(evidence);
+  const unsupportedExclusion=/(?:must|shall|required to)\s+(?:not\s+be|be free from)\s+(?:federal\s+)?exclusion/i.test(content)&&!/(?:must|shall|required to)\s+(?:not\s+be|be free from)\s+(?:federal\s+)?exclusion/i.test(evidence);
+  const speculativePractice=/(?:most|typically|usually)\s+(?:special notice\s+)?(?:solicitations?|tenders?|opportunities)\s+(?:will\s+)?require|often available as pdfs?|will contain the definitive requirements/i.test(content);
+  const unsupportedDocumentList=/(?:technical proposal|price proposal|compliance statements?)/i.test(content)&&!["technical proposal","price proposal","compliance statement"].some(term=>normalizedEvidence.includes(term));
+  return unsupportedSamRegistration||unsupportedExclusion||speculativePractice||unsupportedDocumentList;
+}
+
 export async function callConfiguredModel(input:ModelInput){
   const taskType=input.action==="tender_report"?"deep_tender_analysis":input.action==="summary"||input.action==="key_dates"?"tender_summary":"tender_extraction";
   const result=await ai.execute({taskType,userId:input.userId,organizationId:input.organizationId,plan:input.plan||"FREE",requestedMode:input.requestedMode,documentCount:input.chunks.length,estimatedInputTokens:Math.ceil(JSON.stringify(modelContext(input)).length/4),requiresLongContext:input.chunks.length>8,containsCustomerDocuments:false,cacheTtlSeconds:86400,metadata:{feature:"procurement_assistant",action:input.action,supplierPassportMetadata:Boolean(input.passport)},messages:[{role:"system",content:analystRules},{role:"user",content:JSON.stringify({action:input.action,question:input.question,context:modelContext(input)})}]});
