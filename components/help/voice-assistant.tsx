@@ -34,6 +34,7 @@ export function VoiceAssistant({ currentPath, onClose }: { currentPath: string; 
   const [supportMessage, setSupportMessage] = useState("");
   const [supportBusy, setSupportBusy] = useState(false);
   const [state, setState] = useState<VoiceState>("idle");
+  const [voiceEligible, setVoiceEligible] = useState(false);
   const [error, setError] = useState("");
   const [micMuted, setMicMuted] = useState(false);
   const [soundMuted, setSoundMuted] = useState(false);
@@ -122,7 +123,8 @@ export function VoiceAssistant({ currentPath, onClose }: { currentPath: string; 
       if (turn !== generation.current) return;
       setThreadId(payload.data.threadId);
       setMessages(current => [...current, { role: "assistant", text: payload.data.answer, links: payload.data.links }]);
-      void speak(payload.data.answer, payload.data.threadId);
+      if (voiceEligible) void speak(payload.data.answer, payload.data.threadId);
+      else setState("idle");
     } catch (caught) {
       if (controller.signal.aborted || turn !== generation.current) return;
       setError(caught instanceof Error ? caught.message : "BidScope AI is temporarily unavailable.");
@@ -176,23 +178,23 @@ export function VoiceAssistant({ currentPath, onClose }: { currentPath: string; 
   }
 
   return <div className="bidscope-voice" aria-label="Taleh, BidScope AI receptionist">
-    <AgoraReceptionCall currentPath={currentPath} onHandoff={() => setSupportOpen(true)}/>
-    <div className="bidscope-voice-status" role="status">{state === "listening" ? "Listening…" : state === "thinking" ? "Thinking…" : state === "speaking" ? "Speaking…" : state === "error" ? "Needs attention" : "Ready to talk"}</div>
+    <AgoraReceptionCall currentPath={currentPath} onHandoff={() => setSupportOpen(true)} onEligibility={setVoiceEligible}/>
+    <div className="bidscope-voice-status" role="status">{state === "listening" ? "Listening…" : state === "thinking" ? "Thinking…" : state === "speaking" ? "Speaking…" : state === "error" ? "Needs attention" : voiceEligible ? "Ready to talk" : "Ready to help"}</div>
     <nav className="bidscope-reception-actions" aria-label="Reception options"><Link href="/customer/discover" onClick={onClose}>Find tenders</Link><Link href="/procurement" onClick={onClose}>Buyer desk</Link><Link href="/customer/billing" onClick={onClose}>Plans</Link><button type="button" onClick={() => setSupportOpen(value => !value)}>Message the team</button></nav>
     <div className="bidscope-help-thread bidscope-voice-thread" ref={scroll} aria-live="polite">
       {messages.map((message, index) => <article className={message.role} key={`${index}-${message.role}`}><span>{message.role === "user" ? "You" : "Taleh · BidScope AI"}</span><p>{message.text}</p>{message.links?.length ? <div className="bidscope-help-links">{message.links.map(link => <Link href={link.href} key={link.href} onClick={onClose}>{link.label}</Link>)}</div> : null}</article>)}
     </div>
     {error && <p className="bidscope-voice-error" role="alert">{error}</p>}
     {supportOpen && <form className="bidscope-reception-handoff" onSubmit={sendToTeam}><strong>Pass a message to our team</strong><p>Taleh will send only what you review below. This is not a live human chat.</p><label htmlFor="taleh-subject">Subject</label><input id="taleh-subject" value={supportSubject} onChange={event => setSupportSubject(event.target.value)} minLength={3} maxLength={160} required/><label htmlFor="taleh-message">Message</label><textarea id="taleh-message" value={supportMessage} onChange={event => setSupportMessage(event.target.value)} minLength={10} maxLength={5000} rows={3} required/><button type="submit" disabled={supportBusy}>{supportBusy ? "Sending…" : "Confirm and send to BidScope"}</button></form>}
-    <div className="bidscope-voice-controls" aria-label="Voice controls">
+    {voiceEligible && <div className="bidscope-voice-controls" aria-label="Subscriber voice controls">
       <button type="button" onClick={state === "listening" ? stop : startListening} disabled={!supported || micMuted || state === "thinking"} aria-label={state === "listening" ? "Stop listening" : "Start listening"}>{state === "listening" ? <Square size={18}/> : <Mic size={18}/>}<span>{state === "listening" ? "Stop" : "Talk"}</span></button>
       <button type="button" onClick={() => { setMicMuted(value => !value); if (state === "listening") stop(); }} aria-label={micMuted ? "Unmute microphone" : "Mute microphone"}>{micMuted ? <MicOff size={18}/> : <Mic size={18}/>}<span>{micMuted ? "Unmute" : "Mute"}</span></button>
       <button type="button" onClick={() => { setSoundMuted(value => !value); stopAudio(); }} aria-label={soundMuted ? "Enable spoken replies" : "Mute spoken replies"}>{soundMuted ? <VolumeX size={18}/> : <Volume2 size={18}/>}<span>{soundMuted ? "Sound off" : "Sound on"}</span></button>
       <button type="button" onClick={stop} aria-label="Stop audio and current response"><Square size={18}/><span>Stop</span></button>
       <button type="button" onClick={end} aria-label="End conversation"><span>End</span></button>
-    </div>
-    {!supported && <p className="bidscope-voice-note">Voice input is unavailable in this browser; text still works.</p>}
+    </div>}
+    {voiceEligible && !supported && <p className="bidscope-voice-note">Voice input is unavailable in this browser; text still works.</p>}
     <form className="bidscope-voice-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void ask(question); }}><label htmlFor="bidscope-voice-question">Type instead</label><div><input id="bidscope-voice-question" value={question} onChange={event => setQuestion(event.target.value)} maxLength={1000} placeholder="Ask BidScope AI…"/><button disabled={state === "thinking" || question.trim().length < 2} aria-label="Send question"><Send size={18}/></button></div></form>
-    <p className="bidscope-voice-note">Call Taleh for a live Agora voice conversation when available, powered by BidScope AI. The controls below provide a separate browser-voice and text fallback. Browser speech recognition may process microphone audio; BidScope saves the transcript, not microphone audio. Tender analysis stays in the subscription-controlled evaluation tool.</p>
+    <p className="bidscope-voice-note">Subscribers can call Taleh for a live Agora voice conversation when available, powered by BidScope AI. Written help remains available to everyone. Subscriber browser-voice fallback may process microphone audio; BidScope saves the transcript, not microphone audio. Tender analysis stays in the subscription-controlled evaluation tool.</p>
   </div>;
 }

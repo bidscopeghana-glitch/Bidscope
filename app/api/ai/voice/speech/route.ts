@@ -3,6 +3,7 @@ import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { requireUser } from "@/lib/server/auth";
 import { spokenExcerpt } from "@/lib/server/ai/taleh-speech";
 import { supabaseRest } from "@/lib/server/supabase-rest";
+import { getEntitlement, primaryOrganization } from "@/lib/server/entitlements";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -14,6 +15,8 @@ type VoiceMessage = { content: string; created_at: string };
 export async function POST(request: Request) {
   try {
     const { user } = await requireUser(request);
+    const membership = await primaryOrganization(user.id);
+    if (!membership || (await getEntitlement(membership.organization_id, user)).tier !== "PREMIUM") throw new ApiError(402, "Spoken replies are available to subscribed BidScope members. Written help remains available.", "premium_required");
     const { threadId } = inputSchema.parse(await request.json());
     if (!process.env.GROQ_API_KEY) throw new ApiError(503, "Natural speech is not configured yet. Written replies remain available.", "voice_speech_unavailable");
     const { data: threads } = await supabaseRest<VoiceThread[]>(`ai_threads?select=id,user_id&id=eq.${threadId}&user_id=eq.${user.id}&title=eq.BidScope%20AI%20voice&limit=1`);

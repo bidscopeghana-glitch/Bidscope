@@ -22,6 +22,7 @@ test("live calls and every AI turn enforce a paid subscription", () => {
   assert.match(start, /if \(!eligible\) throw new ApiError\(402/);
   assert.match(completion, /tier !== "PREMIUM"/);
   assert.match(completion, /user\.id !== bridge\.userId/);
+  assert.match(source("app/api/ai/voice/speech/route.ts"), /tier !== "PREMIUM"/);
 });
 
 test("voice session credentials are encrypted, expiring and server-only", () => {

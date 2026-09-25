@@ -10,7 +10,7 @@ import { getValidAccessToken } from "@/lib/client/session";
 type CallAccess = { appId: string; channel: string; uid: number; token: string; agentId: string; stopProof: string; expiresAt: number };
 type CallState = "idle" | "connecting" | "connected";
 
-export function AgoraReceptionCall({ currentPath, onHandoff }: { currentPath: string; onHandoff: () => void }) {
+export function AgoraReceptionCall({ currentPath, onHandoff, onEligibility }: { currentPath: string; onHandoff: () => void; onEligibility: (eligible: boolean) => void }) {
   const [available, setAvailable] = useState(false);
   const [eligible, setEligible] = useState(false);
   const [state, setState] = useState<CallState>("idle");
@@ -29,8 +29,8 @@ export function AgoraReceptionCall({ currentPath, onHandoff }: { currentPath: st
   const expiryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    void getValidAccessToken().then(token => token ? fetch("/api/ai/voice/agora", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }) : null).then(response => response?.json()).then(data => { const status = data as { enabled?: boolean; eligible?: boolean } | undefined; setAvailable(status?.enabled === true); setEligible(status?.eligible === true); }).catch(() => setAvailable(false));
-  }, []);
+    void getValidAccessToken().then(token => token ? fetch("/api/ai/voice/agora", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }) : null).then(response => response?.json()).then(data => { const status = data as { enabled?: boolean; eligible?: boolean } | undefined; setAvailable(status?.enabled === true); setEligible(status?.eligible === true); onEligibility(status?.eligible === true); }).catch(() => { setAvailable(false); onEligibility(false); });
+  }, [onEligibility]);
 
   const end = useCallback(async (offerReview = true) => {
     activeRef.current = false;
