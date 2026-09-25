@@ -2,17 +2,20 @@ import { randomUUID } from "node:crypto";
 import { ApiError, apiErrorResponse } from "@/lib/server/api-error";
 import { requireOrganizationMember, requireUser } from "@/lib/server/auth";
 import { supabaseConfiguration, supabaseRest } from "@/lib/server/supabase-rest";
+import { DOCUMENT_CATEGORIES, dateOnlyTime, isOrganizationDocumentPath } from "@/lib/document-passport";
+import { documentRisk, sha256 } from "@/lib/server/supplier-verification-policy";
 
 export const dynamic = "force-dynamic";
 const bucket = "supplier-documents-private";
 const allowed = new Set(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv", "image/png", "image/jpeg"]);
-const categories = new Set(["other", "business_registration", "tax_clearance", "ppa_registration", "insurance", "financial_statement", "certificate", "company_profile"]);
+const categories = new Set(Object.keys(DOCUMENT_CATEGORIES));
 type Doc = { id: string; organization_id: string; uploaded_by: string; title: string; storage_path: string | null; metadata: Record<string, unknown> };
 async function documentFor(userId: string, id: string) {
   if (!/^[a-f0-9-]{36}$/i.test(id)) throw new ApiError(400, "Invalid document ID.", "invalid_document_id");
   const { data } = await supabaseRest<Doc[]>(`supplier_documents?select=id,organization_id,uploaded_by,title,storage_path,metadata&id=eq.${id}&limit=1`);
   if (!data[0]) throw new ApiError(404, "Document not found.", "document_not_found");
   const membership = await requireOrganizationMember(userId, data[0].organization_id);
+  if (data[0].storage_path && !isOrganizationDocumentPath(data[0].storage_path, data[0].organization_id)) throw new ApiError(403, "This file does not belong to this document workspace.", "document_storage_scope_denied");
   return { doc: data[0], membership };
 }
 function storage(path: string) {
@@ -33,13 +36,19 @@ export async function POST(request: Request) {
     const documentType = String(form.get("documentType") || "other");
     if (!categories.has(documentType)) throw new ApiError(400, "Choose a valid document category.", "invalid_document_category");
     const expiresAt = String(form.get("expiresAt") || "");
-    if (expiresAt && !/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)) throw new ApiError(400, "Choose a valid expiry date.", "invalid_expiry_date");
+    const issuedAt = String(form.get("issuedAt") || "");
+    const issuingAuthority = String(form.get("issuingAuthority") || "").trim();
+    if (issuingAuthority.length > 200) throw new ApiError(400, "Issuing authority must be under 200 characters.", "invalid_issuing_authority");
+    if ((expiresAt && dateOnlyTime(expiresAt) === null) || (issuedAt && dateOnlyTime(issuedAt) === null)) throw new ApiError(400, "Choose valid issue and expiry dates.", "invalid_document_date");
+    if (issuedAt && expiresAt && issuedAt > expiresAt) throw new ApiError(400, "Issue date must not be after expiry date.", "invalid_document_dates");
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (documentRisk(bytes, file.type, false).flags.includes("file_signature_mismatch")) throw new ApiError(400, "The file contents do not match the selected file type.", "invalid_document_signature");
     const id = randomUUID(), path = `${organizationId}/${id}-${file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-120)}`;
     const object = storage(path);
-    const stored = await fetch(object.url, { method: "POST", headers: { ...object.headers, "Content-Type": file.type, "x-upsert": "false" }, body: new Uint8Array(await file.arrayBuffer()) });
+    const stored = await fetch(object.url, { method: "POST", headers: { ...object.headers, "Content-Type": file.type, "x-upsert": "false" }, body: bytes });
     if (!stored.ok) throw new ApiError(503, "The private document could not be stored.", "storage_upload_failed");
     try {
-      const { data } = await supabaseRest<Doc[]>("supplier_documents", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ id, organization_id: organizationId, uploaded_by: user.id, document_type: documentType, title, storage_path: path, expires_at: expiresAt || null, metadata: { original_filename: file.name.slice(0, 180), mime_type: file.type, size_bytes: file.size } }) });
+      const { data } = await supabaseRest<Doc[]>("supplier_documents", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ id, organization_id: organizationId, uploaded_by: user.id, document_type: documentType, title, storage_path: path, issued_at: issuedAt || null, expires_at: expiresAt || null, metadata: { original_filename: file.name.slice(0, 180), mime_type: file.type, size_bytes: file.size, sha256: sha256(bytes), issuing_authority: issuingAuthority || null, privacy_level: "organisation", version: 1 } }) });
       return Response.json({ data: data[0] }, { status: 201 });
     } catch (error) {
       await fetch(object.url, { method: "DELETE", headers: object.headers });
@@ -56,7 +65,7 @@ export async function GET(request: Request) {
     const object = storage(doc.storage_path);
     const response = await fetch(object.url, { headers: object.headers, cache: "no-store" });
     if (!response.ok) throw new ApiError(404, "The private file is unavailable.", "document_missing");
-    return new Response(response.body, { headers: { "Content-Type": String(doc.metadata?.mime_type || "application/octet-stream"), "Content-Disposition": `${params.get("download") === "1" ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(String(doc.metadata?.original_filename || doc.title))}`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
+    return new Response(response.body, { headers: { "Content-Type": String(doc.metadata?.mime_type || "application/octet-stream"), "Content-Disposition": `${params.get("download") === "1" ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(String(doc.metadata?.original_filename || doc.title))}`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox; default-src 'none'", "Referrer-Policy": "no-referrer" } });
   } catch (error) { return apiErrorResponse(error); }
 }
 export async function PATCH(request: Request) {

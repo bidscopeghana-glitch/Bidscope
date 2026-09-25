@@ -12,5 +12,22 @@ test("a published eligibility restriction is a hard no-go",()=>{const result=cal
 test("readiness score is evidence-based and gives actionable gaps",()=>{const result=calculateBusinessReadiness({...profile,certifications:[]},[]);assert.ok(result.overallScore>0&&result.overallScore<100);assert.ok(result.recommendations.some(item=>item.category==="certifications"));assert.ok(result.recommendations.some(item=>item.category==="tenderDocuments"));});
 test("stronger business evidence improves readiness",()=>{const sparse=calculateBusinessReadiness({...profile,registration_number:null,website:null,phone:null,sectors:[],services:[],certifications:[],previous_contracts:[]},[]);const complete=calculateBusinessReadiness(profile,[{id:"doc",document_type:"registration",title:"Registration",expires_at:null,verification_status:"verified"}]);assert.ok(complete.overallScore>sparse.overallScore);});
 test("closed opportunities can never receive a go decision",()=>{const result=calculateRetentionAssessment(profile,{...opportunity,status:"CLOSED"});assert.equal(result.decision,"NO_GO");assert.equal(result.overallScore,0);});
+test("a current certificate expiring before tender close reduces document readiness",()=>{
+ const expires=new Date(Date.now()+5*86400000).toISOString().slice(0,10);
+ const result=calculateRetentionAssessment(profile,opportunity,[{id:"doc",document_type:"certificate",title:"Wiring certificate",expires_at:expires,verification_status:"verified"}]);
+ assert.equal(result.components.documentReadiness,0);
+ assert.ok(result.concerns.some(concern=>concern.includes("tender deadline")));
+ assert.ok(!["GO","STRONG_GO"].includes(result.decision));
+});
+test("a published certification gap requires review even with a strong category match",()=>{
+ const result=calculateRetentionAssessment(profile,{...opportunity,required_certifications:["ISO 9001"]});
+ assert.ok(!["GO","STRONG_GO"].includes(result.decision));
+ assert.ok(result.concerns.some(concern=>concern.includes("ISO 9001")));
+});
+test("invalid deadlines do not produce NaN scores",()=>{
+ const result=calculateRetentionAssessment(profile,{...opportunity,deadline_at:"unknown"});
+ assert.equal(result.components.deadlineFeasibility,null);
+ assert.ok(result.overallScore===null||Number.isFinite(result.overallScore));
+});
 test("tender changes use meaningful severity rather than urgent metadata noise",()=>{assert.equal(changeSeverity(["deadline_at"]),"CRITICAL");assert.equal(changeSeverity(["estimated_value"]),"IMPORTANT");assert.equal(changeSeverity(["description"]),"INFORMATIONAL");});
 test("retention schema is persistent, protected and reuses customer discovery",()=>{const migration=readFileSync(new URL("../../supabase/migrations/20260914133000_procurement_retention_engine.sql",import.meta.url),"utf8");for(const table of ["organization_opportunity_matches","opportunity_feedback","bid_decisions","business_readiness_scores","procurement_radar_items"])assert.match(migration,new RegExp(`create table if not exists public\\.${table}`));assert.match(migration,/enable row level security/g);assert.match(migration,/not exists\(select 1 from opportunity_feedback/);});

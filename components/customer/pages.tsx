@@ -26,6 +26,7 @@ import { TenderChatWorkspace } from "@/components/chat/tender-chat";
 import { PushSettings } from "@/components/customer/push-settings";
 import {FeedbackPage} from "@/components/customer/feedback";
 import { MarketIntelligence } from "@/components/customer/market-intelligence";
+import { DOCUMENT_CATEGORIES, type documentValidity } from "@/lib/document-passport";
 const Detail = dynamic(() => import("./detail").then((m) => m.Detail), {
   loading: Skeleton,
 });
@@ -1233,7 +1234,11 @@ function Documents() {
       uploader: string;
       can_manage: boolean;
       created_at: string;
-      metadata: { size_bytes?: number; mime_type?: string; original_filename?: string };
+      updated_at: string;
+      issued_at: string | null;
+      verification_status: string;
+      validity: ReturnType<typeof documentValidity>;
+      metadata: { size_bytes?: number; mime_type?: string; original_filename?: string; issuing_authority?: string };
     }[];
   }>(
     organization
@@ -1247,8 +1252,8 @@ function Documents() {
   return (
     <>
       <Heading
-        title="Business documents"
-        description="Keep your supplier evidence and expiry dates together. Bid-specific links belong inside each bid workspace."
+        title="Document Passport"
+        description="Keep reusable company evidence private to your workspace. Review expiry dates separately from document verification."
       />
       {!organization ? (
         <Empty
@@ -1283,7 +1288,9 @@ function Documents() {
               Document title
               <input name="title" required maxLength={200} />
             </label>
-            <label>Document category<select name="documentType" defaultValue="other"><option value="other">Other business document</option><option value="business_registration">Business registration</option><option value="tax_clearance">Tax clearance</option><option value="ppa_registration">PPA registration</option><option value="insurance">Insurance</option><option value="financial_statement">Financial statement</option><option value="certificate">Certificate</option><option value="company_profile">Company profile</option></select></label>
+            <label>Document category<select name="documentType" defaultValue="other">{Object.entries(DOCUMENT_CATEGORIES).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+            <label>Issuing authority<input name="issuingAuthority" maxLength={200} placeholder="Organisation that issued this document" /></label>
+            <label>Issue date<input name="issuedAt" type="date" /></label>
             <label>
               File (up to 4 MB)
               <input name="file" type="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png" />
@@ -1307,7 +1314,7 @@ function Documents() {
           ) : visibleDocuments.length ? (
             visibleDocuments.map((d) => (
               <div className="cc-document-row" key={d.id}>
-                <div><strong>{d.title}</strong><p className="cc-quiet">{d.document_type.replaceAll("_", " ")} · {d.metadata?.size_bytes ? `${(d.metadata.size_bytes / 1024).toFixed(0)} KB` : "External link"} · {d.metadata?.mime_type || "Linked record"} · Added {date(d.created_at)} by {d.uploader}</p><p className="cc-quiet">Expires {date(d.expires_at)}</p></div>
+                <div><strong>{d.title}</strong><p className="cc-quiet">{d.document_type.replaceAll("_", " ")} · {d.metadata?.size_bytes ? `${(d.metadata.size_bytes / 1024).toFixed(0)} KB` : "External link"} · {d.metadata?.mime_type || "Linked record"} · Added {date(d.created_at)} by {d.uploader}</p><p><strong>{d.validity?.status.replaceAll("_", " ") || "REQUIRES REVIEW"}</strong> · {d.expires_at ? `Expires ${date(d.expires_at)}` : "No expiry recorded"} · Verification: {d.verification_status?.replaceAll("_", " ") || "needs review"}</p>{d.metadata?.issuing_authority && <p className="cc-quiet">Issued by {d.metadata.issuing_authority}{d.issued_at ? ` on ${date(d.issued_at)}` : ""}</p>}{d.validity?.issues.map(issue=><p className="cc-error" key={issue}>{issue}</p>)}</div>
                 <div className="cc-inline-actions">
                   {d.storage_path ? <><button className="cc-button" onClick={() => void viewAuthenticatedFile(`/api/supplier-documents/files?id=${d.id}`).catch((error) => toast(error.message))}>View</button><button className="cc-button" onClick={() => void downloadAuthenticatedFile(`/api/supplier-documents/files?id=${d.id}&download=1`, d.metadata?.original_filename || d.title).catch((error) => toast(error.message))}>Download</button></> : d.source_url ? <a className="cc-button" href={officialUrl(d.source_url)} target="_blank" rel="noreferrer">Open link</a> : null}
                   {d.can_manage && <button className="cc-button" onClick={() => { const title = window.prompt("New document name", d.title); if (title && title !== d.title) void api("/api/supplier-documents/files", { id: d.id, title }, "PATCH").then(() => { toast("Document renamed.", "success"); invalidate(); }).catch((error) => toast(error.message, "error")); }}>Rename</button>}
@@ -1436,7 +1443,7 @@ function Alerts() {
                       smsEnabled: f.get("sms") === "on",
                       frequency: f.get("frequency"),
                       urgentOverride: p.urgent_override,
-                      reminderDays: p.reminder_days,
+                      reminderDays: p.alert_type === "document_expiry" ? String(f.get("reminderDays") || "").split(",").map(value=>value.trim()).filter(Boolean).map(Number) : p.reminder_days,
                     },
                     "PATCH",
                   );
@@ -1478,6 +1485,7 @@ function Alerts() {
                 <option value="daily">Daily digest</option>
                 <option value="weekly">Weekly digest</option>
               </select>
+              {p.alert_type === "document_expiry" && <label>Days before expiry<input name="reminderDays" defaultValue={p.reminder_days.join(", ")} placeholder="90, 60, 30, 14, 7" aria-describedby="document-reminder-help" /><small id="document-reminder-help">Up to 8 values from 1–365, separated by commas. Leave blank to stop expiry reminders.</small></label>}
               <button className="cc-button">Save</button>
             </form>
           ))

@@ -280,4 +280,4 @@ export const supplierDocumentSchema = z.object({
   sourceUrl: z.string().url().max(2000).nullable().optional(),
   issuedAt: z.string().date().nullable().optional(),
   expiresAt: z.string().date().nullable().optional(),
-});
+}).refine(value => !value.issuedAt || !value.expiresAt || value.issuedAt <= value.expiresAt, {message:"Issue date must not be after expiry date.",path:["expiresAt"]});
