@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Send, Square, Volume2, VolumeX } from "lucide-react";
 import { getValidAccessToken } from "@/lib/client/session";
+import { AgoraReceptionCall } from "@/components/help/agora-reception-call";
 
 type SpeechResult = { results: ArrayLike<ArrayLike<{ transcript: string }>> };
 type SpeechFailure = { error: string };
@@ -175,6 +176,7 @@ export function VoiceAssistant({ currentPath, onClose }: { currentPath: string; 
   }
 
   return <div className="bidscope-voice" aria-label="Taleh, BidScope AI receptionist">
+    <AgoraReceptionCall currentPath={currentPath} onHandoff={() => setSupportOpen(true)}/>
     <div className="bidscope-voice-status" role="status">{state === "listening" ? "Listening…" : state === "thinking" ? "Thinking…" : state === "speaking" ? "Speaking…" : state === "error" ? "Needs attention" : "Ready to talk"}</div>
     <nav className="bidscope-reception-actions" aria-label="Reception options"><Link href="/customer/discover" onClick={onClose}>Find tenders</Link><Link href="/procurement" onClick={onClose}>Buyer desk</Link><Link href="/customer/billing" onClick={onClose}>Plans</Link><button type="button" onClick={() => setSupportOpen(value => !value)}>Message the team</button></nav>
     <div className="bidscope-help-thread bidscope-voice-thread" ref={scroll} aria-live="polite">
@@ -191,6 +193,6 @@ export function VoiceAssistant({ currentPath, onClose }: { currentPath: string; 
     </div>
     {!supported && <p className="bidscope-voice-note">Voice input is unavailable in this browser; text still works.</p>}
     <form className="bidscope-voice-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void ask(question); }}><label htmlFor="bidscope-voice-question">Type instead</label><div><input id="bidscope-voice-question" value={question} onChange={event => setQuestion(event.target.value)} maxLength={1000} placeholder="Ask BidScope AI…"/><button disabled={state === "thinking" || question.trim().length < 2} aria-label="Send question"><Send size={18}/></button></div></form>
-    <p className="bidscope-voice-note">Taleh uses a natural female AI voice when available, with your browser voice as a fallback. Browser speech recognition may process microphone audio; BidScope receives the transcript, not microphone audio, and saves it to your AI conversation. Tender analysis stays in the subscription-controlled evaluation tool.</p>
+    <p className="bidscope-voice-note">Call Taleh for a live Agora voice conversation when available, powered by BidScope AI. The controls below provide a separate browser-voice and text fallback. Browser speech recognition may process microphone audio; BidScope saves the transcript, not microphone audio. Tender analysis stays in the subscription-controlled evaluation tool.</p>
   </div>;
 }
