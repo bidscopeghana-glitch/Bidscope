@@ -16,6 +16,8 @@ type Meeting = {
   status: string;
   procurement_tender_id?: string | null;
   procurement_meeting_type?: string | null;
+  organizer_user_id: string;
+  participants?: Array<{ user_id: string | null; guest_email: string | null }>;
 };
 type ManagedTender = {
   id: string;
@@ -33,6 +35,8 @@ function ProcurementMeetingList() {
     [open, setOpen] = useState(params.has("tender")),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
+    [meetingKind, setMeetingKind] = useState(params.has("tender") ? "tender" : "team"),
+    [view, setView] = useState<"upcoming" | "today" | "past" | "cancelled">("upcoming"),
     result = useData<{
       data: Meeting[];
       settings: { max_duration_minutes: number } | null;
@@ -41,6 +45,7 @@ function ProcurementMeetingList() {
     tenders = useData<{ data: ManagedTender[] }>(
       "/api/procurement?resource=tenders",
     ),
+    team = useData<{ data: { members: Array<{ user_id: string; profile: { full_name: string; email: string } | null }> } }>("/api/team"),
     managedTenders = (tenders.data?.data || []).filter(
       (tender) => tender.status !== "cancelled",
     );
@@ -60,7 +65,7 @@ function ProcurementMeetingList() {
     setMessage("");
     const f = new FormData(event.currentTarget);
     const procurementTenderId = String(f.get("tenderId") || "");
-    if (!procurementTenderId) {
+    if (meetingKind === "tender" && !procurementTenderId) {
       setMessage("Select a BidScope-managed tender before scheduling this meeting.");
       return;
     }
@@ -70,38 +75,40 @@ function ProcurementMeetingList() {
     }
     setBusy(true);
     try {
-      await api("/api/meetings", {
+      const scheduled = await api<{data:{id:string;status:string;failedInvitations?:number};error?:string}>("/api/meetings", {
         title: f.get("title"),
         startsAt: new Date(String(f.get("startsAt"))).toISOString(),
         durationMinutes: Number(f.get("duration")),
         timezone:
           Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Accra",
         provider: f.get("provider"),
-        meetingType: "tender",
-        participantUserIds: [],
+        meetingType: meetingKind,
+        participantUserIds: f.getAll("participants"),
         guestEmails: String(f.get("guests") || "")
           .split(/[;,\n]/)
           .map((v) => v.trim())
           .filter(Boolean),
         relatedOpportunityId: null,
         agenda: f.get("agenda") || "",
-        reminderMinutes: 30,
+        reminderMinutes: Number(f.get("reminder")),
         recordingEnabled: false,
         transcriptionEnabled: false,
         waitingRoomEnabled: true,
-        procurementTenderId,
-        supplierBidId: params.get("bid"),
-        supplierOrganizationId: params.get("supplier"),
-        tenderLotId: params.get("lot"),
-        procurementMeetingType: f.get("procurementMeetingType"),
-        interviewQuestions: String(f.get("interviewQuestions") || "")
+        procurementTenderId: meetingKind === "tender" ? procurementTenderId : null,
+        supplierBidId: meetingKind === "tender" ? params.get("bid") : null,
+        supplierOrganizationId: meetingKind === "tender" ? params.get("supplier") : null,
+        tenderLotId: meetingKind === "tender" ? params.get("lot") : null,
+        procurementMeetingType: meetingKind === "tender" ? f.get("procurementMeetingType") : null,
+        interviewQuestions: meetingKind === "tender" ? String(f.get("interviewQuestions") || "")
           .split("\n")
           .map((v) => v.trim())
-          .filter(Boolean),
+          .filter(Boolean) : [],
       });
-      setMessage(
-        "Procurement meeting scheduled and linked to the tender record.",
-      );
+      setMessage(scheduled.data.status === "provider_failed"
+        ? scheduled.error || "Meeting saved, but the room needs attention."
+        : scheduled.data.failedInvitations
+          ? `Meeting scheduled, but ${scheduled.data.failedInvitations} invitation${scheduled.data.failedInvitations === 1 ? "" : "s"} could not be delivered. Contact the attendee directly.`
+          : meetingKind === "tender" ? "Procurement meeting scheduled and linked to the tender record." : "Meeting scheduled and invitations sent.");
       setOpen(false);
       invalidate();
     } catch (e) {
@@ -110,6 +117,16 @@ function ProcurementMeetingList() {
       setBusy(false);
     }
   }
+  const now = Date.now();
+  const visible = (result.data?.data || []).filter((meeting) => {
+    const start = Date.parse(meeting.starts_at), end = Date.parse(meeting.ends_at);
+    const today = new Date(start).toDateString() === new Date(now).toDateString();
+    if (view === "cancelled") return meeting.status === "cancelled";
+    if (meeting.status === "cancelled") return false;
+    if (view === "today") return today;
+    if (view === "past") return end <= now;
+    return end > now;
+  });
   return (
     <>
       <div className="pw-hero pw-hero-collaboration">
@@ -122,7 +139,6 @@ function ProcurementMeetingList() {
         <div className="pw-actions mt-5">
           <button
             className="pw-button gold"
-            disabled={tenders.loading || !managedTenders.length}
             onClick={() => setOpen(true)}
           >
             <Plus size={15} />
@@ -139,11 +155,7 @@ function ProcurementMeetingList() {
             )}
           </button>
         </div>
-        {!tenders.loading && !managedTenders.length && (
-          <p className="mt-3">
-            Create a BidScope-managed tender before scheduling procurement meetings.
-          </p>
-        )}
+        {!tenders.loading && !managedTenders.length && <p className="mt-3">You can schedule internal or general meetings now. Tender-linked meetings require a BidScope-managed tender.</p>}
       </div>
       {message && (
         <p className={/scheduled/.test(message) ? "pw-notice" : "pw-error"}>
@@ -151,42 +163,32 @@ function ProcurementMeetingList() {
         </p>
       )}
       <section className="pw-card mt-5" id="procurement-calendar">
-        <h2>Upcoming procurement events</h2>
+        <h2>Buyer meetings</h2>
+        <div className="pw-subnav" role="group" aria-label="Meeting status">{(["upcoming","today","past","cancelled"] as const).map(item => <button className="pw-button" aria-pressed={view === item} key={item} onClick={() => setView(item)}>{item[0].toUpperCase()+item.slice(1)}</button>)}</div>
         {result.loading ? (
           <p>Loading meetings…</p>
         ) : result.error ? (
           <p className="pw-error">{result.error}</p>
-        ) : result.data?.data.filter(
-            (m) =>
-              m.procurement_tender_id && Date.parse(m.ends_at) > Date.now(),
-          ).length ? (
-          result.data.data
-            .filter(
-              (m) =>
-                m.procurement_tender_id && Date.parse(m.ends_at) > Date.now(),
-            )
-            .map((m) => (
-              <Link
-                className="pw-row"
-                href={`/procurement/meetings/${m.id}`}
-                key={m.id}
-              >
+        ) : visible.length ? (
+          visible.map((m) => (
+              <div className="pw-row" key={m.id}>
                 <span>
                   <strong>{m.title}</strong>
                   <small>
                     {new Date(m.starts_at).toLocaleString("en-GB")} ·{" "}
                     {(
-                      m.procurement_meeting_type || "procurement meeting"
+                      m.procurement_meeting_type || (m.procurement_tender_id ? "tender meeting" : "team meeting")
                     ).replaceAll("_", " ")}
                   </small>
+                  <small>{m.participants?.length || 0} participant(s)</small>
                 </span>
-                <Video size={17} />
-              </Link>
+                <Link className="pw-button" href={`/procurement/meetings/${m.id}`}><Video size={17} /> View</Link>
+              </div>
             ))
         ) : (
           <div className="pw-empty">
             <CalendarDays size={30} />
-            <h2>No supplier interviews scheduled</h2>
+            <h2>No upcoming meetings</h2>
             <p>
               Schedule from a shortlisted supplier or create a procurement
               committee meeting.
@@ -201,6 +203,13 @@ function ProcurementMeetingList() {
               <h2>Schedule procurement meeting</h2>
               <div className="pw-fields">
                 <label className="wide">
+                  Meeting purpose
+                  <select value={meetingKind} onChange={(event) => setMeetingKind(event.target.value)}>
+                    <option value="team">Internal or general procurement meeting</option>
+                    <option value="tender" disabled={!managedTenders.length}>BidScope-managed tender meeting</option>
+                  </select>
+                </label>
+                {meetingKind === "tender" && <label className="wide">
                   Managed tender
                   <select
                     name="tenderId"
@@ -216,12 +225,12 @@ function ProcurementMeetingList() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </label>}
                 <label className="wide">
                   Title
                   <input required minLength={3} name="title" />
                 </label>
-                <label>
+                {meetingKind === "tender" && <label>
                   Meeting type
                   <select name="procurementMeetingType">
                     <option value="supplier_interview">
@@ -236,7 +245,7 @@ function ProcurementMeetingList() {
                       Evaluation Committee Meeting
                     </option>
                   </select>
-                </label>
+                </label>}
                 <label>
                   Date and time
                   <input required type="datetime-local" name="startsAt" />
@@ -266,6 +275,13 @@ function ProcurementMeetingList() {
                     rows={2}
                     placeholder="One or more email addresses"
                   />
+                </label>
+                <label className="wide">Internal attendees
+                  <select name="participants" multiple size={Math.min(5,Math.max(2,team.data?.data.members.length || 2))}>{team.data?.data.members.map(member => <option value={member.user_id} key={member.user_id}>{member.profile?.full_name || member.profile?.email || "Workspace member"}</option>)}</select>
+                  <small>Hold Ctrl or Command to select multiple people.</small>
+                </label>
+                <label>Reminder
+                  <select name="reminder" defaultValue="30"><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select>
                 </label>
                 <label className="wide">
                   Agenda

@@ -34,7 +34,21 @@ export async function uploadAuthenticatedFile<T>(url:string,body:FormData):Promi
   if(!response.ok){if(response.status===401)clearSession(true);throw new Error((result as {error?:string}).error||"The document could not be uploaded.");}
   return result as T;
 }
+export async function uploadAuthenticatedFileWithProgress<T>(url:string,body:FormData,onProgress:(percent:number)=>void):Promise<T>{
+  const token=await getValidAccessToken();
+  if(!token)throw new Error("Sign in to continue.");
+  return new Promise<T>((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();
+    xhr.open("POST",url);
+    xhr.setRequestHeader("Authorization",`Bearer ${token}`);
+    xhr.upload.onprogress=(event)=>{if(event.lengthComputable)onProgress(Math.round(event.loaded/event.total*100));};
+    xhr.onerror=()=>reject(new Error("The upload was interrupted. Please try again."));
+    xhr.onload=()=>{let result:{error?:string;data?:unknown}={};try{result=JSON.parse(xhr.responseText);}catch{}if(xhr.status>=200&&xhr.status<300)resolve(result as T);else reject(new Error(result.error||"The document could not be uploaded."));};
+    xhr.send(body);
+  });
+}
 export async function downloadAuthenticatedFile(url:string,filename:string){const token=await getValidAccessToken();if(!token)throw new Error("Sign in to continue.");const response=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});if(!response.ok){const result=await response.json().catch(()=>({})) as {error?:string};throw new Error(result.error||"The export could not be created.");}const blob=await response.blob();const href=URL.createObjectURL(blob);const link=document.createElement("a");link.href=href;link.download=filename;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(href);}
+export async function viewAuthenticatedFile(url:string){const tab=window.open("","_blank");if(!tab)throw new Error("Allow pop-ups to view this document, or use Download.");try{const token=await getValidAccessToken();if(!token)throw new Error("Sign in to continue.");const response=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});if(!response.ok){const result=await response.json().catch(()=>({})) as {error?:string};throw new Error(result.error||"The document could not be opened.");}const href=URL.createObjectURL(await response.blob());tab.location.href=href;window.setTimeout(()=>URL.revokeObjectURL(href),60000);}catch(error){tab.close();throw error;}}
 export function useData<T>(url:string|null){
   const [state,setState]=useState<{data?:T;error?:string;loading:boolean}>({loading:true});
   useEffect(()=>{let active=true;async function load(){if(!url){setState({loading:false});return;}const key=(localStorage.getItem("bidscope_access_token")||"")+url;const hit=cache.get(key);if(hit&&Date.now()-hit.at<30000){setState({data:hit.data as T,loading:false});return;}setState({loading:true});try{const data=await api<T>(url);if(!active)return;cache.set(key,{data,at:Date.now()});if(cache.size>80)cache.delete(cache.keys().next().value!);setState({data,loading:false});}catch(e){if(active)setState({error:e instanceof Error?e.message:"Could not load data",loading:false});}}void load();window.addEventListener("bidscope-data-change",load);return()=>{active=false;window.removeEventListener("bidscope-data-change",load);};},[url]);

@@ -313,3 +313,45 @@ export async function GET(request: Request) {
     return apiErrorResponse(error);
   }
 }
+export async function DELETE(request: Request) {
+  try {
+    const { user } = await requireUser(request);
+    const params = new URL(request.url).searchParams;
+    const kind = params.get("kind"), id = params.get("id") || "";
+    if (!/^[a-f0-9-]{36}$/i.test(id) || !["tender", "bid"].includes(kind || "")) throw new ApiError(400, "Document reference is invalid.", "invalid_document_id");
+    let path: string, table: string;
+    if (kind === "tender") {
+      const { data } = await supabaseRest<Array<{ tender_id: string; storage_path: string }>>(`procurement_tender_documents?select=tender_id,storage_path&id=eq.${id}&limit=1`);
+      if (!data[0]) throw new ApiError(404, "Document not found.", "document_not_found");
+      const { tender } = await requireTenderManager(user, data[0].tender_id);
+      if (!["draft", "scheduled"].includes(tender.status)) throw new ApiError(409, "Published tender documents must be changed through the tender amendment workflow.", "tender_document_locked");
+      path = data[0].storage_path; table = "procurement_tender_documents";
+    } else {
+      const { data } = await supabaseRest<Array<{ bid_id: string; storage_path: string }>>(`supplier_bid_documents?select=bid_id,storage_path&id=eq.${id}&limit=1`);
+      if (!data[0]) throw new ApiError(404, "Document not found.", "document_not_found");
+      const context = await procurementContext(user);
+      const { data: bids } = await supabaseRest<Array<{ tender_id: string; supplier_organization_id: string; status: string }>>(`supplier_bids?select=tender_id,supplier_organization_id,status&id=eq.${data[0].bid_id}&limit=1`);
+      const bid = bids[0];
+      if (!bid || bid.supplier_organization_id !== context.organizationId) throw new ApiError(404, "Document not found.", "document_not_found");
+      if (bid.status !== "draft") throw new ApiError(409, "Submitted bid documents cannot be deleted.", "bid_document_locked");
+      const tender = await tenderById(bid.tender_id);
+      if (Date.now() >= Date.parse(tender.submission_deadline)) throw new ApiError(409, "The submission deadline has passed.", "bid_locked");
+      path = data[0].storage_path; table = "supplier_bid_documents";
+    }
+    const { url, serviceKey } = supabaseConfiguration();
+    if (!serviceKey) throw new ApiError(503, "Private storage is unavailable.", "storage_unavailable");
+    const object = `${url}/storage/v1/object/${bucket}/${path}`;
+    const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
+    const backup = await fetch(object, { headers, cache: "no-store" });
+    const bytes = backup.ok ? new Uint8Array(await backup.arrayBuffer()) : null;
+    const removed = await fetch(object, { method: "DELETE", headers });
+    if (!removed.ok && removed.status !== 404) throw new ApiError(503, "The stored file could not be deleted; its record was kept.", "storage_delete_failed");
+    try {
+      await supabaseRest(`${table}?id=eq.${id}`, { method: "DELETE" });
+    } catch (error) {
+      if (bytes) await fetch(object, { method: "POST", headers: { ...headers, "Content-Type": "application/octet-stream", "x-upsert": "false" }, body: bytes });
+      throw error;
+    }
+    return new Response(null, { status: 204 });
+  } catch (error) { return apiErrorResponse(error); }
+}

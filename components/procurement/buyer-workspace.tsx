@@ -1706,15 +1706,7 @@ function TenderDetail({ id }: { id: string }) {
         </div>
         {t.tenderDocuments?.length ? (
           t.tenderDocuments.map((document) => (
-            <button
-              type="button"
-              className="pw-row"
-              key={document.id}
-              onClick={() => void downloadAuthenticatedFile(
-                `/api/procurement/documents?kind=tender&id=${document.id}`,
-                document.original_filename,
-              )}
-            >
+            <div className="pw-row" key={document.id}>
               <span>
                 <strong>{document.original_filename}</strong>
                 <small>
@@ -1722,8 +1714,15 @@ function TenderDetail({ id }: { id: string }) {
                   {document.visibility.replaceAll("_", " ")}
                 </small>
               </span>
-              <b>Download</b>
-            </button>
+              <span className="pw-actions">
+                <button type="button" className="pw-button" onClick={() => void downloadAuthenticatedFile(`/api/procurement/documents?kind=tender&id=${document.id}`, document.original_filename).catch((error) => setMessage((error as Error).message))}>Download</button>
+                {["draft", "scheduled"].includes(t.status) && <button type="button" className="pw-button" onClick={async () => {
+                  if (!window.confirm(`Delete ${document.original_filename}? This cannot be undone.`)) return;
+                  try { await api(`/api/procurement/documents?kind=tender&id=${document.id}`, undefined, "DELETE"); invalidate(); setMessage("Tender document deleted."); }
+                  catch (error) { setMessage((error as Error).message); }
+                }}>Delete</button>}
+              </span>
+            </div>
           ))
         ) : (
           <p>No tender documents uploaded yet.</p>

@@ -2,7 +2,7 @@
 import { createContext,useContext,useEffect,useRef,useState } from "react";
 import Link from "next/link";
 import { usePathname,useRouter,useSearchParams } from "next/navigation";
-import { Home,Search,Bookmark,BriefcaseBusiness,Building2,FileText,PanelLeftClose,PanelLeftOpen,LogOut,ChevronRight,Sparkles,Menu,X,ArrowUpRight,SlidersHorizontal,Compass,ShieldCheck,ArrowLeftRight } from "lucide-react";
+import { Home,Search,Bookmark,BriefcaseBusiness,Building2,FileText,PanelLeftClose,PanelLeftOpen,LogOut,ChevronRight,Sparkles,Menu,X,ArrowUpRight,SlidersHorizontal,Compass,ShieldCheck,ArrowLeftRight,CheckCircle2,AlertTriangle,Info,XCircle } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { navGroups } from "@/components/customer/navigation";
 import { useBidScopeSession } from "@/components/procurement/auth-nav";
@@ -11,12 +11,16 @@ import { FloatingHelp } from "@/components/help/floating-help";
 import {CountryNavigation} from "@/components/customer/country-navigation";
 import { api,useData,invalidate,type Organization,type Preferences,type Opportunity } from "./data";
 
-type Account={profile?:{full_name:string;email:string;is_bidscope_admin:boolean};organization?:Organization;preferences:Preferences;setPreferences:(p:Preferences)=>void;toast:(m:string)=>void};
+type ToastKind="success"|"warning"|"info"|"error";
+type ToastMessage={id:number;text:string;kind:ToastKind};
+type Account={profile?:{full_name:string;email:string;is_bidscope_admin:boolean};organization?:Organization;preferences:Preferences;setPreferences:(p:Preferences)=>void;toast:(m:string,kind?:ToastKind)=>void};
 const Context=createContext<Account>({preferences:{},setPreferences:()=>{},toast:()=>{}});
 export const useAccount=()=>useContext(Context);
 export function CustomerShell({children}:{children:React.ReactNode}){
  const session=useBidScopeSession(),router=useRouter(),pathname=usePathname(),params=useSearchParams();
- const [expired,setExpired]=useState(false),[mobile,setMobile]=useState(false),[search,setSearch]=useState(false),[message,setMessage]=useState("");
+ const [expired,setExpired]=useState(false),[mobile,setMobile]=useState(false),[search,setSearch]=useState(false),[messages,setMessages]=useState<ToastMessage[]>([]);
+ const toastId=useRef(0);
+ const toast=(text:string,kind:ToastKind="info")=>{const id=++toastId.current;setMessages(current=>[...current,{id,text,kind}].slice(-20));};
  const [preferences,setLocalPreferences]=useState<Preferences>({});
  const me=useData<{data:{full_name:string;email:string;is_bidscope_admin:boolean}}>(session?"/api/me":null);
  const org=useData<{data:{organization:Organization}[]}>(session?"/api/organizations":null);
@@ -25,15 +29,15 @@ export function CustomerShell({children}:{children:React.ReactNode}){
  useEffect(()=>{const fail=()=>setExpired(true);window.addEventListener("bidscope-session-expired",fail);return()=>window.removeEventListener("bidscope-session-expired",fail);},[]);
  useEffect(()=>{if(session)void api("/api/customer",{resource:"visit"}).catch(()=>{});},[session]);
  useEffect(()=>{const key=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();setSearch(true);}if(e.key==="Escape"){setMobile(false);setSearch(false);}};window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key);},[]);
- useEffect(()=>{if(!message)return;const timer=setTimeout(()=>setMessage(""),6000);return()=>clearTimeout(timer);},[message]);
+ useEffect(()=>{if(!messages.length)return;const id=messages[0].id;const timer=setTimeout(()=>setMessages(current=>current.filter(item=>item.id!==id)),6000);return()=>clearTimeout(timer);},[messages]);
  const signInHref=`/sign-in?next=${encodeURIComponent(pathname+(params.size?`?${params}`:""))}`;
  useEffect(()=>{if(session===false||expired)router.replace(signInHref);},[session,expired,router,signInHref]);
- const setPreferences=(p:Preferences)=>{const next={...preferences,...p};setLocalPreferences(next);void api("/api/customer",{resource:"preferences",preferences:next}).catch(e=>setMessage(e.message));};
+ const setPreferences=(p:Preferences)=>{const next={...preferences,...p};setLocalPreferences(next);void api("/api/customer",{resource:"preferences",preferences:next}).catch(e=>toast(e.message,"error"));};
  if(session===null)return <div className="cc-loading" aria-busy="true"><div className="cc-skeleton"/><p>Opening your command centre…</p></div>;
  if(!session||expired)return <div className="cc-loading" aria-busy="true"><div className="cc-skeleton"/><p>Opening secure sign-in…</p></div>;
  const selected=pathname+(params.size?`?${params}`:"");
  const name=me.data?.data.full_name||me.data?.data.email?.split("@")[0]||"Your account";
- return <Context.Provider value={{profile:me.data?.data,organization:org.data?.data[0]?.organization,preferences,setPreferences,toast:setMessage}}><div className={`cc-app ${preferences.collapsed?"cc-collapsed":""} ${mobile?"cc-menu-open":""}`}>
+ return <Context.Provider value={{profile:me.data?.data,organization:org.data?.data[0]?.organization,preferences,setPreferences,toast}}><div className={`cc-app ${preferences.collapsed?"cc-collapsed":""} ${mobile?"cc-menu-open":""}`}>
  <a href="#customer-main" className="cc-skip">Skip to content</a>
  {mobile&&<button className="cc-overlay" onClick={()=>setMobile(false)} aria-label="Close navigation"/>}
  <aside className="cc-sidebar" aria-label="Customer navigation"><div className="cc-brand"><Link href="/customer" aria-label="BidScope Home"><BrandLogo className="cc-logo"/></Link><button className="cc-collapse" onClick={()=>setPreferences({collapsed:!preferences.collapsed})} aria-label={preferences.collapsed?"Expand navigation":"Collapse navigation"}>{preferences.collapsed?<PanelLeftOpen size={17}/>:<PanelLeftClose size={17}/>}</button><button className="cc-mobile-close" aria-label="Close menu" onClick={()=>setMobile(false)}><X size={20}/></button></div><div className="cc-workspace-name"><span className="cc-avatar"><Building2 size={15}/></span><span>{org.data?.data[0]?.organization.name||"Personal workspace"}<small>PROCUREMENT INTELLIGENCE</small></span></div>
@@ -46,7 +50,7 @@ export function CustomerShell({children}:{children:React.ReactNode}){
  <main id="customer-main" className="cc-main">{children}</main><footer className="cc-footer">Independent procurement intelligence. Always confirm requirements and submit through the official authority.<Link href="/customer/help">Source & analysis guide <ArrowUpRight size={12}/></Link></footer></div>
  <nav className="cc-bottom" aria-label="Mobile navigation">{[["Home","/customer",Home],["Discover","/customer/discover",Compass],["Saved","/customer/saved",Bookmark],["Bids","/customer/bids",BriefcaseBusiness]].map(([label,href,Icon])=>{const I=Icon as typeof Home;return <Link key={String(href)} href={String(href)} aria-current={pathname===href?"page":undefined}><I size={20}/>{String(label)}</Link>;})}<button onClick={()=>setMobile(true)} aria-expanded={mobile}><Menu size={20}/>More</button></nav>
  <FloatingHelp />
- {message&&<div role="status" className="cc-toast">{message}<button onClick={()=>setMessage("")} aria-label="Dismiss message"><X size={15}/></button></div>}
+ {!!messages.length&&<div className="cc-toast-stack" aria-label="Notifications">{messages.slice(0,3).map(item=><div key={item.id} role={item.kind==="error"||item.kind==="warning"?"alert":"status"} className={`cc-toast ${item.kind}`}>{item.kind==="success"?<CheckCircle2 size={18}/>:item.kind==="warning"?<AlertTriangle size={18}/>:item.kind==="error"?<XCircle size={18}/>:<Info size={18}/>}<span>{item.text}</span><button onClick={()=>setMessages(current=>current.filter(message=>message.id!==item.id))} aria-label={`Dismiss ${item.kind} notification`}><X size={15}/></button></div>)}</div>}
  {search&&<SearchDialog close={()=>setSearch(false)}/>}
  </div></Context.Provider>;
 }

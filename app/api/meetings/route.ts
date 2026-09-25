@@ -56,11 +56,13 @@ export async function GET(request:Request){
   }catch(error){return apiErrorResponse(error);}
 }
 
-async function sendGuestInvite(email:string,title:string,startsAt:string,token:string){
-  if(!process.env.RESEND_API_KEY||!process.env.ALERT_FROM_EMAIL)return;
+async function sendGuestInvite(email:string,title:string,startsAt:string,token:string,timezone:string){
+  if(!process.env.RESEND_API_KEY||!process.env.ALERT_FROM_EMAIL)throw new Error("Guest invitation email is not configured.");
   const site=process.env.NEXT_PUBLIC_SITE_URL||"https://www.bidscopeghana.com";
   const joinUrl=`${site}/meetings/join/${encodeURIComponent(token)}`;
-  await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({from:process.env.ALERT_FROM_EMAIL,to:[email],subject:`BidScope meeting invitation: ${title}`,html:`<div style="font-family:Arial,sans-serif;color:#17362d"><h2>You have been invited to a BidScope meeting.</h2><p><strong>${title}</strong></p><p>${new Date(startsAt).toLocaleString("en-GB")}</p><p><a href="${joinUrl}" style="display:inline-block;background:#116149;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">Join BidScope Meet</a></p><p>This secure link is for you only.</p></div>`})});
+  const safeTitle=title.replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[char]||char);
+  const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({from:process.env.ALERT_FROM_EMAIL,to:[email],subject:`BidScope meeting invitation: ${title}`,html:`<div style="font-family:Arial,sans-serif;color:#17362d"><h2>You have been invited to a BidScope meeting.</h2><p><strong>${safeTitle}</strong></p><p>${new Date(startsAt).toLocaleString("en-GB",{timeZone:timezone,timeZoneName:"short"})}</p><p><a href="${joinUrl}" style="display:inline-block;background:#116149;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">Join BidScope Meet</a></p><p>This secure link is for you only.</p></div>`}),signal:AbortSignal.timeout(10000)});
+  if(!response.ok)throw new Error(`Guest invitation delivery returned HTTP ${response.status}`);
 }
 
 export async function POST(request:Request){
@@ -69,14 +71,27 @@ export async function POST(request:Request){
     if(!membership)throw new ApiError(400,"Create a business profile before scheduling meetings.","profile_required");
     await requireOrganizationMember(user.id,membership.organization_id);
     const input=schema.parse(await request.json()),guardrails=await settings(membership.organization_id);
-    if(input.procurementMeetingType&&!input.procurementTenderId)throw new ApiError(400,"Select a BidScope-managed tender before scheduling a procurement meeting.","procurement_tender_required");
+    try{new Intl.DateTimeFormat("en-GB",{timeZone:input.timezone});}catch{throw new ApiError(400,"Choose a valid IANA timezone.","invalid_meeting_timezone");}
+    if((input.meetingType==="tender"||input.procurementMeetingType||input.supplierBidId||input.supplierOrganizationId||input.tenderLotId)&&!input.procurementTenderId)throw new ApiError(400,"Select a BidScope-managed tender before scheduling a procurement meeting.","procurement_tender_required");
+    if(input.supplierOrganizationId&&!input.supplierBidId)throw new ApiError(400,"Select a bid from this supplier before linking their organisation to the meeting.","supplier_bid_required");
     if(input.relatedOpportunityId&&!input.procurementTenderId)throw new ApiError(400,"External tenders cannot use the BidScope-managed meeting workflow. Use the issuing authority's official portal.","external_tender_meeting_not_allowed");
-    if(input.procurementTenderId){const{tender}=await requireTenderManager(user,input.procurementTenderId);if(input.supplierBidId){const{data:bid}=await supabaseRest<Array<{id:string;supplier_organization_id:string}>>(`supplier_bids?select=id,supplier_organization_id&id=eq.${input.supplierBidId}&tender_id=eq.${tender.id}&limit=1`);if(!bid[0]||input.supplierOrganizationId&&bid[0].supplier_organization_id!==input.supplierOrganizationId)throw new ApiError(400,"The selected supplier bid does not belong to this tender.","invalid_procurement_meeting_link");}}
+    if(input.procurementTenderId){
+      const{tender}=await requireTenderManager(user,input.procurementTenderId);
+      if(input.supplierBidId){
+        const{data:bid}=await supabaseRest<Array<{id:string;supplier_organization_id:string}>>(`supplier_bids?select=id,supplier_organization_id&id=eq.${input.supplierBidId}&tender_id=eq.${tender.id}&limit=1`);
+        if(!bid[0]||input.supplierOrganizationId&&bid[0].supplier_organization_id!==input.supplierOrganizationId)throw new ApiError(400,"The selected supplier bid does not belong to this tender.","invalid_procurement_meeting_link");
+      }
+      if(input.tenderLotId){
+        const{data:lot}=await supabaseRest<Array<{id:string}>>(`procurement_tender_lots?select=id&id=eq.${input.tenderLotId}&tender_id=eq.${tender.id}&limit=1`);
+        if(!lot[0])throw new ApiError(400,"The selected lot does not belong to this tender.","invalid_procurement_meeting_lot");
+      }
+    }
     if(!guardrails.enabled)throw new ApiError(403,"BidScope Meet is disabled for this workspace.","meetings_disabled");
     if(input.durationMinutes>guardrails.max_duration_minutes)throw new ApiError(400,`Meetings are limited to ${guardrails.max_duration_minutes} minutes.`,"meeting_duration_limit");
     if(1+input.participantUserIds.length+input.guestEmails.length>guardrails.max_participants)throw new ApiError(400,`This workspace allows up to ${guardrails.max_participants} participants per meeting.`,"meeting_participant_limit");
     if(input.recordingEnabled&&!guardrails.recording_allowed)throw new ApiError(403,"Recording is not enabled for this workspace.","recording_not_allowed");
     if(input.transcriptionEnabled&&!guardrails.transcription_allowed)throw new ApiError(403,"Transcription is not enabled for this workspace.","transcription_not_allowed");
+    if(input.guestEmails.length&&(!process.env.RESEND_API_KEY||!process.env.ALERT_FROM_EMAIL))throw new ApiError(503,"Guest invitation email is unavailable. Remove external guests or contact support.","guest_email_unavailable");
     if(input.provider==="google_meet"){
       const{data:connection}=await supabaseRest<Array<{user_id:string}>>(`meeting_oauth_connections?select=user_id&user_id=eq.${user.id}&provider=eq.google&limit=1`);
       if(!connection[0])throw new ApiError(409,"Connect Google Calendar before scheduling a Google Meet.","google_calendar_not_connected");
@@ -84,6 +99,7 @@ export async function POST(request:Request){
     const memberIds=[...new Set(input.participantUserIds.filter((id)=>id!==user.id))];
     if(memberIds.length){const{data}=await supabaseRest<Array<{user_id:string}>>(`organization_members?select=user_id&organization_id=eq.${membership.organization_id}&user_id=in.(${memberIds.join(",")})`);if(data.length!==memberIds.length)throw new ApiError(400,"Every selected team attendee must belong to this workspace.","invalid_meeting_attendee");}
     const startsAt=new Date(input.startsAt),endsAt=new Date(startsAt.getTime()+input.durationMinutes*60_000);
+    if(!Number.isFinite(startsAt.getTime())||startsAt.getTime()<=Date.now())throw new ApiError(400,"Choose a future meeting date and time.","meeting_in_past");
     const row={organization_id:membership.organization_id,organizer_user_id:user.id,provider:input.provider,meeting_type:input.meetingType,title:input.title,agenda:input.agenda,timezone:input.timezone,starts_at:startsAt.toISOString(),ends_at:endsAt.toISOString(),related_opportunity_id:input.relatedOpportunityId||null,related_partner_organization_id:input.relatedPartnerOrganizationId||null,recurrence_rule:input.recurrenceRule||null,reminder_minutes:input.reminderMinutes,waiting_room_enabled:input.waitingRoomEnabled,recording_enabled:input.recordingEnabled,transcription_enabled:input.transcriptionEnabled,provider_status:"creating",procurement_tender_id:input.procurementTenderId||null,supplier_bid_id:input.supplierBidId||null,supplier_organization_id:input.supplierOrganizationId||null,tender_lot_id:input.tenderLotId||null,procurement_meeting_type:input.procurementMeetingType||null,interview_questions:input.interviewQuestions};
     const{data:created}=await supabaseRest<MeetingRecord[]>("meetings",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(row)});
     const meeting=created[0];if(!meeting)throw new ApiError(500,"Meeting could not be saved.","meeting_create_failed");
@@ -96,7 +112,8 @@ export async function POST(request:Request){
       await supabaseRest(`meetings?id=eq.${meeting.id}`,{method:"PATCH",body:JSON.stringify({provider_room_id:provisioned.providerRoomId||null,provider_room_name:provisioned.providerRoomName||null,provider_join_url:provisioned.joinUrl,provider_event_id:provisioned.providerEventId||null,provider_metadata:provisioned.metadata||{},provider_status:"ready",provider_created_at:new Date().toISOString()})});
     }catch(error){await supabaseRest(`meetings?id=eq.${meeting.id}`,{method:"PATCH",body:JSON.stringify({status:"provider_failed",provider_status:"failed"})});return Response.json({data:{id:meeting.id,status:"provider_failed"},error:error instanceof Error?error.message:"The meeting platform could not be created."},{status:201});}
     const relatedUrl=input.procurementTenderId?`/procurement/meetings/${meeting.id}`:`/customer/meetings/${meeting.id}`;
-    await Promise.all([...memberIds.map((id)=>createNotification({userId:id,organizationId:membership.organization_id,type:"system",title:"Meeting invitation",message:`You have been invited to ${input.title}.`,pushEventKey:"meeting_invitation",relatedEntityType:"meeting",relatedEntityId:meeting.id,relatedUrl,priority:"high",frequencyOverride:"instant",dedupeKey:stableDedupe(["meeting-invite",meeting.id,id])})),...guestTokens.map(({email,token})=>sendGuestInvite(email,input.title,startsAt.toISOString(),token))]);
-    return Response.json({data:{id:meeting.id,status:"scheduled"}},{status:201});
+    const delivery=await Promise.allSettled([...memberIds.map((id)=>createNotification({userId:id,organizationId:membership.organization_id,type:"system",title:"Meeting invitation",message:`You have been invited to ${input.title} on ${startsAt.toLocaleString("en-GB",{timeZone:input.timezone,timeZoneName:"short"})}.`,pushEventKey:"meeting_invitation",relatedEntityType:"meeting",relatedEntityId:meeting.id,relatedUrl,priority:"high",frequencyOverride:"instant",dedupeKey:stableDedupe(["meeting-invite",meeting.id,id])})),...guestTokens.map(({email,token})=>sendGuestInvite(email,input.title,startsAt.toISOString(),token,input.timezone))]);
+    const failedInvitations=delivery.filter((item)=>item.status==="rejected").length;
+    return Response.json({data:{id:meeting.id,status:"scheduled",failedInvitations}},{status:201});
   }catch(error){return apiErrorResponse(error);}
 }

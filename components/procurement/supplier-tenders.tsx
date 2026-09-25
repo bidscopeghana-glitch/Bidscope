@@ -409,6 +409,7 @@ function SupplierTenderDetail({ id }: { id: string }) {
         {t.currentBid && (
           <BidDocuments
             bidId={t.currentBid.id}
+            bidStatus={t.currentBid.status}
             documents={t.currentBid.documents || []}
             requiredDocuments={t.requiredDocuments}
             onMessage={setMessage}
@@ -533,11 +534,13 @@ function ClarificationThread({
 
 function BidDocuments({
   bidId,
+  bidStatus,
   documents,
   requiredDocuments,
   onMessage,
 }: {
   bidId: string;
+  bidStatus: string;
   documents: Array<{
     id: string;
     required_document_id: string | null;
@@ -594,10 +597,17 @@ function BidDocuments({
               </small>
             </span>
             <span className="flex items-center gap-2">
-              <input required type="file" name="file" disabled={busy} />
-              <button disabled={busy} className="cc-button">
+              <input required type="file" name="file" disabled={busy || bidStatus !== "draft"} />
+              <button disabled={busy || bidStatus !== "draft"} className="cc-button">
                 <UploadCloud size={14} /> Upload
               </button>
+              {uploaded && bidStatus === "draft" && <button type="button" disabled={busy} className="cc-button" onClick={async () => {
+                if (!window.confirm(`Delete ${uploaded.original_filename}? This cannot be undone.`)) return;
+                setBusy(true);
+                try { await api(`/api/procurement/documents?kind=bid&id=${uploaded.id}`, undefined, "DELETE"); invalidate(); onMessage("Bid document deleted."); }
+                catch (error) { onMessage((error as Error).message); }
+                finally { setBusy(false); }
+              }}>Delete</button>}
             </span>
           </form>
         );

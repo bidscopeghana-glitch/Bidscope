@@ -44,12 +44,21 @@ export class GoogleMeetingProvider implements MeetingProvider {
     return { joinUrl, providerEventId: event.id, metadata: { calendarEventUrl: event.htmlLink } };
   }
 
-  async updateMeeting() { /* Calendar updates are added after the first live creation flow. */ }
+  async updateMeeting(meeting: MeetingRecord) {
+    if (!meeting.provider_event_id) throw new ApiError(409, "This Google Calendar event is unavailable.", "google_event_missing");
+    const token = await accessToken(meeting.organizer_user_id);
+    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(meeting.provider_event_id)}?sendUpdates=all`, {
+      method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ start: { dateTime: meeting.starts_at, timeZone: meeting.timezone }, end: { dateTime: meeting.ends_at, timeZone: meeting.timezone } }),
+    });
+    if (!response.ok) throw new ApiError(502, "Google Calendar could not reschedule the meeting.", "google_meet_update_failed");
+  }
 
   async cancelMeeting(meeting: MeetingRecord) {
     if (!meeting.provider_event_id) return;
     const token = await accessToken(meeting.organizer_user_id);
-    await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(meeting.provider_event_id)}?sendUpdates=all`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(meeting.provider_event_id)}?sendUpdates=all`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok && response.status !== 404 && response.status !== 410) throw new ApiError(502, "Google Calendar could not cancel the meeting. Please try again.", "google_meet_cancel_failed");
   }
 
   async createJoinAccess({ meeting }: JoinAccessInput): Promise<JoinAccess> {

@@ -42,14 +42,13 @@ export default async function BlogPage() {
     <ProcurementHeader />
     <section className="mx-auto max-w-7xl px-4 py-6 sm:px-8 sm:py-10">
       <Breadcrumbs items={[{ name: "Home", href: "/" }, { name: "Blog", href: "/blog" }]} />
-      <header className="relative mt-5 overflow-hidden rounded-[28px] bg-[#082f25] text-white shadow-[0_20px_56px_rgba(8,47,37,.22)] sm:rounded-[34px]">
+      <header className="relative mt-3 overflow-hidden rounded-[24px] bg-[#082f25] text-white shadow-[0_20px_56px_rgba(8,47,37,.22)]">
         <Image src="/images/blog/procurement-team.webp" alt="Ghanaian procurement professionals reviewing a tender" fill priority sizes="100vw" className="object-cover opacity-45" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#082f25] via-[#082f25]/90 to-[#082f25]/35" />
-        <div className="relative max-w-3xl px-5 py-8 sm:px-10 sm:py-12 lg:px-12 lg:py-14">
+        <div className="relative max-w-3xl px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.14em] text-[#a8e2ca] sm:gap-2 sm:px-4 sm:py-2 sm:text-xs sm:tracking-[.17em]"><BookOpen size={15}/>BidScope Intelligence Journal</span>
-          <h1 className="serif mt-4 text-[2rem] leading-[1.06] sm:text-5xl">The thinking behind better tender decisions.</h1>
-          <p className="mt-4 max-w-3xl text-[15px] leading-6 text-white/80 sm:text-base sm:leading-7">Original, source-conscious guidance for Ghanaian suppliers, procurement teams and business leaders—from opportunity discovery to contract mobilisation.</p>
-          <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold sm:text-sm"><span className="rounded-full bg-white px-3 py-1.5 text-[#103f32] sm:px-4 sm:py-2">Original expert guidance</span><span className="rounded-full border border-white/25 bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2">Ghana-first context</span><span className="rounded-full border border-white/25 bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2">Official sources linked</span></div>
+          <h1 className="serif mt-3 text-[1.65rem] leading-[1.08] sm:text-3xl">The thinking behind better tender decisions.</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-5 text-white/80 sm:leading-6">Original, source-conscious guidance for Ghanaian suppliers, procurement teams and business leaders—from opportunity discovery to contract mobilisation.</p>
         </div>
       </header>
 

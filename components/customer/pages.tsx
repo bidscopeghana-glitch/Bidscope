@@ -9,10 +9,12 @@ import {
   date,
   invalidate,
   officialUrl,
+  uploadAuthenticatedFileWithProgress,
+  downloadAuthenticatedFile,
+  viewAuthenticatedFile,
   useData,
   type Opportunity,
   type Notice,
-  type Pulse,
   type RetentionOverview,
 } from "./data";
 import { Empty, Skeleton, useAccount } from "./shell";
@@ -23,6 +25,7 @@ import { SupplierVerification } from "@/components/customer/supplier-verificatio
 import { TenderChatWorkspace } from "@/components/chat/tender-chat";
 import { PushSettings } from "@/components/customer/push-settings";
 import {FeedbackPage} from "@/components/customer/feedback";
+import { MarketIntelligence } from "@/components/customer/market-intelligence";
 const Detail = dynamic(() => import("./detail").then((m) => m.Detail), {
   loading: Skeleton,
 });
@@ -73,7 +76,7 @@ export function CustomerPage({
   if (section === "feedback") return <FeedbackPage />;
   if (section === "following") return <Following />;
   if (section === "buyers") return <Buyers />;
-  if (section === "intelligence") return <Intelligence />;
+  if (section === "intelligence") return <MarketIntelligence />;
   if (section === "awards") return <Awards />;
   if (section === "documents") return <Documents />;
   if (section === "ai") return <AIPage />;
@@ -810,15 +813,25 @@ function BillingPage() {
   );
 }
 function SettingsPage() {
-  const { preferences, setPreferences } = useAccount();
+  const { preferences, setPreferences, organization } = useAccount();
+  const sections = [
+    { name: "Profile & organisation", description: "Business details, team access and supplier verification", links: [["Company profile", "/customer/profile"], ["Team members", "/customer/team"], ["Verification", "/customer/verification"]] },
+    { name: "Opportunity preferences", description: "Choose the markets and tenders that matter to your business", links: [["Business matching profile", "/customer/profile"], ["Tender watches", "/customer/alerts"], ["Followed buyers", "/customer/following"]] },
+    { name: "Notifications", description: "Configure tender alerts, delivery channels and browser push", links: [["Alert delivery preferences", "/customer/alerts"], ["Notifications", "/customer/notifications"]] },
+    { name: "Security & privacy", description: "Manage account access and review BidScope’s privacy commitments", links: [["Request password reset", "/sign-in"], ["Privacy policy", "/privacy"]] },
+    { name: "Billing", description: "Review your subscription and payment history", links: [["Subscription & billing", "/customer/billing"], ["Compare plans", "/pricing"]] },
+    ...(organization?.can_procure ? [{ name: "Buyer workspace", description: "Manage procurement team, tender and meeting workflows", links: [["Buyer dashboard", "/procurement"], ["Procurement meetings", "/procurement/meetings"]] }] : []),
+  ];
   return (
     <>
       <Heading
         title="Workspace settings"
-        description="A few preferences to make your daily briefing work for you."
+        description="Control your account, organisation, opportunity preferences and notifications."
       />
-      <section className="cc-editor">
-        <h2>Home & display</h2>
+      <div className="cc-settings-grid">{sections.map(section => <section className="cc-settings-card" key={section.name}><h2>{section.name}</h2><p>{section.description}</p><div>{section.links.map(([label, href]) => <Link className="cc-settings-link" href={href} key={href + label}>{label} <span aria-hidden="true">→</span></Link>)}</div></section>)}</div>
+      <section className="cc-editor" id="appearance">
+        <h2>Appearance & display</h2>
+        <p>Changes are saved to your workspace preferences when you switch a control.</p>
         {(
           [
             ["compact", "Compact opportunity rows"],
@@ -837,17 +850,6 @@ function SettingsPage() {
             {label}
           </label>
         ))}
-        <div className="cc-inline-actions">
-          <Link className="cc-button" href="/customer/alerts">
-            Alert delivery preferences
-          </Link>
-          <Link className="cc-button" href="/customer/billing">
-            Billing & subscription
-          </Link>
-          <Link className="cc-button" href="/pricing">
-            Compare plans
-          </Link>
-        </div>
       </section>
     </>
   );
@@ -1134,53 +1136,16 @@ function Buyers() {
     </>
   );
 }
-function Intelligence() {
-  const r = useData<{ data: Pulse }>("/api/customer?resource=pulse");
-  return (
-    <>
-      <Heading
-        title="Market intelligence"
-        description="A transparent view of procurement activity in BidScope’s current index."
-      />
-      {r.loading ? (
-        <Skeleton />
-      ) : r.error ? (
-        <p className="cc-error">{r.error}</p>
-      ) : (
-        <section className="cc-editor">
-          <PanelTitle title="Current open opportunities by sector" />
-          <p>
-            {r.data?.data.open.toLocaleString()} open opportunities across the
-            current index. These are indexed records, not a measure of the
-            entire procurement market.
-          </p>
-          {r.data?.data.sectors.map((s) => (
-            <Link
-              className="cc-market-row"
-              href={`/customer/discover?sector=${encodeURIComponent(s.sector)}`}
-              key={s.sector}
-            >
-              <span>{s.sector}</span>
-              <progress value={s.total} max={r.data!.data.open} />
-              <strong>{s.total}</strong>
-            </Link>
-          ))}
-          <Link className="cc-button" href="/customer/awards">
-            Explore awards & history
-          </Link>
-        </section>
-      )}
-    </>
-  );
-}
 function Awards() {
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
   const r = useData<{
     data: {
       id: string;
       title: string;
-      award_date: string;
-      award_value: number;
+      reference_number: string;
+      award_date: string | null;
+      award_value: number | null;
       currency: string;
       source_url: string;
       buyer: { name: string };
@@ -1194,36 +1159,34 @@ function Awards() {
         title="Awards & history"
         description="Published Ghana World Bank-financed awards. Research previous procurement outcomes."
       />
+      <div className="cc-results-toolbar"><input aria-label="Search awards on this page" placeholder="Search awards on this page" value={query} onChange={(event) => setQuery(event.target.value)} /><span>{r.data?.pagination.total?.toLocaleString() || 0} published records</span></div>
       {r.loading ? (
         <Skeleton />
       ) : r.error ? (
         <p className="cc-error">{r.error}</p>
       ) : (
-        r.data?.data.map((a) => (
-          <article className="cc-notice" key={a.id}>
+        r.data?.data.filter(a => `${a.title} ${a.buyer?.name} ${a.suppliers?.map(s => s.supplier_name).join(" ")}`.toLowerCase().includes(query.toLowerCase())).map((a) => (
+          <article className="cc-award-card" key={a.id}>
             <div>
-              <small>OFFICIAL AWARD · {date(a.award_date)}</small>
+              <small className="cc-award-badge">✓ Contract awarded · {date(a.award_date)}</small>
               <h2>{a.title}</h2>
-              <p>{a.buyer?.name}</p>
-              <p>
-                Supplier:{" "}
-                {a.suppliers?.map((s) => s.supplier_name).join(", ") ||
-                  "Not published"}
-              </p>
+              <p><strong>Buyer</strong> {a.buyer?.name || "Not published"}</p>
+              <p><strong>Awarded to</strong> {a.suppliers?.map((s) => s.supplier_name).join(", ") || "Not published"}</p>
+              <small>Reference: {a.reference_number}</small>
             </div>
             <div>
-              <strong>
+              <strong className="cc-award-value">
                 {a.award_value != null
                   ? `${a.currency} ${a.award_value.toLocaleString()}`
                   : "Value not published"}
               </strong>
               <p>
-                <a
+                <a className="cc-button"
                   href={officialUrl(a.source_url)}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Official source ↗
+                  View official award ↗
                 </a>
               </p>
             </div>
@@ -1252,19 +1215,35 @@ function Awards() {
 }
 function Documents() {
   const { organization, toast } = useAccount();
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [sort, setSort] = useState("newest");
+  const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const r = useData<{
     data: {
       id: string;
       title: string;
       document_type: string;
-      expires_at: string;
-      source_url: string;
+      expires_at: string | null;
+      source_url: string | null;
+      storage_path: string | null;
+      uploaded_by: string;
+      uploader: string;
+      can_manage: boolean;
+      created_at: string;
+      metadata: { size_bytes?: number; mime_type?: string; original_filename?: string };
     }[];
   }>(
     organization
       ? `/api/supplier-documents?organizationId=${organization.id}`
       : null,
   );
+  const documentTypes = [...new Set((r.data?.data || []).map(d => d.document_type))].sort();
+  const visibleDocuments = (r.data?.data || []).filter(d =>
+    (!typeFilter || d.document_type === typeFilter) && `${d.title} ${d.document_type}`.toLowerCase().includes(query.toLowerCase()),
+  ).sort((a, b) => sort === "name" ? a.title.localeCompare(b.title) : sort === "type" ? a.document_type.localeCompare(b.document_type) : sort === "oldest" ? a.created_at.localeCompare(b.created_at) : b.created_at.localeCompare(a.created_at));
   return (
     <>
       <Heading
@@ -1284,58 +1263,61 @@ function Documents() {
             className="cc-inline-form"
             onSubmit={async (e) => {
               e.preventDefault();
-              const f = new FormData(e.currentTarget);
+              const form = e.currentTarget;
+              const f = new FormData(form);
+              const file = f.get("file");
+              if (!(file instanceof File) || !file.size) { toast("Choose a file to upload."); return; }
+              f.set("organizationId", organization.id);
+              setBusy(true);
               try {
-                await api("/api/supplier-documents", {
-                  organizationId: organization.id,
-                  title: f.get("title"),
-                  documentType: "other",
-                  sourceUrl: f.get("url") || null,
-                  expiresAt: f.get("expiry") ? String(f.get("expiry")) : null,
-                });
-                toast("Document recorded.");
+                await uploadAuthenticatedFileWithProgress("/api/supplier-documents/files", f, setUploadProgress);
+                form.reset();
+                toast("Document uploaded successfully.", "success");
                 invalidate();
               } catch (e) {
-                toast((e as Error).message);
-              }
+                toast((e as Error).message, "error");
+              } finally { setBusy(false); setUploadProgress(0); }
             }}
           >
             <label>
               Document title
-              <input name="title" required />
+              <input name="title" required maxLength={200} />
             </label>
+            <label>Document category<select name="documentType" defaultValue="other"><option value="other">Other business document</option><option value="business_registration">Business registration</option><option value="tax_clearance">Tax clearance</option><option value="ppa_registration">PPA registration</option><option value="insurance">Insurance</option><option value="financial_statement">Financial statement</option><option value="certificate">Certificate</option><option value="company_profile">Company profile</option></select></label>
             <label>
-              Secure document URL
-              <input name="url" type="url" pattern="https://.*" />
+              File (up to 4 MB)
+              <input name="file" type="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png" />
             </label>
             <label>
               Expiry date
-              <input name="expiry" type="date" />
+              <input name="expiresAt" type="date" />
             </label>
-            <button className="cc-button primary">Add document</button>
+            <button className="cc-button primary" disabled={busy}>{busy ? "Uploading…" : "Upload document"}</button>
+            {busy && <progress aria-label="Document upload progress" value={uploadProgress} max={100} />}
           </form>
+          <div className="cc-results-toolbar">
+            <input aria-label="Search documents" placeholder="Search documents" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <select aria-label="Filter document category" value={typeFilter} onChange={event => setTypeFilter(event.target.value)}><option value="">All categories</option>{documentTypes.map(type => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select>
+            <select aria-label="Sort documents" value={sort} onChange={(event) => setSort(event.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name</option><option value="type">Type</option></select>
+          </div>
           {r.loading ? (
             <Skeleton />
           ) : r.error ? (
             <p className="cc-error">{r.error}</p>
-          ) : r.data?.data.length ? (
-            r.data.data.map((d) => (
+          ) : visibleDocuments.length ? (
+            visibleDocuments.map((d) => (
               <div className="cc-document-row" key={d.id}>
-                <a
-                  href={officialUrl(d.source_url)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {d.title}
-                </a>
-                <span>Expires {date(d.expires_at)}</span>
+                <div><strong>{d.title}</strong><p className="cc-quiet">{d.document_type.replaceAll("_", " ")} · {d.metadata?.size_bytes ? `${(d.metadata.size_bytes / 1024).toFixed(0)} KB` : "External link"} · {d.metadata?.mime_type || "Linked record"} · Added {date(d.created_at)} by {d.uploader}</p><p className="cc-quiet">Expires {date(d.expires_at)}</p></div>
+                <div className="cc-inline-actions">
+                  {d.storage_path ? <><button className="cc-button" onClick={() => void viewAuthenticatedFile(`/api/supplier-documents/files?id=${d.id}`).catch((error) => toast(error.message))}>View</button><button className="cc-button" onClick={() => void downloadAuthenticatedFile(`/api/supplier-documents/files?id=${d.id}&download=1`, d.metadata?.original_filename || d.title).catch((error) => toast(error.message))}>Download</button></> : d.source_url ? <a className="cc-button" href={officialUrl(d.source_url)} target="_blank" rel="noreferrer">Open link</a> : null}
+                  {d.can_manage && <button className="cc-button" onClick={() => { const title = window.prompt("New document name", d.title); if (title && title !== d.title) void api("/api/supplier-documents/files", { id: d.id, title }, "PATCH").then(() => { toast("Document renamed.", "success"); invalidate(); }).catch((error) => toast(error.message, "error")); }}>Rename</button>}
+                  {d.can_manage && <button className="cc-button" onClick={() => setConfirmId(d.id)}>Delete</button>}
+                </div>
+                {confirmId === d.id && <div role="alertdialog" aria-modal="true" aria-label="Confirm document deletion" className="cc-document-confirm"><p>Delete “{d.title}”? This cannot be undone.</p><button className="cc-button" onClick={() => setConfirmId(null)}>Keep document</button><button className="cc-button primary" onClick={() => void api(`/api/supplier-documents/files?id=${d.id}`, undefined, "DELETE").then(() => { toast("Document deleted.", "success"); setConfirmId(null); invalidate(); }).catch((error) => toast(error.message, "error"))}>Delete permanently</button></div>}
               </div>
             ))
           ) : (
-            <p className="cc-quiet">
-              No business documents recorded yet. Add a secure link to your
-              first certificate or registration document.
-            </p>
+            <p className="cc-quiet">{r.data?.data.length ? "No documents match these filters." : "No business documents yet. Upload your first certificate or registration document privately."}</p>
           )}
         </>
       )}

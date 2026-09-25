@@ -75,3 +75,19 @@ test("Google Meet requires a connected Calendar account and preserves the origin
   assert.match(route,/google_calendar_not_connected/);
   assert.ok(route.indexOf("google_calendar_not_connected")<route.indexOf('supabaseRest<MeetingRecord[]>("meetings"'));
 });
+
+test("managed meeting links reject unrelated suppliers and tender lots",()=>{
+  const route=read("app/api/meetings/route.ts");
+  assert.match(route,/supplier_bid_required/);
+  assert.match(route,/supplier_bids\?select=id,supplier_organization_id[^`]*tender_id=eq\.\$\{tender\.id\}/);
+  assert.match(route,/procurement_tender_lots\?select=id[^`]*tender_id=eq\.\$\{tender\.id\}/);
+  assert.match(route,/invalid_procurement_meeting_lot/);
+});
+
+test("meeting creation reports invitation failures without masking a scheduled meeting",()=>{
+  const route=read("app/api/meetings/route.ts");
+  assert.match(route,/guest_email_unavailable/);
+  assert.match(route,/if\(!response\.ok\)throw new Error\(`Guest invitation delivery/);
+  assert.match(route,/Promise\.allSettled\(/);
+  assert.match(route,/failedInvitations/);
+});

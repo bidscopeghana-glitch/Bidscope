@@ -48,7 +48,12 @@ export class DailyMeetingProvider implements MeetingProvider {
 
   async cancelMeeting(meeting: MeetingRecord) {
     if (!meeting.provider_room_name) return;
-    await dailyRequest(`/rooms/${encodeURIComponent(meeting.provider_room_name)}`, { method: "DELETE" });
+    const key = process.env.DAILY_API_KEY;
+    if (!key) throw new ApiError(503, "BidScope Meet is not configured yet.", "meeting_provider_unavailable");
+    const response = await fetch(`${base()}/rooms/${encodeURIComponent(meeting.provider_room_name)}`, {
+      method: "DELETE", headers: { Authorization: `Bearer ${key}` }, cache: "no-store",
+    });
+    if (!response.ok && response.status !== 404) throw new ApiError(502, "BidScope Meet could not be cancelled. Please try again.", "meeting_cancel_failed");
   }
 
   async createJoinAccess({ meeting, userId, userName, isHost }: JoinAccessInput): Promise<JoinAccess> {
