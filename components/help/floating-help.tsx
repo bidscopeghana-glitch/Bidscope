@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { ArrowUpRight, HelpCircle, Send, Sparkles, X } from "lucide-react";
+import { ArrowUpRight, HelpCircle, Mic, Send, Sparkles, X } from "lucide-react";
 import { useBidScopeSession } from "@/components/procurement/auth-nav";
 import { api } from "@/components/customer/data";
+import { VoiceAssistant } from "./voice-assistant";
 
 type HelpReply = {
   answer: string;
@@ -21,6 +22,7 @@ export function FloatingHelp() {
   const session = useBidScopeSession();
   const panel = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"help" | "voice">("help");
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -52,8 +54,9 @@ export function FloatingHelp() {
   }
 
   return <div className={`bidscope-help ${open ? "is-open" : ""}`}>
-    {open && <div ref={panel} className="bidscope-help-panel" role="dialog" aria-label="BidScope Help Assistant" aria-modal="false">
-      <header><div><span className="bidscope-help-status"/><span><strong>BidScope Help</strong><small>Product guidance</small></span></div><button onClick={() => setOpen(false)} aria-label="Close help"><X size={19}/></button></header>
+    {open && <div ref={panel} className="bidscope-help-panel" role="dialog" aria-label={mode === "voice" ? "Taleh, BidScope AI receptionist" : "BidScope Help Assistant"} aria-modal="false">
+      <header><div><span className="bidscope-help-status"/><span><strong>{mode === "voice" ? "Taleh" : "BidScope Help"}</strong><small>{mode === "voice" ? "BidScope AI receptionist" : "Product guidance"}</small></span></div><button onClick={() => setOpen(false)} aria-label="Close assistant"><X size={19}/></button></header>
+      {mode === "voice" && session ? <VoiceAssistant currentPath={pathname} onClose={() => setOpen(false)}/> : mode === "voice" ? <div className="bidscope-voice-signin"><p>Hi, I&apos;m Taleh, BidScope&apos;s AI receptionist. Sign in and I can help you find the right desk, answer product questions, search opportunities and pass a message to our team.</p><Link href={`/sign-in?next=${encodeURIComponent(pathname)}`} onClick={() => setOpen(false)}>Sign in to speak with Taleh</Link></div> : <>
       <div className="bidscope-help-thread" aria-live="polite">
         {messages.map((message, index) => <article className={message.role} key={`${message.role}-${index}`}><span>{message.role === "assistant" ? "BidScope" : "You"}</span><p>{message.content}</p>{message.reply?.links?.length ? <div className="bidscope-help-links">{message.reply.links.map(link => <Link href={link.href} key={link.href} onClick={() => setOpen(false)} className={link.primary ? "primary" : ""}>{link.label}<ArrowUpRight size={12}/></Link>)}</div> : null}{message.reply?.routedToTenderEvaluation ? <small><Sparkles size={12}/> Tender-specific analysis belongs in AI Tender Evaluation.</small> : null}</article>)}
         {busy && <div className="bidscope-help-thinking"><i/><i/><i/><span>Finding the right guidance…</span></div>}
@@ -63,7 +66,9 @@ export function FloatingHelp() {
         <form onSubmit={(event: FormEvent) => { event.preventDefault(); void ask(question); }}><label htmlFor="floating-help-question">Ask BidScope</label><div><textarea id="floating-help-question" rows={2} maxLength={1000} value={question} onChange={event => setQuestion(event.target.value)} placeholder="How can we help?"/><button disabled={busy || question.trim().length < 2} aria-label="Send question"><Send size={17}/></button></div>{error && <p role="alert">{error}</p>}</form>
       </>}
       <footer><span>For tender requirements, use</span><Link href="/customer/ai" onClick={() => setOpen(false)}>AI Tender Evaluation <ArrowUpRight size={12}/></Link></footer>
+      </>}
     </div>}
-    <button className="bidscope-floating-help" onClick={() => setOpen(value => !value)} aria-label={open ? "Close BidScope Help Assistant" : "Open BidScope Help Assistant"} aria-expanded={open}>{open ? <X size={22}/> : <HelpCircle size={22}/>}<span>{open ? "Close" : "Help"}</span></button>
+    <button className="bidscope-floating-voice" onClick={() => { setMode("voice"); setOpen(true); }} aria-label="Talk to Taleh, BidScope AI receptionist" aria-expanded={open && mode === "voice"}><Mic size={20}/><span>Talk to Taleh</span></button>
+    <button className="bidscope-floating-help" onClick={() => { setMode("help"); setOpen(value => mode === "help" ? !value : true); }} aria-label={open && mode === "help" ? "Close BidScope Help Assistant" : "Open BidScope Help Assistant"} aria-expanded={open && mode === "help"}>{open && mode === "help" ? <X size={22}/> : <HelpCircle size={22}/>}<span>{open && mode === "help" ? "Close" : "Help"}</span></button>
   </div>;
 }
