@@ -47,3 +47,15 @@ test("Taleh introduces herself after the caller joins", () => {
   assert.match(start, /greetingMessage: "Hello and welcome to BidScope\. I'm Taleh, your AI receptionist\. How can I help you today\?"/);
   assert.match(start, /greetingConfigs: \{ mode: "single_first", delay_ms: 1000 \}/);
 });
+
+test("Taleh uses a known nonzero publisher ID and the browser subscribes to it", () => {
+  const start = source("app/api/ai/voice/agora/route.ts");
+  const client = source("components/help/agora-reception-call.tsx");
+  assert.match(start, /const agentUid = 1;/);
+  assert.match(start, /agentUid: String\(agentUid\)/);
+  assert.match(start, /channel, uid, agentUid, token/);
+  assert.match(client, /String\(user\.uid\) !== String\(result\.data!\.agentUid\)/);
+  assert.match(client, /AgoraRTC\.onAutoplayFailed/);
+  assert.match(client, /Tap to hear Taleh/);
+  assert.doesNotMatch(client, /String\(user\.uid\) !== "0"/);
+});

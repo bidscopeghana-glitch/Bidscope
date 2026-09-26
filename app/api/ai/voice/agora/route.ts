@@ -45,6 +45,9 @@ export async function POST(request: Request) {
     if (expiresAt < Date.now() + 60_000) throw new ApiError(401, "Your sign-in session is almost over. Refresh and try again.", "voice_auth_expiring");
     const channel = `taleh-${randomUUID()}`;
     const uid = randomInt(1000, 2_000_000_000);
+    // Each call has a private channel. UID 0 asks Agora to assign an unknown ID,
+    // so give Taleh a stable nonzero ID that the browser can subscribe to.
+    const agentUid = 1;
     const { data: threads } = await supabaseRest<Array<{ id: string }>>("ai_threads", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ user_id: user.id, title: "BidScope AI voice" }) });
     if (!threads[0]) throw new ApiError(503, "Voice conversation storage is unavailable.", "voice_storage_unavailable");
     const bridgeToken = sealVoiceBridge({ accessToken, userId: user.id, expiresAt, channel, currentPath: input.currentPath, threadId: threads[0].id });
@@ -60,11 +63,11 @@ export async function POST(request: Request) {
         failureMessage: "I'm sorry, I couldn't answer that just now. Please try the text chat or contact our team.",
       }))
       .withTts(new MiniMaxTTS({ model: "speech-2.6-turbo", voiceId: "English_captivating_female1" }));
-    const session = agent.createSession({ name: `taleh-${randomUUID()}`, channel, agentUid: "0", remoteUids: [String(uid)], idleTimeout: 120, expiresIn: 600 });
+    const session = agent.createSession({ name: `taleh-${randomUUID()}`, channel, agentUid: String(agentUid), remoteUids: [String(uid)], idleTimeout: 120, expiresIn: 600 });
     const agentId = await session.start();
     const ttl = Math.max(60, Math.floor((expiresAt - Date.now()) / 1000));
     const token = RtcTokenBuilder.buildTokenWithUid(process.env.AGORA_APP_ID!, process.env.AGORA_APP_CERTIFICATE!, channel, uid, RtcRole.PUBLISHER, ttl, ttl);
-    return Response.json({ data: { appId: process.env.AGORA_APP_ID, channel, uid, token, agentId, stopProof: voiceStopProof(user.id, agentId), expiresAt } }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json({ data: { appId: process.env.AGORA_APP_ID, channel, uid, agentUid, token, agentId, stopProof: voiceStopProof(user.id, agentId), expiresAt } }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return apiErrorResponse(error); }
 }
 
