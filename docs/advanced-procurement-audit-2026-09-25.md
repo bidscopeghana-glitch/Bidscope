@@ -19,7 +19,7 @@ This is an interim source audit and implementation checkpoint, not a complete pr
 | 15 BAFO rounds | Partial foundation: bid versions | Existing immutable submission snapshots inspected | PARTIAL: configurable rounds, revision rules and invitations outstanding |
 | 19 Clarifications | Partial: questions/private responses, participant checks | Existing API/actions/notifications inspected | PARTIAL: full public anonymisation, attachments, merge and workflow testing outstanding |
 | 20 Addendum impact | Partial: revisions, amendment diffs, deadline notices | Existing amendment processor inspected | PARTIAL: hosted tender immutable versions and full requirement comparison outstanding |
-| 23 Answer library | Not implemented | No approved response/version workflow located | NOT IMPLEMENTED |
+| 23 Answer library | Not implemented | Local migration, API, supplier editor, approved versions and approval history implemented | PARTIAL: pending database execution/RLS testing and deployment; attachments, tender usage integration and AI adaptation still outstanding |
 | 24 Bid quality | Partial: submission validation | Existing mandatory bid validation inspected | PARTIAL: persisted full findings/report and acknowledgement outstanding |
 | 26 Lot optimiser | Partial foundation: award lots | Existing multiple-winner data structures | PARTIAL: scenario generation/constraints/review outstanding |
 | 27 Analytics | Partial: procurement dashboard and event data | Existing dashboard inspected | PARTIAL: complete metrics/filter/trend workflows outstanding; prior CSV-export prohibition requires reconciliation before exports |
@@ -42,3 +42,11 @@ This is an interim source audit and implementation checkpoint, not a complete pr
 Production deployment 5KhEPvvsaDQsNP5MD8UmRoeMNT5u reached Ready for commit 8a68c87 and was assigned to www.bidscopeghana.com (35-second Vercel build). Signed-in browser checks confirmed the Document Passport upload fields/categories and empty state, and the Alert Centre reminder editor populated with the existing 30/14/7/1 preference. No console errors were captured on those checks. Upload/download and reminder delivery were not exercised. Desktop screenshot was inspected; the requested viewport override did not actually change innerWidth, so mobile acceptance is not claimed.
 
 Supplier A/B, Buyer A/B and Admin complete journeys, auction concurrency/reconnect, live email/push delivery, all breakpoints and server logs remain unverified. Do not describe this large expansion as finished or fully production-ready.
+
+## Answer library continuation (not deployed)
+
+Migration `20260925223502_response_library.sql` adds two organisation-scoped tables and one server-only transactional mutation RPC. Approved versions reject updates/deletes. Owner/admin approval is enforced both in API and RPC; authenticated clients only receive member-scoped SELECT. Row locks and expected revisions prevent lost updates. Approval and edits write the existing procurement audit trail atomically. Existing `bid_workspace` entitlement is reused.
+
+The new `/customer/answers` UI provides draft authoring, categories, tags, review dates, approved-answer copying and approval history. Search has an explicit no-results state. It does not make AI calls, overwrite approved masters during edits, or submit a response to a tender. Approved version numbers advance independently of draft revision numbers.
+
+The final local check passed 311 backend tests, ESLint and TypeScript (`--incremental false`). The standard incremental typecheck could not write `tsconfig.tsbuildinfo` because this checkout is outside the current task's writable workspace; the non-incremental check completed successfully. The production build passed before the final presentation-only search/error-state adjustment. Tests of the migration are structural assertions, not live database execution. Docker is unavailable, and the Supabase connector lacks project permission. Do not push this code to the production branch until migration execution and database checks succeed.

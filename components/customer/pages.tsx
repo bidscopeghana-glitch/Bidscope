@@ -25,6 +25,7 @@ import { SupplierVerification } from "@/components/customer/supplier-verificatio
 import { TenderChatWorkspace } from "@/components/chat/tender-chat";
 import { PushSettings } from "@/components/customer/push-settings";
 import {FeedbackPage} from "@/components/customer/feedback";
+import {ResponseLibrary} from "@/components/customer/response-library";
 import { MarketIntelligence } from "@/components/customer/market-intelligence";
 import { DOCUMENT_CATEGORIES, type documentValidity } from "@/lib/document-passport";
 const Detail = dynamic(() => import("./detail").then((m) => m.Detail), {
@@ -75,6 +76,7 @@ export function CustomerPage({
   if (section === "notifications") return <Notifications />;
   if (section === "alerts") return <Alerts />;
   if (section === "feedback") return <FeedbackPage />;
+  if (section === "answers") return <ResponseLibrary />;
   if (section === "following") return <Following />;
   if (section === "buyers") return <Buyers />;
   if (section === "intelligence") return <MarketIntelligence />;
