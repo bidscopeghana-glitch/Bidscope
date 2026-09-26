@@ -47,6 +47,19 @@ type Award = {
   award_notes: string;
   supplier?: { name: string } | null;
 };
+type LotModel = {
+  tenderId: string;
+  currency: string;
+  lots: Array<{ id: string; lot_number: string; title: string }>;
+  excludedOffers: number;
+  scenarios: Array<{
+    name: string;
+    method: string;
+    total: number;
+    supplierCount: number;
+    allocations: Array<{ lotId: string; supplierName: string; price: number }>;
+  }>;
+};
 
 export function ProcurementBidInbox() {
   const params = useSearchParams(),
@@ -68,6 +81,11 @@ export function ProcurementBidInbox() {
     [statusFilter, setStatusFilter] = useState("all"),
     [sort, setSort] = useState("submitted"),
     [showCompare, setShowCompare] = useState(false),
+    [maxLotsPerSupplier, setMaxLotsPerSupplier] = useState(30),
+    [minSuppliers, setMinSuppliers] = useState(1),
+    [budgetCap, setBudgetCap] = useState(""),
+    [lotModel, setLotModel] = useState<LotModel | null>(null),
+    [modelling, setModelling] = useState(false),
     [message, setMessage] = useState("");
   const tender = detail.data?.data;
   const visibleBids = [...(result.data?.data || [])]
@@ -198,6 +216,26 @@ export function ProcurementBidInbox() {
       setMessage((error as Error).message);
     }
   }
+  async function compareLots() {
+    if (!tender) return;
+    setModelling(true);
+    setLotModel(null);
+    try {
+      const response = await api<{ data: Omit<LotModel, "tenderId"> }>("/api/procurement", {
+        action: "model_lot_awards",
+        tenderId: tender.id,
+        maxLotsPerSupplier,
+        minSuppliers,
+        budgetCap: budgetCap.trim() ? Number(budgetCap) : null,
+      });
+      setLotModel({ ...response.data, tenderId: tender.id });
+      setMessage("");
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setModelling(false);
+    }
+  }
   return (
     <>
       <div className="pw-hero pw-hero-tenders">
@@ -311,6 +349,45 @@ export function ProcurementBidInbox() {
         </section>
       ) : (
         <>
+          {tender?.award_structure === "lots" && (
+            <section className="pw-card mt-5">
+              <h2>Compare lot allocations</h2>
+              <p>Explore listed lot prices after bid opening. This is not an eligibility check, a compliant-bid ranking, or an award decision.</p>
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="text-sm font-bold">Maximum lots per supplier
+                  <input className="mt-2 w-full rounded-xl border bg-white p-3" type="number" min="1" max="30" value={maxLotsPerSupplier} onChange={(event) => setMaxLotsPerSupplier(Number(event.target.value))} />
+                </label>
+                <label className="text-sm font-bold">Minimum suppliers
+                  <input className="mt-2 w-full rounded-xl border bg-white p-3" type="number" min="1" max="30" value={minSuppliers} onChange={(event) => setMinSuppliers(Number(event.target.value))} />
+                </label>
+                <label className="text-sm font-bold">Budget cap ({tender.currency}, optional)
+                  <input className="mt-2 w-full rounded-xl border bg-white p-3" type="number" min="0" step="0.01" value={budgetCap} onChange={(event) => setBudgetCap(event.target.value)} placeholder="No cap" />
+                </label>
+              </div>
+              <button className="pw-button primary mt-4" disabled={modelling || maxLotsPerSupplier < 1 || minSuppliers < 1} onClick={() => void compareLots()}>
+                {modelling ? "Comparing…" : "Show allocation comparisons"}
+              </button>
+              {lotModel?.tenderId === tender.id && (
+                <div className="mt-5">
+                  <p>{lotModel.excludedOffers} offer(s) omitted for missing price or different currency. Technical compliance, supplier capacity, local/SME status and regional requirements must be checked by the buyer.</p>
+                  {!lotModel.scenarios.length && <p>No comparison was found by these limited methods. A feasible allocation may still exist; review the bids and constraints manually.</p>}
+                  {lotModel.scenarios.map((scenario) => (
+                    <article className="pw-card mt-3" key={scenario.name}>
+                      <h3>{scenario.name}</h3>
+                      <p>{scenario.method} · {scenario.supplierCount} supplier(s) · {lotModel.currency} {scenario.total.toLocaleString()}</p>
+                      <ul className="list-disc pl-5">
+                        {scenario.allocations.map((offer) => {
+                          const lot = lotModel.lots.find((item) => item.id === offer.lotId);
+                          return <li key={offer.lotId}>{lot?.lot_number || "Lot"}: {lot?.title || "Untitled"} — {offer.supplierName} ({lotModel.currency} {offer.price.toLocaleString()})</li>;
+                        })}
+                      </ul>
+                    </article>
+                  ))}
+                  <p className="mt-3">A buyer must assess all mandatory evidence and approve any award through the separate award workflow.</p>
+                </div>
+              )}
+            </section>
+          )}
           <section className="pw-card mt-5">
             <div className="grid gap-3 md:grid-cols-4">
               <label className="text-sm font-bold">

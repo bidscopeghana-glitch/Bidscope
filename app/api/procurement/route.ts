@@ -22,6 +22,7 @@ import { encodeFilter, supabaseRest } from "@/lib/server/supabase-rest";
 import { tenderAccessForUser } from "@/lib/server/tender-access";
 import { bidReferencesValid, checkBidQuality } from "@/lib/bid-quality";
 import { supplierClarificationView } from "@/lib/server/procurement/clarifications";
+import { modelLotAwards, type LotOffer } from "@/lib/lot-award-scenarios";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
@@ -675,6 +676,13 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("publish_tender"), tenderId: uuid }),
   z.object({ action: z.literal("open_bids"), tenderId: uuid }),
   z.object({
+    action: z.literal("model_lot_awards"),
+    tenderId: uuid,
+    maxLotsPerSupplier: z.number().int().min(1).max(30),
+    minSuppliers: z.number().int().min(1).max(30),
+    budgetCap: z.number().nonnegative().finite().nullable(),
+  }),
+  z.object({
     action: z.literal("update_deadline"),
     tenderId: uuid,
     submissionDeadline: z.string().datetime({ offset: true }),
@@ -844,6 +852,61 @@ export async function POST(request: Request) {
         after: { can_bid: input.canBid, can_procure: input.canProcure },
       });
       return Response.json({ data: { saved: true } });
+    }
+    if (input.action === "model_lot_awards") {
+      const { tender } = await requireTenderManager(user, input.tenderId);
+      if (tender.award_structure !== "lots" || !bidsAreOpen(tender))
+        throw new ApiError(409, "Lot comparisons require a lot-based tender with opened bids.", "lot_model_unavailable");
+      const [{ data: lots }, { data: bids }] = await Promise.all([
+        supabaseRest<Array<{ id: string; lot_number: string; title: string }>>(
+          `procurement_tender_lots?select=id,lot_number,title&tender_id=eq.${tender.id}&order=lot_number.asc&limit=31`,
+        ),
+        supabaseRest<Array<{ id: string; supplier_organization_id: string; status: string }>>(
+          `supplier_bids?select=id,supplier_organization_id,status&tender_id=eq.${tender.id}&status=not.in.(draft,withdrawn,unsuccessful)&limit=201`,
+        ),
+      ]);
+      if (lots.length > 30 || bids.length > 200)
+        throw new ApiError(409, "This tender exceeds the comparison limit; review its bids manually.", "lot_model_limit");
+      const { data: bidLots } = bids.length
+        ? await supabaseRest<Array<{ bid_id: string; lot_id: string; price: number | null; currency: string }>>(
+            `supplier_bid_lots?select=bid_id,lot_id,price,currency&bid_id=in.(${bids.map((bid) => bid.id).join(",")})&limit=1001`,
+          )
+        : { data: [] };
+      if (bidLots.length > 1000)
+        throw new ApiError(409, "This tender exceeds the offer comparison limit; review its bids manually.", "lot_model_limit");
+      const bidMap = new Map(bids.map((bid) => [bid.id, bid]));
+      const profiles = await organisationProfiles(bids.map((bid) => bid.supplier_organization_id));
+      const offers: LotOffer[] = bidLots.flatMap((offer) => {
+        const bid = bidMap.get(offer.bid_id);
+        const price = Number(offer.price);
+        if (!bid || offer.price == null || offer.currency !== tender.currency || !Number.isFinite(price) || price < 0)
+          return [];
+        return [{
+          lotId: offer.lot_id,
+          bidId: bid.id,
+          supplierId: bid.supplier_organization_id,
+          supplierName: profiles.get(bid.supplier_organization_id)?.name || "Supplier",
+          price,
+        }];
+      });
+      const scenarios = modelLotAwards(lots.map((lot) => lot.id), offers, {
+        maxLotsPerSupplier: input.maxLotsPerSupplier,
+        minSuppliers: input.minSuppliers,
+        budgetCap: input.budgetCap ?? undefined,
+      });
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "lot_award_scenarios_modelled",
+        entityType: "procurement_tender",
+        entityId: tender.id,
+        metadata: { maxLotsPerSupplier: input.maxLotsPerSupplier, minSuppliers: input.minSuppliers, budgetCap: input.budgetCap, scenarioCount: scenarios.length },
+      });
+      return Response.json({
+        data: { lots, scenarios, currency: tender.currency, excludedOffers: bidLots.length - offers.length },
+        notice: "Exploratory price comparison only. Supplier eligibility, technical compliance, capacity and regional requirements are not verified. A buyer must review evidence and approve any award separately.",
+      }, { headers: noStore });
     }
     if (input.action === "submit_verification") {
       await requireProcurementManager(user);
