@@ -41,3 +41,9 @@ test("Taleh has a separate calling stage, handoff and post-call review", () => {
   assert.match(client, /How was your call with Taleh\?/);
   assert.match(client, /rating, pageUrl: currentPath/);
 });
+
+test("Taleh introduces herself after the caller joins", () => {
+  const start = source("app/api/ai/voice/agora/route.ts");
+  assert.match(start, /greetingMessage: "Hello and welcome to BidScope\. I'm Taleh, your AI receptionist\. How can I help you today\?"/);
+  assert.match(start, /greetingConfigs: \{ mode: "single_first", delay_ms: 1000 \}/);
+});

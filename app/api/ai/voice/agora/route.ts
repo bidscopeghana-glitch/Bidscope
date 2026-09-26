@@ -55,7 +55,8 @@ export async function POST(request: Request) {
         apiKey: bridgeToken, url: `${base}/api/ai/voice/agora/completions`, model: "bidscope-ai",
         maxHistory: 2, maxTokens: 350,
         systemMessages: [{ role: "system", content: "You are Taleh, BidScope's AI receptionist. BidScope's own AI endpoint controls every answer and permission." }],
-        greetingMessage: "Hello, I'm Taleh, your BidScope receptionist. How can I help you today?",
+        greetingMessage: "Hello and welcome to BidScope. I'm Taleh, your AI receptionist. How can I help you today?",
+        greetingConfigs: { mode: "single_first", delay_ms: 1000 },
         failureMessage: "I'm sorry, I couldn't answer that just now. Please try the text chat or contact our team.",
       }))
       .withTts(new MiniMaxTTS({ model: "speech-2.6-turbo", voiceId: "English_captivating_female1" }));
