@@ -24,6 +24,7 @@ import { bidReferencesValid, checkBidQuality } from "@/lib/bid-quality";
 import { supplierClarificationView } from "@/lib/server/procurement/clarifications";
 import { modelLotAwards, type LotOffer } from "@/lib/lot-award-scenarios";
 import { procurementReport, type ReportAward, type ReportBid, type ReportTender } from "@/lib/procurement-report";
+import { supplierReport, type SupplierReportAward, type SupplierReportBid, type SupplierReportTender } from "@/lib/supplier-report";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
@@ -452,6 +453,32 @@ export async function GET(request: Request) {
         },
         { headers: noStore },
       );
+    }
+    if (resource === "supplier_reports") {
+      if (!context.organization.can_bid)
+        throw new ApiError(403, "Activate supplier capabilities to view managed-tender performance.", "supplier_capability_required");
+      const from = params.get("from"), to = params.get("to");
+      if ((from && !z.string().date().safeParse(from).success) || (to && !z.string().date().safeParse(to).success) || (from && to && from > to))
+        throw new ApiError(400, "Choose a valid bid creation date range.", "invalid_report_filter");
+      let bidQuery = `supplier_bids?select=id,tender_id,status,created_at,submitted_at&supplier_organization_id=eq.${context.organizationId}&order=id.asc`;
+      if (from) bidQuery += `&created_at=gte.${from}T00:00:00Z`;
+      if (to) bidQuery += `&created_at=lt.${new Date(Date.parse(`${to}T00:00:00Z`) + 86400000).toISOString()}`;
+      const bids = await reportRows<SupplierReportBid>(bidQuery);
+      const tenders: SupplierReportTender[] = [], awards: SupplierReportAward[] = [];
+      for (let start = 0; start < bids.length; start += 40) {
+        const batch = bids.slice(start, start + 40);
+        const tenderIds = [...new Set(batch.map((bid) => bid.tender_id))].join(",");
+        const bidIds = batch.map((bid) => bid.id).join(",");
+        const [batchTenders, batchAwards] = await Promise.all([
+          reportRows<SupplierReportTender>(`procurement_tenders?select=id,procurement_category&id=in.(${tenderIds})&order=id.asc`),
+          reportRows<SupplierReportAward>(`procurement_awards?select=id,bid_id,approval_status,contract_value,currency&bid_id=in.(${bidIds})&approval_status=eq.finalised&order=id.asc`),
+        ]);
+        tenders.push(...batchTenders);
+        awards.push(...batchAwards);
+        if (awards.length > 2000)
+          throw new ApiError(409, "This report is too large for the current workspace view. Narrow the date filter.", "report_limit");
+      }
+      return Response.json({ data: supplierReport(bids, tenders, awards) }, { headers: noStore });
     }
     if (resource === "clarifications") {
       const tenderId = uuid.parse(params.get("tenderId")),

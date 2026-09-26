@@ -27,6 +27,7 @@ import { PushSettings } from "@/components/customer/push-settings";
 import {FeedbackPage} from "@/components/customer/feedback";
 import {ResponseLibrary} from "@/components/customer/response-library";
 import { MarketIntelligence } from "@/components/customer/market-intelligence";
+import { SupplierPerformance } from "@/components/customer/supplier-performance";
 import { DOCUMENT_CATEGORIES, type documentValidity } from "@/lib/document-passport";
 const Detail = dynamic(() => import("./detail").then((m) => m.Detail), {
   loading: Skeleton,
@@ -67,6 +68,7 @@ export function CustomerPage({
     );
   if (section === "meetings") return <MeetingsWorkspace meetingId={identifier} />;
   if (section === "messages") return <TenderChatWorkspace workspace="supplier" conversationId={identifier} />;
+  if (section === "performance") return <SupplierPerformance />;
   if (section === "profile") return <BusinessProfile />;
   if (section === "verification") return <SupplierVerification />;
   if (section === "team") return <TeamPage />;
