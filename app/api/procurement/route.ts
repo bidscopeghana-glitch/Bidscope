@@ -21,6 +21,7 @@ import {
 import { encodeFilter, supabaseRest } from "@/lib/server/supabase-rest";
 import { tenderAccessForUser } from "@/lib/server/tender-access";
 import { bidReferencesValid, checkBidQuality } from "@/lib/bid-quality";
+import { supplierClarificationView } from "@/lib/server/procurement/clarifications";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
@@ -428,23 +429,31 @@ export async function GET(request: Request) {
         tender = await tenderById(tenderId),
         isBuyer = tender.organization_id === context.organizationId;
       if (!isBuyer) {
-        const { data: bid } = await supabaseRest<unknown[]>(
-          `supplier_bids?select=id&tender_id=eq.${tenderId}&supplier_organization_id=eq.${context.organizationId}&limit=1`,
-        );
-        if (!bid.length)
+        const [{ data: bids }, { data: invitations }, { data: questions }] = await Promise.all([
+          supabaseRest<unknown[]>(
+            `supplier_bids?select=id&tender_id=eq.${tenderId}&supplier_organization_id=eq.${context.organizationId}&limit=1`,
+          ),
+          supabaseRest<unknown[]>(
+            `tender_invitations?select=id&tender_id=eq.${tenderId}&supplier_organization_id=eq.${context.organizationId}&status=neq.revoked&limit=1`,
+          ),
+          supabaseRest<unknown[]>(
+            `tender_clarifications?select=id&tender_id=eq.${tenderId}&requester_organization_id=eq.${context.organizationId}&kind=eq.supplier_question&limit=1`,
+          ),
+        ]);
+        if (!bids.length && !invitations.length && !questions.length)
           throw new ApiError(
             403,
-            "Only participating organisations can view these clarifications.",
+            "Only invited or participating organisations can view these clarifications.",
             "clarification_forbidden",
           );
       } else await requireTenderManager(user, tenderId);
       const partyFilter = isBuyer
         ? ""
-        : `&or=(requester_organization_id.eq.${context.organizationId},recipient_organization_id.eq.${context.organizationId})`;
+        : `&or=(requester_organization_id.eq.${context.organizationId},recipient_organization_id.eq.${context.organizationId},visibility.eq.all_participants,visibility.eq.public)`;
       const { data } = await supabaseRest<Array<Record<string, unknown>>>(
         `tender_clarifications?select=*&tender_id=eq.${tenderId}${partyFilter}&order=created_at.asc`,
       );
-      return Response.json({ data }, { headers: noStore });
+      return Response.json({ data: isBuyer ? data : data.map(supplierClarificationView) }, { headers: noStore });
     }
     if (resource === "awards") {
       const tenderId = uuid.parse(params.get("tenderId")),
@@ -706,6 +715,12 @@ const actionSchema = z.discriminatedUnion("action", [
     action: z.literal("respond_clarification"),
     clarificationId: uuid,
     message: z.string().trim().min(2).max(10000),
+  }),
+  z.object({
+    action: z.literal("publish_clarification"),
+    clarificationId: uuid,
+    publicQuestion: z.string().trim().min(2).max(2000),
+    answer: z.string().trim().min(2).max(10000),
   }),
   z.object({
     action: z.literal("assign_evaluator"),
@@ -1511,6 +1526,18 @@ export async function POST(request: Request) {
             "Use a buyer clarification request for this tender.",
             "invalid_clarification_party",
           );
+        if (tender.visibility === "invite_only") {
+          const { data: invitations } = await supabaseRest<unknown[]>(
+            `tender_invitations?select=id&tender_id=eq.${tender.id}&supplier_organization_id=eq.${context.organizationId}&status=neq.revoked&limit=1`,
+          );
+          if (!invitations.length) throw new ApiError(403, "An invitation is required to ask about this tender.", "invitation_required");
+        }
+        if (input.bidId) {
+          const { data: ownBid } = await supabaseRest<unknown[]>(
+            `supplier_bids?select=id&id=eq.${input.bidId}&tender_id=eq.${tender.id}&supplier_organization_id=eq.${context.organizationId}&limit=1`,
+          );
+          if (!ownBid.length) throw new ApiError(400, "The linked bid must belong to your organisation and this tender.", "invalid_clarification_bid");
+        }
         const clarificationId = crypto.randomUUID();
         await supabaseRest("tender_clarifications", {
           method: "POST",
@@ -1608,9 +1635,10 @@ export async function POST(request: Request) {
             recipient_organization_id: string | null;
             subject: string;
             status: string;
+            kind: string;
           }>
         >(
-          `tender_clarifications?select=id,tender_id,bid_id,requester_organization_id,recipient_organization_id,subject,status&id=eq.${input.clarificationId}&limit=1`,
+          `tender_clarifications?select=id,tender_id,bid_id,requester_organization_id,recipient_organization_id,subject,status,kind&id=eq.${input.clarificationId}&limit=1`,
         ),
         clarification = data[0];
       if (!clarification)
@@ -1629,6 +1657,8 @@ export async function POST(request: Request) {
           "Your organisation cannot answer this clarification.",
           "clarification_forbidden",
         );
+      if (clarification.status !== "open" || (isBuyer && clarification.kind !== "supplier_question") || (!isBuyer && clarification.kind !== "buyer_clarification"))
+        throw new ApiError(409, "This clarification is not open for a response from your organisation.", "clarification_not_open");
       if (isBuyer) await requireTenderManager(user, tender.id);
       const responseId = crypto.randomUUID(),
         recipientOrganizationId = clarification.requester_organization_id;
@@ -1680,6 +1710,84 @@ export async function POST(request: Request) {
         entityId: responseId,
       });
       return Response.json({ data: { id: responseId, status: "answered" } });
+    }
+    if (input.action === "publish_clarification") {
+      const { data: originalRows } = await supabaseRest<Array<{
+        id: string; tender_id: string; kind: string; status: string; subject: string;
+      }>>(
+        `tender_clarifications?select=id,tender_id,kind,status,subject&id=eq.${input.clarificationId}&limit=1`,
+      );
+      const original = originalRows[0];
+      if (!original || original.kind !== "supplier_question")
+        throw new ApiError(404, "Supplier question not found.", "clarification_not_found");
+      const { tender } = await requireTenderManager(user, original.tender_id);
+      const { data: earlier } = await supabaseRest<Array<{ id: string }>>(
+        `tender_clarifications?select=id&response_to_id=eq.${original.id}&visibility=eq.all_participants&limit=1`,
+      );
+      if (earlier.length) throw new ApiError(409, "This question already has a participant-wide answer.", "clarification_already_published");
+      const publicId = crypto.randomUUID();
+      await supabaseRest("tender_clarifications", {
+        method: "POST",
+        body: JSON.stringify({
+          id: publicId,
+          tender_id: tender.id,
+          bid_id: null,
+          requester_user_id: user.id,
+          requester_organization_id: tender.organization_id,
+          recipient_organization_id: null,
+          kind: "buyer_response",
+          subject: input.publicQuestion,
+          message: input.answer,
+          response_to_id: original.id,
+          visibility: "all_participants",
+          status: "answered",
+          answered_at: new Date().toISOString(),
+        }),
+      });
+      if (original.status === "open") await supabaseRest(`tender_clarifications?id=eq.${original.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "answered", answered_at: new Date().toISOString() }),
+      });
+      const [{ data: bidders }, { data: invitees }, { data: questioners }] = await Promise.all([
+        supabaseRest<Array<{ supplier_organization_id: string }>>(
+          `supplier_bids?select=supplier_organization_id&tender_id=eq.${tender.id}`,
+        ),
+        supabaseRest<Array<{ supplier_organization_id: string }>>(
+          `tender_invitations?select=supplier_organization_id&tender_id=eq.${tender.id}&status=neq.revoked`,
+        ),
+        supabaseRest<Array<{ requester_organization_id: string }>>(
+          `tender_clarifications?select=requester_organization_id&tender_id=eq.${tender.id}&kind=eq.supplier_question`,
+        ),
+      ]);
+      const participantIds = [...new Set([
+        ...bidders.map(item => item.supplier_organization_id),
+        ...invitees.map(item => item.supplier_organization_id),
+        ...questioners.map(item => item.requester_organization_id),
+      ])];
+      const notifications = await Promise.allSettled(participantIds
+        .filter(id => id !== tender.organization_id)
+        .map(organizationId => notifyOrganisation(organizationId, {
+          type: "system",
+          title: "Tender clarification published",
+          message: `A participant-wide clarification is available for ${tender.title}.`,
+          relatedEntityType: "tender_clarification",
+          relatedEntityId: publicId,
+          relatedUrl: `/customer/bidscope-tenders/${tender.id}`,
+          priority: "high",
+          frequencyOverride: "instant",
+          dedupeKey: `public-clarification-${publicId}`,
+        })));
+      const notificationFailures = notifications.filter(result => result.status === "rejected").length;
+      await audit({
+        organizationId: tender.organization_id,
+        tenderId: tender.id,
+        actorUserId: user.id,
+        action: "clarification_published",
+        entityType: "tender_clarification",
+        entityId: publicId,
+        metadata: { sourceClarificationId: original.id, audience: "all_participants", notificationFailures },
+      });
+      return Response.json({ data: { id: publicId, status: "published", notificationFailures } }, { status: 201 });
     }
     if (input.action === "assign_evaluator") {
       const { tender } = await requireTenderManager(user, input.tenderId);

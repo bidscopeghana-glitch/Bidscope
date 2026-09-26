@@ -433,7 +433,7 @@ type Clarification = {
   status: string;
   created_at: string;
   response_to_id: string | null;
-  recipient_organization_id: string | null;
+  visibility?: string;
 };
 
 function QuestionForm({
@@ -496,7 +496,7 @@ function ClarificationThread({
   if (!items.length) return null;
   return (
     <div className="mt-6">
-      <h2>Questions and clarifications</h2>
+      <h2>Questions and clarifications ({items.length})</h2>
       {items.map((item) => (
         <article className="cc-document-row" key={item.id}>
           <span>
@@ -504,7 +504,7 @@ function ClarificationThread({
             <small>{item.message}</small>
             <small>
               {new Date(item.created_at).toLocaleString("en-GB")} ·{" "}
-              {item.status}
+              {item.status} · {item.visibility === "all_participants" ? "Shared with all tender participants" : "Private thread"}
             </small>
           </span>
           {item.kind === "buyer_clarification" && item.status === "open" && (

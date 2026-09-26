@@ -133,6 +133,7 @@ type Clarification = {
   subject: string;
   message: string;
   status: string;
+  visibility: string;
   created_at: string;
   response_to_id: string | null;
 };
@@ -1488,7 +1489,9 @@ function TenderDetail({ id }: { id: string }) {
     clarifications = useData<{ data: Clarification[] }>(
       `/api/procurement?resource=clarifications&tenderId=${id}`,
     ),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(""),
+    [publishing, setPublishing] = useState<string | null>(null),
+    [publishBusy, setPublishBusy] = useState(false);
   if (result.loading) return <Loading />;
   if (result.error) return <ErrorState message={result.error} />;
   const t = result.data!.data;
@@ -1730,7 +1733,7 @@ function TenderDetail({ id }: { id: string }) {
       </section>
       <section className="pw-card mt-5">
         <h2>
-          <MessageCircleQuestion size={18} /> Questions and clarifications
+          <MessageCircleQuestion size={18} /> Questions and clarifications ({clarifications.data?.data.length || 0})
         </h2>
         {clarifications.loading ? (
           <p>Loading clarification thread…</p>
@@ -1744,7 +1747,7 @@ function TenderDetail({ id }: { id: string }) {
                 <small>{item.message}</small>
                 <small>
                   {new Date(item.created_at).toLocaleString("en-GB")} ·{" "}
-                  {item.status}
+                  {item.status} · {item.visibility === "all_participants" ? "Published to participants" : "Private"}
                 </small>
               </span>
               {item.kind === "supplier_question" && item.status === "open" && (
@@ -1769,6 +1772,35 @@ function TenderDetail({ id }: { id: string }) {
                   Respond
                 </button>
               )}
+              {item.kind === "supplier_question" && !clarifications.data?.data.some(response => response.visibility === "all_participants" && response.response_to_id === item.id) && (
+                <button className="pw-button" type="button" onClick={() => setPublishing(current => current === item.id ? null : item.id)}>
+                  {publishing === item.id ? "Cancel publication" : "Publish anonymised Q&A"}
+                </button>
+              )}
+              {publishing === item.id && <form className="w-full space-y-3 rounded-xl border p-4" onSubmit={async event => {
+                event.preventDefault();
+                if (!window.confirm("Publish this edited question and answer to every invited or participating supplier? Check that no supplier identity or confidential detail remains.")) return;
+                setPublishBusy(true);
+                const form = new FormData(event.currentTarget);
+                try {
+                  const response = await api<{data:{notificationFailures:number}}>("/api/procurement", {
+                    action: "publish_clarification",
+                    clarificationId: item.id,
+                    publicQuestion: form.get("publicQuestion"),
+                    answer: form.get("answer"),
+                  });
+                  setMessage(response.data.notificationFailures ? "Clarification published, but some participant notifications failed. Review the notification queue." : "Anonymised clarification published to tender participants.");
+                  setPublishing(null);
+                  invalidate();
+                } catch (error) { setMessage((error as Error).message); }
+                finally { setPublishBusy(false); }
+              }}>
+                <p className="text-sm">Write a fresh, anonymous version of the question. The supplier’s private message is never copied automatically.</p>
+                <label className="block text-sm font-bold">Public question<textarea className="mt-2 w-full rounded-xl border bg-white p-3" name="publicQuestion" required minLength={2} maxLength={2000} rows={3} /></label>
+                <label className="block text-sm font-bold">Answer for all participants<textarea className="mt-2 w-full rounded-xl border bg-white p-3" name="answer" required minLength={2} maxLength={10000} rows={5} /></label>
+                <label className="flex items-start gap-2 text-sm"><input type="checkbox" required />I have removed supplier identity and confidential details and checked this answer is suitable for every participant.</label>
+                <button className="pw-button primary" disabled={publishBusy}>{publishBusy ? "Publishing…" : "Publish to participants"}</button>
+              </form>}
             </article>
           ))
         ) : (
