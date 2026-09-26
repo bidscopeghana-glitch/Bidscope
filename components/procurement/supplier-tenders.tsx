@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState, type RefObject } from "react";
 import {
   BadgeCheck,
   BriefcaseBusiness,
@@ -17,6 +17,8 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { api, downloadAuthenticatedFile, invalidate, uploadAuthenticatedFile, useData } from "@/components/customer/data";
+import { useAccount } from "@/components/customer/shell";
+import { approvedAnswerOptions, type AnswerVersion, type LibraryAnswer } from "@/lib/response-library";
 
 type Tender = {
   id: string;
@@ -623,6 +625,7 @@ function BidDocuments({
 }
 
 function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
+  const formRef = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [review, setReview] = useState(false);
@@ -685,7 +688,7 @@ function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
       aria-modal="true"
       aria-label="Structured bid submission"
     >
-      <form onSubmit={(e) => void save(e, false)}>
+      <form ref={formRef} onSubmit={(e) => void save(e, false)}>
         <header>
           <div>
             <p className="cc-eyebrow">STRUCTURED BID</p>
@@ -725,6 +728,7 @@ function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
             <input name="bidValidityDays" type="number" min="1" max="730" />
           </label>
         </div>
+        <ApprovedAnswerInserter tender={tender} formRef={formRef} onInsert={() => setReview(false)} />
         <label>
           Technical response
           <textarea required name="technicalResponse" rows={5} />
@@ -815,4 +819,34 @@ function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
       </form>
     </div>
   );
+}
+
+function ApprovedAnswerInserter({tender,formRef,onInsert}:{tender:Tender;formRef:RefObject<HTMLFormElement|null>;onInsert:()=>void}){
+  const {organization}=useAccount();
+  const [open,setOpen]=useState(false),[versionId,setVersionId]=useState(""),[target,setTarget]=useState("technicalResponse"),[notice,setNotice]=useState("");
+  const result=useData<{data:LibraryAnswer[];versions:AnswerVersion[]}>(open&&organization?`/api/response-library?organizationId=${organization.id}`:null);
+  const options=approvedAnswerOptions(result.data?.data||[],result.data?.versions||[]);
+  const selected=options.find(option=>option.version.id===versionId);
+  const fields=[{name:"technicalResponse",label:"Technical response"},{name:"methodologyResponse",label:"Methodology / proposal"},{name:"experienceResponse",label:"Relevant experience"},...tender.requirements.map(requirement=>({name:`requirement-${requirement.id}`,label:`Requirement: ${requirement.title}`}))];
+  function insert(){
+    if(!selected||selected.needsReview)return;
+    const field=formRef.current?.elements.namedItem(target);
+    if(!(field instanceof HTMLTextAreaElement)){setNotice("Choose a response field before inserting.");return;}
+    const existing=field.value.trimEnd();
+    field.value=`${existing}${existing?"\n\n":""}${selected.version.content}`;
+    field.dispatchEvent(new Event("input",{bubbles:true}));
+    field.focus();field.setSelectionRange(field.value.length,field.value.length);
+    onInsert();
+    setNotice(`Inserted approved version ${selected.version.version} into ${fields.find(item=>item.name===target)?.label||"the response"}. Adapt it to this tender and check every claim before submitting.`);
+  }
+  return <section className="cc-editor" aria-label="Approved answer library">
+    <div className="cc-inline-actions"><div><h3>Use an approved company answer</h3><p>Insert a reviewed starting point into this bid. Your master answer remains unchanged.</p></div><button type="button" className="cc-button" aria-expanded={open} onClick={()=>setOpen(value=>!value)}>{open?"Hide library":"Browse approved answers"}</button></div>
+    {open&&<>{!organization?<p>Add a company profile before using shared answers.</p>:result.loading?<p>Loading approved answers…</p>:result.error?<p role="alert" className="cc-error">{result.error} <Link href="/customer/answers">Open answer library</Link></p>:options.length===0?<p>No approved answers yet. <Link href="/customer/answers">Create and approve one in your answer library.</Link></p>:<>
+      <div className="cc-meet-form-grid"><label>Approved answer<select value={versionId} onChange={event=>{setVersionId(event.target.value);setNotice("");}}><option value="">Select an answer</option>{options.map(({answer,version,needsReview})=><option key={version.id} value={version.id} disabled={needsReview}>{answer.title} · v{version.version}{needsReview?" · review overdue":""}</option>)}</select></label><label>Insert into<select value={target} onChange={event=>setTarget(event.target.value)}>{fields.map(field=><option key={field.name} value={field.name}>{field.label}</option>)}</select></label></div>
+      {selected&&<p>{selected.answer.category} · Approved version {selected.version.version}. Inserted text is editable in this bid only.</p>}
+      <button type="button" className="cc-button" disabled={!selected||selected.needsReview} onClick={insert}>Insert into bid</button>
+      <p>Answers due for review cannot be inserted. <Link href="/customer/answers">Manage answer approvals</Link>.</p>
+    </>}</>}
+    {notice&&<p role="status" className="cc-form-note">{notice}</p>}
+  </section>;
 }
