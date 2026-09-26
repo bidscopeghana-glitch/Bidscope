@@ -20,6 +20,7 @@ import {
 } from "@/lib/server/procurement/schemas";
 import { encodeFilter, supabaseRest } from "@/lib/server/supabase-rest";
 import { tenderAccessForUser } from "@/lib/server/tender-access";
+import { bidReferencesValid, checkBidQuality } from "@/lib/bid-quality";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
@@ -1265,6 +1266,22 @@ export async function POST(request: Request) {
           "Submitted bids can only be amended by submitting a new version.",
           "bid_already_submitted",
         );
+      const [{ data: requirements }, { data: lots }, { data: criteria }] = await Promise.all([
+        supabaseRest<Array<{ id: string; title: string; mandatory: boolean }>>(
+          `procurement_requirements?select=id,title,mandatory&tender_id=eq.${tender.id}`,
+        ),
+        supabaseRest<Array<{ id: string }>>(
+          `procurement_tender_lots?select=id&tender_id=eq.${tender.id}`,
+        ),
+        supabaseRest<Array<{ id: string }>>(
+          `procurement_evaluation_criteria?select=id&tender_id=eq.${tender.id}`,
+        ),
+      ]);
+      if (!bidReferencesValid(value, {
+        requirementIds: requirements.map(item => item.id),
+        criterionIds: criteria.map(item => item.id),
+        lotIds: lots.map(item => item.id),
+      })) throw new ApiError(400, "Bid responses must reference unique requirements, criteria and lots on this tender.", "invalid_bid_reference");
       if (value.submit) {
         if(tender.supplier_verification_requirement!=="any"){
           const {data:verification}=await supabaseRest<Array<{level:string;expires_at:string|null}>>(`supplier_verification_status?select=level,expires_at&organization_id=eq.${context.organizationId}&limit=1`);
@@ -1286,19 +1303,25 @@ export async function POST(request: Request) {
                 `supplier_bid_documents?select=required_document_id&bid_id=eq.${bidId}`,
               )
             : { data: [] },
-          uploadedIds = new Set(
-            uploadedDocuments
-              .map((document) => document.required_document_id)
-              .filter(Boolean),
-          ),
-          missing = mandatoryDocuments.filter(
-            (document) => !uploadedIds.has(document.id),
-          );
-        if (missing.length)
+          uploadedIds = uploadedDocuments.map(document => document.required_document_id).filter((id): id is string => Boolean(id)),
+          missingDocuments = mandatoryDocuments.filter(document => !uploadedIds.includes(document.id)),
+          report = checkBidQuality(value, {
+            requirements,
+            requiredDocuments: mandatoryDocuments.map(document => ({ ...document, mandatory: true })),
+            uploadedDocumentIds: uploadedIds,
+            lotIds: lots.map(lot => lot.id),
+          });
+        if (missingDocuments.length)
           throw new ApiError(
             409,
-            `Upload all mandatory documents before submitting: ${missing.map((document) => document.name).join(", ")}. Save a draft first if this is a new bid.`,
+            `Upload all mandatory documents before submitting: ${missingDocuments.map(document => document.name).join(", ")}. Save a draft first if this is a new bid.`,
             "mandatory_documents_missing",
+          );
+        if (report.critical.length)
+          throw new ApiError(
+            409,
+            `Resolve these critical bid issues before submitting: ${report.critical.join(" ")}`,
+            "bid_quality_failed",
           );
       }
       const row = {

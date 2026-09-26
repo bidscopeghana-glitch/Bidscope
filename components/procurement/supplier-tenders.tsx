@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   BadgeCheck,
   BriefcaseBusiness,
@@ -19,6 +19,7 @@ import {
 import { api, downloadAuthenticatedFile, invalidate, uploadAuthenticatedFile, useData } from "@/components/customer/data";
 import { useAccount } from "@/components/customer/shell";
 import { approvedAnswerOptions, type AnswerVersion, type LibraryAnswer } from "@/lib/response-library";
+import { checkBidQuality, type BidQualityReport } from "@/lib/bid-quality";
 
 type Tender = {
   id: string;
@@ -626,52 +627,69 @@ function BidDocuments({
 
 function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const qualityRef = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [review, setReview] = useState(false);
-  async function save(event: FormEvent<HTMLFormElement>, submit: boolean) {
-    event.preventDefault();
-    if (submit && !review) {
-      setReview(true);
-      return;
+    [review, setReview] = useState(false),
+    [quality, setQuality] = useState<BidQualityReport | null>(null);
+  useEffect(() => { if (review) qualityRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [review]);
+  async function save(form: HTMLFormElement, submit: boolean) {
+    const f = new FormData(form);
+    const bid = {
+      tenderId: tender.id,
+      bidPrice: f.get("bidPrice") ? Number(f.get("bidPrice")) : null,
+      currency: f.get("currency") || tender.currency,
+      priceBreakdown: [],
+      deliveryPeriod: f.get("deliveryPeriod") || null,
+      bidValidityDays: f.get("bidValidityDays")
+        ? Number(f.get("bidValidityDays"))
+        : null,
+      technicalResponse: String(f.get("technicalResponse") || ""),
+      methodologyResponse: String(f.get("methodologyResponse") || ""),
+      experienceResponse: String(f.get("experienceResponse") || ""),
+      complianceDeclarations: { confirmed: f.get("compliance") === "on" },
+      notes: f.get("notes") || "",
+      lotResponses: tender.lots
+        .filter((l) => f.get(`lot-${l.id}`) === "on")
+        .map((l) => ({
+          lotId: l.id,
+          price: f.get(`price-${l.id}`)
+            ? Number(f.get(`price-${l.id}`))
+            : null,
+          currency: String(f.get("currency") || tender.currency),
+          response: String(f.get(`response-${l.id}`) || ""),
+        })),
+      responses: tender.requirements.map((r) => ({
+        requirementId: r.id,
+        responseText: String(f.get(`requirement-${r.id}`) || ""),
+        declaration: f.get(`declare-${r.id}`) === "on",
+      })),
+      submit,
+    };
+    if (submit) {
+      const report = checkBidQuality(bid, {
+        requirements: tender.requirements,
+        requiredDocuments: tender.requiredDocuments,
+        uploadedDocumentIds: (tender.currentBid?.documents || []).map(document => document.required_document_id).filter((id): id is string => Boolean(id)),
+        lotIds: tender.lots.map(lot => lot.id),
+      });
+      setQuality(report);
+      if (!review) {
+        setReview(true);
+        setError("");
+        return;
+      }
+      if (report.critical.length) {
+        setError("Resolve the critical issues before submitting. You may save an incomplete draft.");
+        return;
+      }
     }
     setBusy(true);
     setError("");
-    const f = new FormData(event.currentTarget);
     try {
       await api("/api/procurement", {
         action: "save_bid",
-        bid: {
-          tenderId: tender.id,
-          bidPrice: f.get("bidPrice") ? Number(f.get("bidPrice")) : null,
-          currency: f.get("currency") || tender.currency,
-          priceBreakdown: [],
-          deliveryPeriod: f.get("deliveryPeriod") || null,
-          bidValidityDays: f.get("bidValidityDays")
-            ? Number(f.get("bidValidityDays"))
-            : null,
-          technicalResponse: f.get("technicalResponse") || "",
-          methodologyResponse: f.get("methodologyResponse") || "",
-          experienceResponse: f.get("experienceResponse") || "",
-          complianceDeclarations: { confirmed: f.get("compliance") === "on" },
-          notes: f.get("notes") || "",
-          lotResponses: tender.lots
-            .filter((l) => f.get(`lot-${l.id}`) === "on")
-            .map((l) => ({
-              lotId: l.id,
-              price: f.get(`price-${l.id}`)
-                ? Number(f.get(`price-${l.id}`))
-                : null,
-              currency: String(f.get("currency") || tender.currency),
-              response: String(f.get(`response-${l.id}`) || ""),
-            })),
-          responses: tender.requirements.map((r) => ({
-            requirementId: r.id,
-            responseText: String(f.get(`requirement-${r.id}`) || ""),
-            declaration: f.get(`declare-${r.id}`) === "on",
-          })),
-          submit,
-        },
+        bid,
       });
       invalidate();
       close();
@@ -688,7 +706,7 @@ function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
       aria-modal="true"
       aria-label="Structured bid submission"
     >
-      <form ref={formRef} onSubmit={(e) => void save(e, false)}>
+      <form ref={formRef} onSubmit={(e) => { e.preventDefault(); void save(e.currentTarget, false); }} onInput={() => { setReview(false); setQuality(null); }}>
         <header>
           <div>
             <p className="cc-eyebrow">STRUCTURED BID</p>
@@ -706,6 +724,14 @@ function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
             version.
           </div>
         )}
+        {review && quality && <section ref={qualityRef} className="cc-editor" aria-label="Bid quality report">
+          <h3>Pre-submission check</h3>
+          <p>Checks structured fields and uploaded document slots only. Review the actual files, claims, signatures, dates, addenda and buyer instructions yourself.</p>
+          {quality.critical.length>0&&<div role="alert"><h4>Critical issues ({quality.critical.length})</h4><ul>{quality.critical.map(issue=><li key={issue}>{issue}</li>)}</ul></div>}
+          {quality.warnings.length>0&&<div><h4>Warnings ({quality.warnings.length})</h4><ul>{quality.warnings.map(issue=><li key={issue}>{issue}</li>)}</ul></div>}
+          {quality.suggestions.length>0&&<div><h4>Suggestions</h4><ul>{quality.suggestions.map(issue=><li key={issue}>{issue}</li>)}</ul></div>}
+          {quality.passed.length>0&&<div><h4>Passed checks</h4><ul>{quality.passed.map(issue=><li key={issue}>{issue}</li>)}</ul></div>}
+        </section>}
         <div className="cc-meet-form-grid">
           <label>
             Bid price
@@ -731,7 +757,7 @@ function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
         <ApprovedAnswerInserter tender={tender} formRef={formRef} onInsert={() => setReview(false)} />
         <label>
           Technical response
-          <textarea required name="technicalResponse" rows={5} />
+          <textarea name="technicalResponse" rows={5} />
         </label>
         <label>
           Methodology / proposal
@@ -750,7 +776,6 @@ function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
             <label>
               Your response
               <textarea
-                required={r.mandatory}
                 name={`requirement-${r.id}`}
                 rows={3}
               />
@@ -785,7 +810,7 @@ function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
           <textarea name="notes" rows={3} />
         </label>
         <label className="cc-checkbox-row">
-          <input required type="checkbox" name="compliance" />I confirm the
+          <input type="checkbox" name="compliance" />I confirm the
           information is accurate and I am authorised to submit it.
         </label>
         {error && <ErrorBox message={error} />}
@@ -802,14 +827,7 @@ function BidForm({ tender, close }: { tender: Tender; close: () => void }) {
             className="cc-button primary"
             onClick={(e) => {
               const form = e.currentTarget.form;
-              if (form)
-                void save(
-                  {
-                    preventDefault: () => {},
-                    currentTarget: form,
-                  } as unknown as FormEvent<HTMLFormElement>,
-                  true,
-                );
+              if (form) void save(form, true);
             }}
           >
             <Send size={15} />
