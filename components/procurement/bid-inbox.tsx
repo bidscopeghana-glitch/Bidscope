@@ -76,6 +76,20 @@ export function ProcurementBidInbox() {
     awards = useData<{ data: Award[] }>(
       tenderId ? `/api/procurement?resource=awards&tenderId=${tenderId}` : null,
     ),
+    history = useData<{ data: Array<{
+      id: number;
+      created_at: string;
+      metadata: {
+        currency?: string;
+        maxLotsPerSupplier?: number;
+        minSuppliers?: number;
+        budgetCap?: number | null;
+        excludedOffers?: number;
+        scenarios?: Array<{ name: string; method: string; total: number; supplierCount: number }>;
+      };
+    }> }>(tenderId && result.data && !result.data.meta.sealed
+      ? `/api/procurement?resource=lot_scenario_history&tenderId=${tenderId}`
+      : null),
     [selected, setSelected] = useState<string[]>([]),
     [query, setQuery] = useState(""),
     [statusFilter, setStatusFilter] = useState("all"),
@@ -230,6 +244,7 @@ export function ProcurementBidInbox() {
       });
       setLotModel({ ...response.data, tenderId: tender.id });
       setMessage("");
+      invalidate();
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -385,6 +400,23 @@ export function ProcurementBidInbox() {
                   ))}
                   <p className="mt-3">A buyer must assess all mandatory evidence and approve any award through the separate award workflow.</p>
                 </div>
+              )}
+              {!!history.data?.data.length && (
+                <details className="mt-5 rounded-xl border p-4">
+                  <summary className="cursor-pointer font-bold">Previous comparisons ({history.data.data.length})</summary>
+                  <p className="mt-2">These are audit records of price models, not approved award decisions.</p>
+                  <ul className="mt-3 space-y-3">
+                    {history.data.data.map((entry) => (
+                      <li className="rounded-xl border bg-white p-3" key={entry.id}>
+                        <strong>{new Date(entry.created_at).toLocaleString("en-GB")}</strong>
+                        <p>Maximum {entry.metadata.maxLotsPerSupplier ?? "—"} lots per supplier · Minimum {entry.metadata.minSuppliers ?? "—"} suppliers · Budget {entry.metadata.budgetCap == null ? "not set" : `${entry.metadata.currency || tender.currency} ${entry.metadata.budgetCap.toLocaleString()}`}</p>
+                        {entry.metadata.scenarios?.length ? entry.metadata.scenarios.map((scenario) => (
+                          <p key={scenario.name}>{scenario.name}: {entry.metadata.currency || tender.currency} {scenario.total.toLocaleString()} across {scenario.supplierCount} supplier(s). {scenario.method}</p>
+                        )) : <p>No scenario details were recorded for this comparison.</p>}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               )}
             </section>
           )}

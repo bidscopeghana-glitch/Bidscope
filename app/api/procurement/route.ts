@@ -405,6 +405,21 @@ export async function GET(request: Request) {
         { headers: noStore },
       );
     }
+    if (resource === "lot_scenario_history") {
+      const tenderId = uuid.parse(params.get("tenderId"));
+      const { tender } = await requireTenderManager(user, tenderId);
+      if (tender.award_structure !== "lots" || !bidsAreOpen(tender))
+        throw new ApiError(409, "Lot comparison history is available after bid opening.", "lot_model_unavailable");
+      const { data } = await supabaseRest<Array<{
+        id: number;
+        created_at: string;
+        actor_user_id: string | null;
+        metadata: Record<string, unknown>;
+      }>>(
+        `procurement_audit_logs?select=id,created_at,actor_user_id,metadata&tender_id=eq.${tender.id}&action=eq.lot_award_scenarios_modelled&order=created_at.desc&limit=10`,
+      );
+      return Response.json({ data }, { headers: noStore });
+    }
     if (resource === "my_bids") {
       const { data } = await supabaseRest<Array<Record<string, unknown>>>(
         `supplier_bids?select=*&supplier_organization_id=eq.${context.organizationId}&order=updated_at.desc&limit=200`,
@@ -901,7 +916,26 @@ export async function POST(request: Request) {
         action: "lot_award_scenarios_modelled",
         entityType: "procurement_tender",
         entityId: tender.id,
-        metadata: { maxLotsPerSupplier: input.maxLotsPerSupplier, minSuppliers: input.minSuppliers, budgetCap: input.budgetCap, scenarioCount: scenarios.length },
+        metadata: {
+          modelVersion: 1,
+          currency: tender.currency,
+          maxLotsPerSupplier: input.maxLotsPerSupplier,
+          minSuppliers: input.minSuppliers,
+          budgetCap: input.budgetCap,
+          excludedOffers: bidLots.length - offers.length,
+          scenarios: scenarios.map((scenario) => ({
+            name: scenario.name,
+            method: scenario.method,
+            total: scenario.total,
+            supplierCount: scenario.supplierCount,
+            allocations: scenario.allocations.map((offer) => ({
+              lotId: offer.lotId,
+              bidId: offer.bidId,
+              supplierId: offer.supplierId,
+              price: offer.price,
+            })),
+          })),
+        },
       });
       return Response.json({
         data: { lots, scenarios, currency: tender.currency, excludedOffers: bidLots.length - offers.length },
