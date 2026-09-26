@@ -6,7 +6,7 @@ This is an interim source audit and implementation checkpoint, not a complete pr
 
 | Feature | Before | Work/evidence in this checkpoint | Status / remaining work |
 |---|---|---|---|
-| 1 Go/No-Go | Partial: retention engine, persisted bid decisions and UI | Documents now evaluated through deadline; explicit certification gaps prevent GO; invalid deadlines remain unknown | PARTIAL: full requirement mapping, financial prerequisites and multi-role journey outstanding |
+| 1 Go/No-Go | Partial: retention engine, persisted bid decisions and UI | Documents now evaluated through deadline; explicit certification gaps prevent GO; invalid deadlines remain unknown; GHS value preferences are no longer compared with foreign or unconfirmed currencies | PARTIAL: full requirement mapping, published financial prerequisites, currency conversion and multi-role journey outstanding |
 | 5 Competitor intelligence | Partial: awards/supplier data | Existing public awards reviewed | PARTIAL: comparisons and market-active company profiles outstanding |
 | 6 Buyer intelligence | Partial: buyer directory, opportunities, awards, follows | Existing buyer API and follow notifications inspected | PARTIAL: complete profiles, spending/cycle statistics outstanding |
 | 7 Upcoming radar | Partial: official upcoming signals | Existing retention/radar tables and generation inspected | PARTIAL: evidence-backed historical signals outstanding |

@@ -9,6 +9,14 @@ const opportunity:RetentionOpportunity={id:"opp",slug:"solar",title:"Solar elect
 
 test("retention assessment produces an explainable positive decision from known evidence",()=>{const result=calculateRetentionAssessment(profile,opportunity,[{id:"doc",document_type:"certificate",title:"Electrical Wiring Certificate",expires_at:null,verification_status:"verified"}]);assert.ok((result.overallScore||0)>=70);assert.ok(["GO","STRONG_GO"].includes(result.decision));assert.ok(result.reasons.length>0);assert.equal(result.components.eligibility,100);});
 test("a published eligibility restriction is a hard no-go",()=>{const result=calculateRetentionAssessment(profile,{...opportunity,eligibility_status:"RESTRICTED"});assert.equal(result.decision,"NO_GO");assert.equal(result.components.eligibility,0);});
+test("foreign or unconfirmed tender currency is not compared with a GHS value preference",()=>{
+ for(const currency of ["USD",null]){
+  const result=calculateRetentionAssessment(profile,{...opportunity,currency});
+  assert.equal(result.components.financialFit,null);
+  assert.ok(result.concerns.some(concern=>concern.includes("cannot be compared")));
+  assert.ok(!result.reasons.some(reason=>reason.includes("value matches")));
+ }
+});
 test("readiness score is evidence-based and gives actionable gaps",()=>{const result=calculateBusinessReadiness({...profile,certifications:[]},[]);assert.ok(result.overallScore>0&&result.overallScore<100);assert.ok(result.recommendations.some(item=>item.category==="certifications"));assert.ok(result.recommendations.some(item=>item.category==="tenderDocuments"));});
 test("stronger business evidence improves readiness",()=>{const sparse=calculateBusinessReadiness({...profile,registration_number:null,website:null,phone:null,sectors:[],services:[],certifications:[],previous_contracts:[]},[]);const complete=calculateBusinessReadiness(profile,[{id:"doc",document_type:"registration",title:"Registration",expires_at:null,verification_status:"verified"}]);assert.ok(complete.overallScore>sparse.overallScore);});
 test("closed opportunities can never receive a go decision",()=>{const result=calculateRetentionAssessment(profile,{...opportunity,status:"CLOSED"});assert.equal(result.decision,"NO_GO");assert.equal(result.overallScore,0);});

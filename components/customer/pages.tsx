@@ -352,7 +352,7 @@ function BusinessProfile() {
             </label>
           )}
           <label>
-            Minimum preferred contract value
+            Minimum preferred contract value (GHS)
             <input
               type="number"
               min="0"
@@ -361,7 +361,7 @@ function BusinessProfile() {
             />
           </label>
           <label>
-            Maximum preferred contract value
+            Maximum preferred contract value (GHS)
             <input
               type="number"
               min="0"
@@ -369,6 +369,7 @@ function BusinessProfile() {
               defaultValue={organization?.preferred_maximum_value ?? ""}
             />
           </label>
+          <p className="cc-quiet">These preferences are compared only with tender values published in GHS. Review existing figures if you entered them in another currency.</p>
           <label>
             Annual turnover minimum
             <input

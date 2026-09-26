@@ -47,8 +47,9 @@ export function calculateRetentionAssessment(profile:Organization, opportunity:R
  if(missingCertifications.length){eligibility=eligibility===0?0:50;concerns.unshift(`Published certifications not recorded in your profile: ${missingCertifications.join(", ")}. Add evidence or confirm equivalence with the buyer.`);}
  let financialFit:number|null=null;
  const value=numberValue(opportunity.estimated_value),min=numberValue(profile.preferred_minimum_value),max=numberValue(profile.preferred_maximum_value);
- if(value!==null&&(min!==null||max!==null)){financialFit=(min===null||value>=min)&&(max===null||value<=max)?100:25;if(financialFit===100)reasons.push("Estimated contract value falls within your preferred range");else concerns.push("Estimated contract value is outside your preferred range");}
- else if(value===null)concerns.push("Contract value was not published, so financial fit is unknown");
+ if(value!==null&&(min!==null||max!==null)&&opportunity.currency?.toUpperCase()==="GHS"){financialFit=(min===null||value>=min)&&(max===null||value<=max)?100:25;if(financialFit===100)reasons.push("Estimated contract value falls within your GHS preferred range");else concerns.push("Estimated contract value is outside your GHS preferred range");}
+ else if(value===null)concerns.push("Contract value was not published, so value preference fit is unknown");
+ else if((min!==null||max!==null)&&opportunity.currency?.toUpperCase()!=="GHS")concerns.push("Tender currency is not confirmed as GHS; the contract value cannot be compared with your GHS preferred range");
  const pastText=normal(JSON.stringify(profile.previous_contracts||[]));
  const experienceOverlap=pastText&&pastText!=="[]"?overlap([opportunity.sector||"",opportunity.category,opportunity.buyer_name],pastText):null;
  const experienceFit=experienceOverlap===null?null:Math.round(Math.min(1,experienceOverlap)*100);
