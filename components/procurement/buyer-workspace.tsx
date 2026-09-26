@@ -2052,33 +2052,66 @@ function Suppliers() {
   );
 }
 function Reports() {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [category, setCategory] = useState("");
+  const [applied, setApplied] = useState({ from: "", to: "", category: "" });
+  const query = new URLSearchParams({ resource: "reports" });
+  if (applied.from) query.set("from", applied.from);
+  if (applied.to) query.set("to", applied.to);
+  if (applied.category) query.set("category", applied.category);
   const result = useData<{
     data: {
-      tenders: number;
-      active: number;
-      bids: number;
-      uniqueSuppliers: number;
-      averageBids: number;
-      awards: Array<{ contract_value: number; currency: string }>;
-      categories: Record<string, Tender[]>;
+      counts: {
+        tenders: number; active: number; completed: number; cancelled: number;
+        published: number; bidsSubmitted: number; uniqueSuppliers: number;
+        averageBids: number; tenderResponseRate: number; averageCycleDays: number | null;
+      };
+      spendByCurrency: Array<{ currency: string; amount: number }>;
+      supplierConcentration: Array<{ currency: string; topSupplierShare: number }>;
+      categories: Array<{ name: string; tenders: number; submittedBids: number }>;
+      monthlyTenders: Array<{ month: string; count: number }>;
     };
-  }>("/api/procurement?resource=reports");
+  }>(`/api/procurement?${query.toString()}`);
   if (result.loading) return <Loading />;
   if (result.error) return <ErrorState message={result.error} />;
   const d = result.data!.data;
+  const maxMonthly = Math.max(1, ...d.monthlyTenders.map((row) => row.count));
   return (
     <>
       <Heading
         title="Procurement reports"
-        description="Organisation-specific participation, cycle and award indicators from live BidScope records."
+        description="Organisation-specific activity from BidScope-managed tenders. Filters use tender creation date; spend is from their finalised awards only."
       />
+      <section className="pw-card mt-5">
+        <h2>Filter this report</h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          <label className="text-sm font-bold">Created from
+            <input className="mt-2 w-full rounded-xl border bg-white p-3" type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} />
+          </label>
+          <label className="text-sm font-bold">Created through
+            <input className="mt-2 w-full rounded-xl border bg-white p-3" type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} />
+          </label>
+          <label className="text-sm font-bold">Exact category
+            <input className="mt-2 w-full rounded-xl border bg-white p-3" value={category} maxLength={160} onChange={(event) => setCategory(event.target.value)} placeholder="All categories" />
+          </label>
+        </div>
+        <div className="pw-actions mt-3">
+          <button className="pw-button primary" disabled={Boolean(from && to && from > to)} onClick={() => setApplied({ from, to, category: category.trim() })}>Apply filters</button>
+          <button className="pw-button" onClick={() => { setFrom(""); setTo(""); setCategory(""); setApplied({ from: "", to: "", category: "" }); }}>Clear filters</button>
+        </div>
+      </section>
       <div className="pw-grid">
         {[
-          ["Tenders", d.tenders],
-          ["Active", d.active],
-          ["Bids", d.bids],
-          ["Suppliers", d.uniqueSuppliers],
-          ["Average bids", d.averageBids],
+          ["Tenders", d.counts.tenders],
+          ["Active", d.counts.active],
+          ["Awarded", d.counts.completed],
+          ["Cancelled", d.counts.cancelled],
+          ["Submitted bids", d.counts.bidsSubmitted],
+          ["Participating suppliers", d.counts.uniqueSuppliers],
+          ["Average bids / published tender", d.counts.averageBids],
+          ["Tenders receiving a bid", `${d.counts.tenderResponseRate}%`],
+          ["Average publication-to-award", d.counts.averageCycleDays == null ? "—" : `${d.counts.averageCycleDays} days`],
         ].map(([l, v]) => (
           <div className="pw-stat" key={l}>
             <strong>{v}</strong>
@@ -2086,19 +2119,39 @@ function Reports() {
           </div>
         ))}
       </div>
-      <section className="pw-card">
-        <h2>Category breakdown</h2>
-        {Object.entries(d.categories).length ? (
-          Object.entries(d.categories).map(([category, items]) => (
-            <div className="pw-row" key={category}>
-              <span>{category}</span>
-              <strong>{items.length}</strong>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="pw-card">
+          <h2>Finalised contract value</h2>
+          <p>Separate currencies are never added together.</p>
+          {d.spendByCurrency.length ? d.spendByCurrency.map((row) => (
+            <div className="pw-row" key={row.currency}><span>{row.currency}</span><strong>{row.amount.toLocaleString()}</strong></div>
+          )) : <p>No finalised awards in this selection.</p>}
+        </section>
+        <section className="pw-card">
+          <h2>Supplier concentration</h2>
+          <p>Share of finalised contract value held by the highest-value supplier, per currency.</p>
+          {d.supplierConcentration.length ? d.supplierConcentration.map((row) => (
+            <div className="pw-row" key={row.currency}><span>{row.currency}</span><strong>{row.topSupplierShare}%</strong></div>
+          )) : <p>No finalised awards to compare.</p>}
+        </section>
+        <section className="pw-card">
+          <h2>Category breakdown</h2>
+          {d.categories.length ? d.categories.map((row) => (
+            <div className="pw-row" key={row.name}><span>{row.name}</span><strong>{row.tenders} tenders · {row.submittedBids} bids</strong></div>
+          )) : <p>No procurement data for this selection.</p>}
+        </section>
+        <section className="pw-card">
+          <h2>Tenders created by month</h2>
+          {d.monthlyTenders.length ? d.monthlyTenders.slice(-12).map((row) => (
+            <div className="pw-row" key={row.month}>
+              <span>{row.month}</span>
+              <span className="flex min-w-32 items-center gap-2"><span className="h-2 rounded-full bg-emerald-600" style={{ width: `${Math.max(5, row.count / maxMonthly * 100)}%` }} /><strong>{row.count}</strong></span>
             </div>
-          ))
-        ) : (
-          <p>No procurement data yet.</p>
-        )}
-      </section>
+          )) : <p>No tenders created in this selection.</p>}
+          {d.monthlyTenders.length > 12 && <p>Showing the latest 12 active months.</p>}
+        </section>
+      </div>
+      <p className="mt-4 text-sm text-[#5f7169]">These figures describe recorded BidScope procurements, not external tenders. No CSV export is offered.</p>
     </>
   );
 }

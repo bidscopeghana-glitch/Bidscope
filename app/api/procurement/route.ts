@@ -23,11 +23,24 @@ import { tenderAccessForUser } from "@/lib/server/tender-access";
 import { bidReferencesValid, checkBidQuality } from "@/lib/bid-quality";
 import { supplierClarificationView } from "@/lib/server/procurement/clarifications";
 import { modelLotAwards, type LotOffer } from "@/lib/lot-award-scenarios";
+import { procurementReport, type ReportAward, type ReportBid, type ReportTender } from "@/lib/procurement-report";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
 const tenderSelect =
   "id,organization_id,created_by,owner_user_id,title,reference_number,description,tender_type,procurement_category,classification,location,currency,estimated_budget,issue_date,clarification_deadline,submission_deadline,expected_award_date,expected_contract_start_date,eligibility_requirements,technical_requirements,commercial_requirements,delivery_requirements,terms_and_conditions,procurement_owner_name,procurement_owner_email,award_structure,bid_opening_model,visibility,supplier_verification_requirement,questions_allowed,supplier_identity_visible_before_opening,withdrawal_allowed,approval_required,publish_award_publicly,status,published_at,bids_opened_at,created_at,updated_at";
+
+async function reportRows<T>(query: string, cap = 2000): Promise<T[]> {
+  const rows: T[] = [];
+  for (let offset = 0; offset <= cap; offset += 500) {
+    const { data } = await supabaseRest<T[]>(`${query}&limit=500&offset=${offset}`);
+    rows.push(...data);
+    if (rows.length > cap)
+      throw new ApiError(409, "This report is too large for the current workspace view. Narrow the date or category filter.", "report_limit");
+    if (data.length < 500) return rows;
+  }
+  throw new ApiError(409, "This report is too large for the current workspace view. Narrow the date or category filter.", "report_limit");
+}
 
 async function notifyOrganisation(
   organizationId: string,
@@ -613,44 +626,30 @@ export async function GET(request: Request) {
     }
     if (resource === "reports") {
       await requireProcurementManager(user);
-      const { data: tenders } = await supabaseRest<
-        Array<Record<string, unknown>>
-      >(
-        `procurement_tenders?select=id,status,procurement_category,created_at,published_at,submission_deadline&organization_id=eq.${context.organizationId}`,
-      );
+      const from = params.get("from"), to = params.get("to"), category = params.get("category")?.trim() || "";
+      if ((from && !z.string().date().safeParse(from).success) || (to && !z.string().date().safeParse(to).success) || (from && to && from > to) || category.length > 160)
+        throw new ApiError(400, "Choose a valid report date range and category.", "invalid_report_filter");
+      let tenderQuery = `procurement_tenders?select=id,status,procurement_category,created_at,published_at&organization_id=eq.${context.organizationId}&order=id.asc`;
+      if (from) tenderQuery += `&created_at=gte.${from}T00:00:00Z`;
+      if (to) tenderQuery += `&created_at=lt.${new Date(Date.parse(`${to}T00:00:00Z`) + 86400000).toISOString()}`;
+      if (category) tenderQuery += `&procurement_category=eq.${encodeFilter(category)}`;
+      const tenders = await reportRows<ReportTender>(tenderQuery);
       const ids = tenders.map((t) => String(t.id));
-      const [{ data: bids }, { data: awards }] = await Promise.all([
-        ids.length
-          ? supabaseRest<Array<Record<string, unknown>>>(
-              `supplier_bids?select=id,tender_id,supplier_organization_id,status&tender_id=in.(${ids.join(",")})`,
-            )
-          : Promise.resolve({ data: [] }),
-        ids.length
-          ? supabaseRest<Array<Record<string, unknown>>>(
-              `procurement_awards?select=tender_id,contract_value,currency,approval_status&tender_id=in.(${ids.join(",")})`,
-            )
-          : Promise.resolve({ data: [] }),
-      ]);
+      const bids: ReportBid[] = [], awards: ReportAward[] = [];
+      for (let start = 0; start < ids.length; start += 40) {
+        const filter = ids.slice(start, start + 40).join(",");
+        const [batchBids, batchAwards] = await Promise.all([
+          reportRows<ReportBid>(`supplier_bids?select=id,tender_id,supplier_organization_id,submitted_at&tender_id=in.(${filter})&submitted_at=not.is.null&order=id.asc`),
+          reportRows<ReportAward>(`procurement_awards?select=id,tender_id,supplier_organization_id,approval_status,contract_value,currency,finalised_at&tender_id=in.(${filter})&approval_status=eq.finalised&order=id.asc`),
+        ]);
+        bids.push(...batchBids);
+        awards.push(...batchAwards);
+        if (bids.length > 2000 || awards.length > 2000)
+          throw new ApiError(409, "This report is too large for the current workspace view. Narrow the date or category filter.", "report_limit");
+      }
       return Response.json(
         {
-          data: {
-            tenders: tenders.length,
-            active: tenders.filter((t) =>
-              ["live", "closing_soon"].includes(String(t.status)),
-            ).length,
-            byStatus: Object.groupBy(tenders, (t) => String(t.status)),
-            bids: bids.length,
-            uniqueSuppliers: new Set(
-              bids.map((b) => b.supplier_organization_id),
-            ).size,
-            averageBids: tenders.length
-              ? Number((bids.length / tenders.length).toFixed(1))
-              : 0,
-            awards: awards.filter((a) => a.approval_status === "finalised"),
-            categories: Object.groupBy(tenders, (t) =>
-              String(t.procurement_category),
-            ),
-          },
+          data: procurementReport(tenders, bids, awards),
         },
         { headers: noStore },
       );
