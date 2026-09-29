@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { displayableSourceFact, formatSourceFact, formatTenderFact } from "../../lib/tender-facts.ts";
+import { displayableSourceFact, displaySourceFact, formatSourceFact, formatTenderFact } from "../../lib/tender-facts.ts";
 
 test("document evidence renders as a readable checklist item, not JSON", () => {
   assert.equal(formatTenderFact({ name: "Bid security", evidence: "Required in the notice" }), "Bid security — Required in the notice");
@@ -29,4 +29,18 @@ test("legacy lot details display as separate readable facts", () => {
     "Yes\nBids for Lots: One or More Lots\nNumber of Lots: 2\nLot Name (1): Supply of 7 No Station wagon\nLot Name (2): Supply of 1 No Sports Utility Vehicle",
   );
   assert.equal(formatSourceFact("Contract Awarded in Lots", "No"), "No");
+});
+
+test("percentage bid security is not presented as a GHS amount", () => {
+  assert.deepEqual(
+    displaySourceFact("Bid Security Amount (GHS)", "2", { "Bid Security Amount Type": "Percentage" }),
+    {
+      label: "Bid Security Amount (percentage)",
+      value: "2% — the official amount field is labelled GHS; confirm the basis in the tender pack.",
+    },
+  );
+  assert.deepEqual(
+    displaySourceFact("Bid Security Amount (GHS)", "500", { "Bid Security Amount Type": "Fixed" }),
+    { label: "Bid Security Amount (GHS)", value: "500" },
+  );
 });

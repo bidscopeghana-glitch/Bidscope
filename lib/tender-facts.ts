@@ -42,3 +42,15 @@ export function formatSourceFact(key: string, value: unknown): string {
   }
   return formatTenderFact(value);
 }
+
+export function displaySourceFact(key: string, value: unknown, details: Record<string, unknown>): { label: string; value: string } {
+  const amount = formatTenderFact(value).trim();
+  const percentage = String(details["Bid Security Amount Type"] ?? "").trim().toLowerCase() === "percentage";
+  if (key === "Bid Security Amount (GHS)" && percentage && /^\d+(?:\.\d+)?%?$/.test(amount)) {
+    return {
+      label: "Bid Security Amount (percentage)",
+      value: `${amount.replace(/%$/, "")}% — the official amount field is labelled GHS; confirm the basis in the tender pack.`,
+    };
+  }
+  return { label: key, value: formatSourceFact(key, value) };
+}
