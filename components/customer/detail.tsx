@@ -7,13 +7,13 @@ import {api,date,eligibility,money,officialUrl,useData,type Opportunity,type Opp
 import {Skeleton,useAccount} from "./shell";
 import {OpportunityActions} from "./opportunities";
 import {SafeMarkdown} from "@/components/ui/safe-markdown";
-import {displayableSourceFact,formatTenderFact} from "@/lib/tender-facts";
+import {displayableSourceFact,formatSourceFact,formatTenderFact} from "@/lib/tender-facts";
 const tabs=["Overview","Bid Decision","Requirements","Eligibility","Documents","Dates","Buyer","Amendments","AI Analysis","Activity"];
 const hiddenSourceKeys=new Set(["Description","Tender Title","Name of Procuring Entity","APP Reference Number","Tender Unique ID","Bid submission deadline date","Bid Opening Date","End of Clarification Period","Date of Publication/Invitation"]);
-function sourceValue(o:Opportunity,...names:string[]){for(const name of names){const value=o.source_details?.[name];if(displayableSourceFact(name,value))return formatTenderFact(value);}return null;}
+function sourceValue(o:Opportunity,...names:string[]){for(const name of names){const value=o.source_details?.[name];if(displayableSourceFact(name,value))return formatSourceFact(name,value);}return null;}
 function displayValue(value:unknown){return formatTenderFact(value);}
 function NoticeText({value}:{value?:string}){if(!value)return <p className="cc-source-missing">Not published by the issuing authority.</p>;const parts=value.split(/(?=\b\d{1,2}\.\s)/g).map(part=>part.trim()).filter(Boolean);return <div className="cc-notice-text">{parts.map((part,index)=><p key={index}>{part}</p>)}</div>;}
-function OfficialFacts({opportunity}:{opportunity:Opportunity}){const entries=Object.entries(opportunity.source_details||{}).filter(([key,value])=>!hiddenSourceKeys.has(key)&&displayableSourceFact(key,value));if(!entries.length)return <p className="cc-source-missing">No additional structured fields were published in the indexed source.</p>;return <dl className="cc-official-facts">{entries.map(([key,value])=><div key={key}><dt>{key}</dt><dd>{displayValue(value)}</dd></div>)}</dl>;}
+function OfficialFacts({opportunity}:{opportunity:Opportunity}){const entries=Object.entries(opportunity.source_details||{}).filter(([key,value])=>!hiddenSourceKeys.has(key)&&displayableSourceFact(key,value));if(!entries.length)return <p className="cc-source-missing">No additional structured fields were published in the indexed source.</p>;return <dl className="cc-official-facts">{entries.map(([key,value])=><div key={key}><dt>{key}</dt><dd>{formatSourceFact(key,value)}</dd></div>)}</dl>;}
 export function Detail({slug}:{slug:string}){
  const response=useData<{data:Opportunity&OpportunityAccess}>(`/api/opportunities/${encodeURIComponent(slug)}`);const [tab,setTab]=useState("Overview");const params=useSearchParams();
  const o=response.data?.data;const locked=Boolean(o?.locked?.length);const revisions=useData<{data:{id:string;changed_fields:unknown;change_types:string[];severity:string;verified_at:string}[]}>(o&&!locked&&o.id?`/api/customer?resource=amendments&id=${o.id}`:null);

@@ -19,3 +19,11 @@ export function displayableSourceFact(key: string, value: unknown): boolean {
   }
   return true;
 }
+
+export function formatSourceFact(key: string, value: unknown): string {
+  if (key === "Contract Notice Date") {
+    const date = String(value ?? "").match(/\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{1,2}-\d{1,2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\b/);
+    return date?.[0] ?? "Not published by the issuing authority";
+  }
+  return formatTenderFact(value);
+}
