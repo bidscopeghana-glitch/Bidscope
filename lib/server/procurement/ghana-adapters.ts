@@ -97,6 +97,7 @@ const ghanepsLabels = [
   { key: "Procurement Type", pattern: "Procurement Type" },
   { key: "Grade Type", pattern: "Grade Type" },
   { key: "Procurement Method", pattern: "Procurement Method" },
+  { key: "Includes eAuction", pattern: "Includes eAuction" },
   { key: "Includes eCatalogue", pattern: "Includes eCatalogue" },
   { key: "Commencement Type", pattern: "Commencement Type" },
   { key: "Procurement Technique", pattern: "Procurement Technique" },

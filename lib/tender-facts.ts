@@ -14,6 +14,7 @@ export function formatTenderFact(value: unknown): string {
 
 export function displayableSourceFact(key: string, value: unknown): boolean {
   if (value === null || value === undefined || value === "") return false;
+  if (key === "Evaluation Criteria" && /\bNo Preference\b/i.test(String(value)) && /\bParticipation Fee Required\b/i.test(String(value))) return false;
   if (key === "Contract Notice Date") {
     return /\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{1,2}-\d{1,2})\b/.test(String(value));
   }
@@ -21,6 +22,7 @@ export function displayableSourceFact(key: string, value: unknown): boolean {
 }
 
 export function formatSourceFact(key: string, value: unknown): string {
+  if (key === "Procurement Method") return formatTenderFact(value).split(/\s+Includes eAuction\s*:/i)[0].trim();
   if (key === "Contract Notice Date") {
     const date = String(value ?? "").match(/\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{1,2}-\d{1,2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\b/);
     return date?.[0] ?? "Not published by the issuing authority";

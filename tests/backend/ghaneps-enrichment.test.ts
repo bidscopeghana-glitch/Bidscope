@@ -25,3 +25,9 @@ test("GHANEPS notice date does not absorb the website footer", () => {
   const footerOnly = parseGhanepsDetail("Contract Notice Date: ©2026 European Dynamics");
   assert.equal(footerOnly.fields["Contract Notice Date"], undefined);
 });
+
+test("GHANEPS procurement method ends before the eAuction field", () => {
+  const parsed = parseGhanepsDetail("Procurement Method: National Competitive Tendering Includes eAuction: No Includes eCatalogue: No");
+  assert.equal(parsed.fields["Procurement Method"], "National Competitive Tendering");
+  assert.equal(parsed.fields["Includes eAuction"], "No");
+});

@@ -15,3 +15,9 @@ test("invalid legacy notice date is hidden until a verified date is available", 
 test("legacy notice date displays without copied footer text", () => {
   assert.equal(formatSourceFact("Contract Notice Date", "15/09/2026 15:16:42 Last Update: 22 September 2026 &copy;2026 European Dynamics"), "15/09/2026 15:16:42");
 });
+
+test("polluted legacy source fields do not masquerade as evaluation criteria", () => {
+  assert.equal(displayableSourceFact("Evaluation Criteria", "Lowest Evaluated Responsive Tenderer (LERT) No Preference No Yes 73161604 Participation Fee Required 500"), false);
+  assert.equal(displayableSourceFact("Evaluation Criteria", "Price 70%; technical quality 30%"), true);
+  assert.equal(formatSourceFact("Procurement Method", "National Competitive Tendering Includes eAuction: No"), "National Competitive Tendering");
+});
