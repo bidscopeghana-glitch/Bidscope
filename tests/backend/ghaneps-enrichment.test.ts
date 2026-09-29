@@ -18,3 +18,10 @@ test("GHANEPS detail fields use stable human-readable keys", () => {
   assert.equal(result.fields["Bid Security Amount Type"], "Percentage");
   assert.equal(result.fields["Payment Terms and Method"], "Payment through Ghana.gov portal");
 });
+
+test("GHANEPS notice date does not absorb the website footer", () => {
+  const valid = parseGhanepsDetail("Contract Notice Date: 29/09/2026 ©2026 European Dynamics");
+  assert.equal(valid.fields["Contract Notice Date"], "29/09/2026");
+  const footerOnly = parseGhanepsDetail("Contract Notice Date: ©2026 European Dynamics");
+  assert.equal(footerOnly.fields["Contract Notice Date"], undefined);
+});

@@ -124,7 +124,10 @@ export function parseGhanepsDetail(html: string) {
   for (let index = 0; index < ghanepsLabels.length; index += 1) {
     const label = ghanepsLabels[index];
     const value = labelled(clean, label.pattern, ghanepsLabels.slice(index + 1).map((item) => item.pattern));
-    if (value) fields[label.key] = value;
+    if (label.key === "Contract Notice Date") {
+      const date = value?.match(/\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{1,2}-\d{1,2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\b/)?.[0];
+      if (date) fields[label.key] = date;
+    } else if (value) fields[label.key] = value;
   }
   return { clean, fields };
 }
