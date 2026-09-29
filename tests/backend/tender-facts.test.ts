@@ -18,6 +18,7 @@ test("legacy notice date displays without copied footer text", () => {
 
 test("polluted legacy source fields do not masquerade as evaluation criteria", () => {
   assert.equal(displayableSourceFact("Evaluation Criteria", "Lowest Evaluated Responsive Tenderer (LERT) No Preference No Yes 73161604 Participation Fee Required 500"), false);
+  assert.equal(displayableSourceFact("EVALUATION CRITERIA ", "Lowest Evaluated Responsive Tenderer (LERT) No Preference No Yes 73161604 Participation Fee Required 500"), false);
   assert.equal(displayableSourceFact("Evaluation Criteria", "Price 70%; technical quality 30%"), true);
   assert.equal(formatSourceFact("Procurement Method", "National Competitive Tendering Includes eAuction: No"), "National Competitive Tendering");
 });

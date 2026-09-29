@@ -14,7 +14,7 @@ export function formatTenderFact(value: unknown): string {
 
 export function displayableSourceFact(key: string, value: unknown): boolean {
   if (value === null || value === undefined || value === "") return false;
-  if (key === "Evaluation Criteria" && /\bNo Preference\b/i.test(String(value)) && /\bParticipation Fee Required\b/i.test(String(value))) return false;
+  if (/^evaluation\s+criteria$/i.test(key.trim()) && /participation\s+fee\s+required/i.test(String(value))) return false;
   if (key === "Contract Notice Date") {
     return /\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{1,2}-\d{1,2})\b/.test(String(value));
   }
