@@ -31,3 +31,12 @@ test("GHANEPS procurement method ends before the eAuction field", () => {
   assert.equal(parsed.fields["Procurement Method"], "National Competitive Tendering");
   assert.equal(parsed.fields["Includes eAuction"], "No");
 });
+
+test("GHANEPS lot rules and names are indexed separately", () => {
+  const parsed = parseGhanepsDetail("Contract Awarded in Lots: Yes Bids for Lots: One or More Lots Number of Lots: 2 Lot Name (1): Supply of 7 No Station wagon Lot Name (2): Supply of 1 No Sports Utility Vehicle Bid submission deadline date: 29/09/2026 16:00:00");
+  assert.equal(parsed.fields["Contract Awarded in Lots"], "Yes");
+  assert.equal(parsed.fields["Bids for Lots"], "One or More Lots");
+  assert.equal(parsed.fields["Number of Lots"], "2");
+  assert.equal(parsed.fields["Lot Name (1)"], "Supply of 7 No Station wagon");
+  assert.equal(parsed.fields["Lot Name (2)"], "Supply of 1 No Sports Utility Vehicle");
+});

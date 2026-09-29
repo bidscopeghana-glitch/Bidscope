@@ -23,6 +23,19 @@ export function displayableSourceFact(key: string, value: unknown): boolean {
 
 export function formatSourceFact(key: string, value: unknown): string {
   if (key === "Procurement Method") return formatTenderFact(value).split(/\s+Includes eAuction\s*:/i)[0].trim();
+  if (key === "Contract Awarded in Lots") {
+    const detail = formatTenderFact(value);
+    const labels = [...detail.matchAll(/\b(?:Bids for Lots|Number of Lots|Lot Name\s*\(\d+\))\s*:/gi)];
+    if (labels.length) {
+      const lines = [detail.slice(0, labels[0].index).trim()];
+      for (let index = 0; index < labels.length; index += 1) {
+        const label = labels[index];
+        const end = labels[index + 1]?.index ?? detail.length;
+        lines.push(`${label[0].trim()} ${detail.slice((label.index ?? 0) + label[0].length, end).trim()}`);
+      }
+      return lines.filter(Boolean).join("\n");
+    }
+  }
   if (key === "Contract Notice Date") {
     const date = String(value ?? "").match(/\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{1,2}-\d{1,2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\b/);
     return date?.[0] ?? "Not published by the issuing authority";

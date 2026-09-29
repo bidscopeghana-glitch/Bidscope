@@ -114,6 +114,8 @@ const ghanepsLabels = [
   { key: "Bid Security Amount Type", pattern: "Bid Security Amount Type" },
   { key: "Bid Security Amount (GHS)", pattern: "Bid Security Amount\\s*\\(GHS\\)" },
   { key: "Contract Awarded in Lots", pattern: "Contract Awarded in Lots" },
+  { key: "Bids for Lots", pattern: "Bids for Lots" },
+  { key: "Number of Lots", pattern: "Number of Lots" },
   { key: "Bid submission deadline date", pattern: "Bid submission deadline date" },
   { key: "End of Clarification Period", pattern: "End of Clarification Period" },
   { key: "Bid Opening Date", pattern: "Bid Opening Date" },
@@ -128,7 +130,23 @@ export function parseGhanepsDetail(html: string) {
     if (label.key === "Contract Notice Date") {
       const date = value?.match(/\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{1,2}-\d{1,2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\b/)?.[0];
       if (date) fields[label.key] = date;
+    } else if (label.key === "Number of Lots") {
+      const count = value?.match(/^\d+/)?.[0];
+      if (count) fields[label.key] = count;
     } else if (value) fields[label.key] = value;
+  }
+  const lotSectionStart = clean.search(/Number of Lots\s*:/i);
+  if (lotSectionStart >= 0) {
+    const remaining = clean.slice(lotSectionStart);
+    const nextFieldStart = remaining.search(/(?:Bid submission deadline date|End of Clarification Period|Bid Opening Date|Date of Publication\/Invitation|Contract Notice Date)\s*:/i);
+    const lotSection = remaining.slice(0, nextFieldStart < 0 ? 2_000 : Math.min(nextFieldStart, 2_000));
+    const lotNames = [...lotSection.matchAll(/Lot Name\s*\((\d+)\)\s*:/gi)];
+    for (let index = 0; index < lotNames.length; index += 1) {
+      const label = lotNames[index];
+      const end = lotNames[index + 1]?.index ?? lotSection.length;
+      const name = lotSection.slice((label.index ?? 0) + label[0].length, end).trim();
+      if (name) fields[`Lot Name (${label[1]})`] = name;
+    }
   }
   return { clean, fields };
 }

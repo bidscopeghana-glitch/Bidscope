@@ -22,3 +22,11 @@ test("polluted legacy source fields do not masquerade as evaluation criteria", (
   assert.equal(displayableSourceFact("Evaluation Criteria", "Price 70%; technical quality 30%"), true);
   assert.equal(formatSourceFact("Procurement Method", "National Competitive Tendering Includes eAuction: No"), "National Competitive Tendering");
 });
+
+test("legacy lot details display as separate readable facts", () => {
+  assert.equal(
+    formatSourceFact("Contract Awarded in Lots", "Yes Bids for Lots: One or More Lots Number of Lots: 2 Lot Name (1): Supply of 7 No Station wagon Lot Name (2): Supply of 1 No Sports Utility Vehicle"),
+    "Yes\nBids for Lots: One or More Lots\nNumber of Lots: 2\nLot Name (1): Supply of 7 No Station wagon\nLot Name (2): Supply of 1 No Sports Utility Vehicle",
+  );
+  assert.equal(formatSourceFact("Contract Awarded in Lots", "No"), "No");
+});
