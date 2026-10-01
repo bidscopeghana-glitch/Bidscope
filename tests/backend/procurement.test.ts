@@ -2,12 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { deduplicationKeys } from "../../lib/server/procurement/deduplication.ts";
 import { calculateOpportunityMatch } from "../../lib/server/procurement/matching.ts";
-import { getSubmissionDestination } from "../../lib/server/procurement/submission.ts";
+import { getSubmissionDestination, submissionAvailable } from "../../lib/server/procurement/submission.ts";
 import type { NormalizedOpportunity } from "../../lib/server/procurement/types.ts";
 import { WorldBankAdapter } from "../../lib/server/procurement/world-bank-adapter.ts";
 import { contractsFinderAdapter, findATenderAdapter } from "../../lib/server/procurement/international-adapters.ts";
 
 test("submission routing uses the exact official destination and source-specific label",()=>{assert.deepEqual(getSubmissionDestination({source_name:"GHANEPS",official_submission_url:"https://www.ghaneps.gov.gh/tender/123",official_tender_url:null,official_source_url:"https://www.ghaneps.gov.gh/"}),{destination:"https://www.ghaneps.gov.gh/tender/123",label:"Apply on GHANEPS"});});
+
+test("elapsed or finalised tenders expose the notice without recording an application opening",()=>{
+  const now=new Date("2026-10-01T00:00:00Z");
+  assert.equal(submissionAvailable({status:"CLOSING_SOON",deadline_at:"2026-09-29T16:00:00Z"},now),false);
+  assert.equal(submissionAvailable({status:"UNKNOWN",deadline_at:"2026-09-29T16:00:00Z"},now),false);
+  assert.equal(submissionAvailable({status:"OPEN",deadline_at:"2026-10-02T16:00:00Z"},now),true);
+  assert.equal(submissionAvailable({status:"AWARDED",deadline_at:"2026-10-02T16:00:00Z"},now),false);
+  assert.deepEqual(getSubmissionDestination({source_name:"GHANEPS",official_source_url:"https://www.ghaneps.gov.gh/tender/123",status:"CLOSED"}),{destination:"https://www.ghaneps.gov.gh/tender/123",label:"View Official Notice"});
+});
 
 test("deduplication includes reference, document, and composite evidence",()=>{const record={external_reference:"GR/001",document_fingerprint:"abc",buyer_name:"Ministry",title:"Supply laptops",deadline_at:"2026-10-01T00:00:00Z",estimated_value:100} as NormalizedOpportunity;const keys=deduplicationKeys(record);assert.equal(keys.length,3);assert.equal(keys[0],"reference:gr 001");});
 

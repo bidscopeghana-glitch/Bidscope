@@ -1,6 +1,7 @@
 import "server-only";
 import {cache} from "react";
 import {guestOpportunityPreview,type GuestOpportunityInput} from "@/lib/server/procurement/guest-preview";
+import {currentOpportunityStatus} from "@/lib/server/procurement/normalization";
 import {supabaseRest} from "@/lib/server/supabase-rest";
 
 const fields="slug,title,summary,buyer_name,source_name,country,country_code,region,sector,category,published_at,deadline_at,status,estimated_value,currency,contract_type,procurement_method";
@@ -37,7 +38,7 @@ function baseParams(limit:number,offset=0){return new URLSearchParams({select:fi
 export const getPublicTender=cache(async(slug:string):Promise<PublicTender|null>=>{
   const params=new URLSearchParams({select:fields,slug:`eq.${slug.slice(0,220)}`,source_removed_at:"is.null",published_at:"not.is.null",status:"neq.DRAFT",limit:"1"});
   const{data}=await supabaseRest<GuestOpportunityInput[]>(`procurement_opportunities?${params}`);
-  return data[0]?guestOpportunityPreview(data[0]):null;
+  return data[0]?guestOpportunityPreview({...data[0],status:currentOpportunityStatus(data[0].status,data[0].deadline_at)}):null;
 });
 
 export async function listPublicTenders(input:{limit?:number;offset?:number;category?:TenderCategorySlug;location?:TenderLocationSlug;ghanaOnly?:boolean;excludeSlug?:string}={}){
