@@ -3,6 +3,7 @@ import { guestOpportunityPreview, type GuestOpportunityInput } from "@/lib/serve
 import { supabaseRest } from "@/lib/server/supabase-rest";
 import { getSubmissionDestination } from "@/lib/server/procurement/submission";
 import { canViewTenderSource } from "@/lib/server/tender-access";
+import { currentOpportunityStatus } from "@/lib/server/procurement/normalization";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +19,13 @@ export async function GET(request: Request, context: { params: Promise<{ slug: s
     });
     if (fullAccess) {
       query.set("select", "*,project:procurement_projects(id,external_project_id,name,country,region,sector,status,financing_institution,official_url,last_verified_at),buyer:procuring_entities(id,name,slug,entity_type,region,website,source_url),documents:opportunity_documents(id,title,document_type,url,mime_type,size_bytes),sources:opportunity_sources(id,external_id,official_url,submission_url,is_preferred,last_verified_at,source:procurement_sources(id,name,slug,organisation,integration_type,trust_level))");
-      type FullOpportunity = { source_name: string; official_submission_url: string | null; official_tender_url: string | null; official_source_url: string } & Record<string, unknown>;
+      type FullOpportunity = { source_name: string; official_submission_url: string | null; official_tender_url: string | null; official_source_url: string; status: string | null; deadline_at: string | null } & Record<string, unknown>;
       const { data } = await supabaseRest<FullOpportunity[]>(`procurement_opportunities?${query}`);
       if (!data.length) throw new ApiError(404, "Opportunity not found.", "not_found");
-      return Response.json({ data: { ...data[0], submission: getSubmissionDestination(data[0]), intelligence: { buyerHistory: "Not enough verified data available.", pastWinners: "Not enough verified data available.", competition: "Not enough verified data available.", seasonality: "Not enough verified data available." } } }, { headers: { "Cache-Control": "private, no-store", Vary: "Authorization" } });
+      return Response.json({ data: { ...data[0], status: currentOpportunityStatus(data[0].status, data[0].deadline_at), submission: getSubmissionDestination(data[0]), intelligence: { buyerHistory: "Not enough verified data available.", pastWinners: "Not enough verified data available.", competition: "Not enough verified data available.", seasonality: "Not enough verified data available." } } }, { headers: { "Cache-Control": "private, no-store", Vary: "Authorization" } });
     }
     const { data } = await supabaseRest<GuestOpportunityInput[]>(`procurement_opportunities?${query}`);
     if (!data.length) throw new ApiError(404, "Opportunity not found.", "not_found");
-    return Response.json({ data: guestOpportunityPreview(data[0]), access: authenticated ? "member_preview" : "preview" }, { headers: { "Cache-Control": "private, no-store", Vary: "Authorization" } });
+    return Response.json({ data: guestOpportunityPreview({ ...data[0], status: currentOpportunityStatus(data[0].status, data[0].deadline_at) }), access: authenticated ? "member_preview" : "preview" }, { headers: { "Cache-Control": "private, no-store", Vary: "Authorization" } });
   } catch (error) { return apiErrorResponse(error); }
 }

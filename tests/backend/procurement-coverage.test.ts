@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eligibility, normalize, opportunityStatus } from "../../lib/server/procurement/normalization.ts";
+import { currentOpportunityStatus, eligibility, normalize, opportunityStatus } from "../../lib/server/procurement/normalization.ts";
 import { AfricanUnionAdapter, EcowasAdapter } from "../../lib/server/procurement/structured-adapters.ts";
 import { deduplicationKeys } from "../../lib/server/procurement/deduplication.ts";
 import { parseDate } from "../../lib/server/procurement/safety.ts";
@@ -12,6 +12,15 @@ test("status engine separates upcoming, closing soon, open and closed", () => {
   assert.equal(opportunityStatus({ deadlineAt: "2026-10-16T00:00:00Z" }, now), "OPEN");
   assert.equal(opportunityStatus({ deadlineAt: "2026-09-01T00:00:00Z" }, now), "CLOSED");
   assert.equal(opportunityStatus({}, now), "UNKNOWN");
+});
+
+test("detail status closes elapsed open tenders without overwriting official outcomes", () => {
+  const now = new Date("2026-10-01T00:00:00Z");
+  assert.equal(currentOpportunityStatus("CLOSING_SOON", "2026-09-29T16:00:00Z", now), "CLOSED");
+  assert.equal(currentOpportunityStatus("OPEN", "2026-10-02T16:00:00Z", now), "OPEN");
+  assert.equal(currentOpportunityStatus("AWARDED", "2026-09-29T16:00:00Z", now), "AWARDED");
+  assert.equal(currentOpportunityStatus("CANCELLED", "2026-09-29T16:00:00Z", now), "CANCELLED");
+  assert.equal(currentOpportunityStatus("CLOSING_SOON", "invalid", now), "CLOSING_SOON");
 });
 
 test("Ghana day-first deadlines are parsed without US date reversal", () => {

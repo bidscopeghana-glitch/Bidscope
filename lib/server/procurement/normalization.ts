@@ -23,6 +23,13 @@ export function opportunityStatus(input: { publishedAt?: string | null; deadline
   return "OPEN" as const;
 }
 
+export function currentOpportunityStatus(status: string | null | undefined, deadlineAt: string | null | undefined, now = new Date()) {
+  if (status !== "OPEN" && status !== "CLOSING_SOON") return status || "UNKNOWN";
+  if (!deadlineAt) return status;
+  const deadline = new Date(deadlineAt);
+  return Number.isFinite(deadline.valueOf()) && deadline <= now ? "CLOSED" : status;
+}
+
 export function eligibility(textValue: string | null | undefined, countryCode: string) {
   const value = (textValue || "").toLowerCase();
   if (/ghanaian (only|owned)|citizens? of ghana|registered in ghana only|\bnational competitive/.test(value)) return { status: "GHANA_ELIGIBLE" as const, summary: "Restricted to Ghanaian or nationally eligible suppliers." };
