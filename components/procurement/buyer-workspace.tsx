@@ -237,7 +237,7 @@ export function ProcurementShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="pw-topbar-actions">
-            <span className="pw-secure"><ShieldCheck size={14} /> Verified workspace</span>
+            <span className="pw-secure"><ShieldCheck size={14} /> Secure workspace</span>
             <Link href="/procurement/create" className="pw-button primary">
               <Plus size={15} />
               Create tender
@@ -521,31 +521,47 @@ function Dashboard() {
   if (result.error) return <ErrorState message={result.error} />;
   const d = result.data!.data,
     c = d.counts;
+  const isGettingStarted = c.activeTenders === 0 && c.bidsReceived === 0 && d.recent.length === 0;
   return (
     <>
       <Heading
-        title="Procurement home"
-        description="Create, monitor and complete your organisation's procurements from one accountable workspace."
+        eyebrow="YOUR BUYER COMMAND CENTRE"
+        title="Procurement, under control."
+        description="Publish opportunities, manage supplier responses and make every decision with a clear audit trail."
         action={
           <Link className="pw-button gold" href="/procurement/create">
             <FilePlus2 size={16} />
-            Create your first tender
+            {isGettingStarted ? "Create your first tender" : "Create a tender"}
           </Link>
         }
       />
-      <div className="pw-grid">
+      {isGettingStarted && (
+        <section className="pw-start" aria-labelledby="pw-start-title">
+          <div className="pw-start-intro">
+            <span className="pw-section-label">GET STARTED</span>
+            <h2 id="pw-start-title">A clear path to your first procurement</h2>
+            <p>Set up your organisation, prepare a tender and bring your team into the process.</p>
+          </div>
+          <div className="pw-start-steps">
+            <Link href="/procurement/settings"><span>01</span><strong>Check your organisation</strong><small>Review buyer details and verification status.</small><ArrowUpRight size={17} /></Link>
+            <Link href="/procurement/create"><span>02</span><strong>Prepare a tender</strong><small>Save a draft before publishing.</small><ArrowUpRight size={17} /></Link>
+            <Link href="/procurement/team"><span>03</span><strong>Set up your team</strong><small>Assign the right people to your workspace.</small><ArrowUpRight size={17} /></Link>
+          </div>
+        </section>
+      )}
+      <div className="pw-grid" aria-label="Procurement overview">
         {[
-          { label: "Active tenders", value: c.activeTenders, Icon: Gavel, tone: "emerald" },
-          { label: "Bids received", value: c.bidsReceived, Icon: Inbox, tone: "teal" },
-          { label: "Awaiting evaluation", value: c.awaitingEvaluation, Icon: ClipboardCheck, tone: "navy" },
-          { label: "Interviews this week", value: c.interviewsThisWeek, Icon: CalendarClock, tone: "amber" },
-          { label: "Pending awards", value: c.pendingAwards, Icon: Award, tone: "gold" },
-        ].map(({ label, value, Icon, tone }) => (
-          <div className={`pw-stat ${tone}`} key={label}>
+          { label: "Active tenders", value: c.activeTenders, Icon: Gavel, tone: "emerald", href: "/procurement/tenders" },
+          { label: "Bids received", value: c.bidsReceived, Icon: Inbox, tone: "teal", href: "/procurement/bids" },
+          { label: "Awaiting evaluation", value: c.awaitingEvaluation, Icon: ClipboardCheck, tone: "navy", href: "/procurement/evaluations" },
+          { label: "Interviews this week", value: c.interviewsThisWeek, Icon: CalendarClock, tone: "amber", href: "/procurement/meetings" },
+          { label: "Pending awards", value: c.pendingAwards, Icon: Award, tone: "gold", href: "/procurement/tenders" },
+        ].map(({ label, value, Icon, tone, href }) => (
+          <Link className={`pw-stat ${tone}`} href={href} aria-label={`${label}: ${value}. View details`} key={label}>
             <div className="pw-stat-top"><span className="pw-stat-icon"><Icon size={18} /></span><ArrowUpRight size={15} /></div>
             <strong>{value}</strong>
             <span>{label}</span>
-          </div>
+          </Link>
         ))}
       </div>
       <div className="pw-layout">
