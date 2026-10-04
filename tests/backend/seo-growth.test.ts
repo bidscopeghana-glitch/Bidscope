@@ -27,9 +27,44 @@ test("growth centre includes truthful integration states and workflows",()=>{
 
 test("attribution is consent gated and stores pseudonymous identifiers",()=>{
   const client=read("components/seo/seo-attribution.tsx"),route=read("app/api/analytics/seo/route.ts");
-  assert.match(client,/cookieAnalytics!=="granted"/);
+  assert.match(client,/cookieAnalytics==="granted"/);
+  assert.match(client,/MutationObserver/);
+  assert.match(client,/if\(!analyticsAllowed\)return/);
   assert.match(route,/createHash\("sha256"\)/);
   assert.doesNotMatch(route,/visitor_id_hash:input\.visitorId/);
+});
+
+test("SEO overview reports one Search Console snapshot and checks current public tenders",()=>{
+  const growth=read("lib/server/seo-growth.ts"),operations=read("lib/server/seo-operations.ts"),maintenance=read("lib/server/seo-maintenance.ts");
+  assert.match(growth,/\[7,28,30,90,180,365\]/);
+  assert.match(operations,/\[7,28,30,90,180,365\]/);
+  assert.match(growth,/searchConsoleAsOf/);
+  assert.match(growth,/order=metric_date\.desc/);
+  assert.match(growth,/row\.source!=="search_console"\|\|row\.metric_date===searchConsoleAsOf/);
+  assert.match(growth,/const totalClicks=searchMetrics\.reduce/);
+  assert.match(growth,/first_medium=eq\.organic/);
+  assert.doesNotMatch(growth,/first_source\.eq\.google/);
+  for(const source of [growth,maintenance]){
+    assert.match(source,/source_removed_at=is\.null/);
+    assert.match(source,/published_at=not\.is\.null/);
+    assert.match(source,/deadline_at=gt\./);
+    assert.match(source,/summary\.is\.null,summary\.eq\./);
+  }
+});
+
+test("sitemap prioritises live tenders without deleting historic records",()=>{
+  const inventory=read("lib/server/seo-opportunities.ts"),sitemap=read("app/sitemap.ts");
+  assert.match(inventory,/if\(liveOnly\).*status.*OPEN,CLOSING_SOON/);
+  assert.match(inventory,/params\.set\("deadline_at"/);
+  assert.match(inventory,/limit,true\)/);
+  assert.match(sitemap,/Promise\.allSettled/);
+});
+
+test("immediately activated password accounts report a consented signup event",()=>{
+  const auth=read("app/sign-in/auth-panel.tsx");
+  assert.match(auth,/mode === "sign-up"\) window\.trackBidScopeSeoConversion\?/);
+  assert.match(auth,/buyer_signup/);
+  assert.match(auth,/supplier_signup/);
 });
 
 test("Search Console integration uses read-only scope and server credentials",()=>{

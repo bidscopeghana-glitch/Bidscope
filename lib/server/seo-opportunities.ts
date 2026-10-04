@@ -52,7 +52,7 @@ export async function listPublicTenders(input:{limit?:number;offset?:number;cate
   return{items:data.map(guestOpportunityPreview),total:Number.isFinite(total)?total:data.length};
 }
 
-async function listIndexableRows<T extends{slug:string}>(select:string,limit:number){
+async function listIndexableRows<T extends{slug:string}>(select:string,limit:number,liveOnly=false){
   const requested=Math.max(0,Math.floor(limit));
   if(!requested)return[] as T[];
   const rows:T[]=[];
@@ -60,6 +60,7 @@ async function listIndexableRows<T extends{slug:string}>(select:string,limit:num
   for(let offset=0;offset<requested;offset+=1000){
     const batchSize=Math.min(1000,requested-offset);
     const params=new URLSearchParams({select,source_removed_at:"is.null",published_at:"not.is.null",status:"not.in.(DRAFT,WITHDRAWN)",order:"published_at.desc,slug.asc",limit:String(batchSize),offset:String(offset)});
+    if(liveOnly){params.set("status","in.(OPEN,CLOSING_SOON)");params.set("deadline_at",`gt.${new Date().toISOString()}`)}
     const{data}=await supabaseRest<T[]>(`procurement_opportunities?${params}`);
     for(const row of data)if(!seen.has(row.slug)){seen.add(row.slug);rows.push(row)}
     if(data.length<batchSize)break;
@@ -72,7 +73,7 @@ export async function listIndexableTenderSlugs(limit=5000){
 }
 
 export async function listSeoInventory(limit=5000){
-  return listIndexableRows<{slug:string;title:string;summary:string|null;sector:string|null;category:string|null;region:string|null;country_code:string|null;published_at:string|null}>("slug,title,summary,sector,category,region,country_code,published_at",limit);
+  return listIndexableRows<{slug:string;title:string;summary:string|null;sector:string|null;category:string|null;region:string|null;country_code:string|null;published_at:string|null}>("slug,title,summary,sector,category,region,country_code,published_at",limit,true);
 }
 
 export async function listRelatedTenders(tender:PublicTender,limit=4){

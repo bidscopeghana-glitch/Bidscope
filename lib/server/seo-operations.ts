@@ -23,7 +23,7 @@ export function contentQualityWarnings(input:Row){
 }
 
 export async function getSeoOperations(days=28){
-  const range=[7,28,90,180,365].includes(days)?days:28,from=sinceDate(range);
+  const range=[7,28,30,90,180,365].includes(days)?days:28,from=sinceDate(range);
   const [{data:searches},{data:synonyms},{data:referrals},{data:outreach},{data:utms},{data:reports},{data:technical},{data:keywords},{data:opportunities},{data:conversions}]=await Promise.all([
     supabaseRest<Row[]>(`seo_internal_searches?searched_on=gte.${from}&select=*&order=searches.desc&limit=250`),
     supabaseRest<Row[]>("seo_search_synonyms?select=*&order=canonical_term.asc&limit=250"),

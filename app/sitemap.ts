@@ -6,8 +6,10 @@ import{listSeoInventory,tenderCategories,tenderLocations}from"@/lib/server/seo-o
 const staticPaths=["","/opportunities","/tenders","/tenders/ghana","/public-tenders","/private-tenders","/for-buyers","/for-suppliers","/how-it-works","/resources","/insights","/blog","/services","/plans","/pricing","/about","/contact","/privacy","/terms","/cookies"];
 export default async function sitemap():Promise<MetadataRoute.Sitemap>{
  const now=new Date();let inventory:Awaited<ReturnType<typeof listSeoInventory>>=[],content:Awaited<ReturnType<typeof listPublishedSeoContent>>=[];
- try{[inventory,content]=await Promise.all([listSeoInventory(),listPublishedSeoContent()])}catch{inventory=[];content=[]}
- const staticUrls=staticPaths.map(path=>({url:`${SITE_URL}${path}`,lastModified:now,changeFrequency:(path.includes("tender")||path==="/opportunities"?"daily":"weekly")as"daily"|"weekly",priority:path===""?1:path.includes("tender")||path==="/opportunities"?0.9:0.7}));
+ const [inventoryResult,contentResult]=await Promise.allSettled([listSeoInventory(),listPublishedSeoContent()]);
+ if(inventoryResult.status==="fulfilled")inventory=inventoryResult.value;
+ if(contentResult.status==="fulfilled")content=contentResult.value;
+ const staticUrls=staticPaths.map(path=>({url:`${SITE_URL}${path}`,changeFrequency:(path.includes("tender")||path==="/opportunities"?"daily":"weekly")as"daily"|"weekly",priority:path===""?1:path.includes("tender")||path==="/opportunities"?0.9:0.7}));
  const tenderUrls=inventory.map(item=>({url:`${SITE_URL}/opportunities/${item.slug}`,lastModified:item.published_at?new Date(item.published_at):now,changeFrequency:"weekly"as const,priority:0.7}));
  const ghana=inventory.filter(item=>item.country_code==="GH");
  const categoryUrls=Object.entries(tenderCategories).filter(([,category])=>ghana.filter(item=>category.terms.some(term=>`${item.title} ${item.summary||""} ${item.sector||""} ${item.category||""}`.toLowerCase().includes(term))).length>=3).map(([slug])=>({url:`${SITE_URL}/tenders/${slug}`,lastModified:now,changeFrequency:"daily"as const,priority:0.8}));

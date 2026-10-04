@@ -1,5 +1,5 @@
 "use client";
-import{useEffect}from"react";
+import{useEffect,useState}from"react";
 import{usePathname,useSearchParams}from"next/navigation";
 type Touch={source:string|null;medium:string|null;campaign:string|null};
 type SeoEvent="sign_up"|"sign_in"|"supplier_signup"|"buyer_signup"|"tender_view"|"tender_watch"|"alert_created"|"tender_alert_created"|"subscription_click"|"subscription_started"|"subscription_completed"|"subscription_paid"|"bid_started"|"bid_submitted"|"tender_post_started"|"tender_post_completed"|"related_tender_click"|"protected_details_click"|"service_request"|"official_source_opened"|"insight_cta_clicked"|"insight_to_tender"|"insight_to_signup"|"insight_to_buyer_signup"|"insight_to_supplier_signup"|"insight_to_post_tender"|"insight_to_alert";
@@ -16,8 +16,16 @@ function currentTouch(params:URLSearchParams):Touch{
 }
 export function SeoAttribution(){
   const path=usePathname(),search=useSearchParams();
+  const [analyticsAllowed,setAnalyticsAllowed]=useState(false);
   useEffect(()=>{
-    if(document.documentElement.dataset.cookieAnalytics!=="granted")return;
+    const update=()=>setAnalyticsAllowed(document.documentElement.dataset.cookieAnalytics==="granted");
+    update();
+    const observer=new MutationObserver(update);
+    observer.observe(document.documentElement,{attributes:true,attributeFilter:["data-cookie-analytics"]});
+    return()=>observer.disconnect();
+  },[]);
+  useEffect(()=>{
+    if(!analyticsAllowed)return;
     const params=new URLSearchParams(search.toString()),last=currentTouch(params);let first:Touch=last;
     try{const saved=localStorage.getItem(key);if(saved)first=JSON.parse(saved) as Touch;else localStorage.setItem(key,JSON.stringify(last))}catch{}
     const visitorId=identifier(localStorage,visitorKey),sessionId=identifier(sessionStorage,sessionKey),landingPath=sessionStorage.getItem("bidscope_seo_landing")||path;
@@ -28,6 +36,6 @@ export function SeoAttribution(){
     window.trackBidScopeSeoConversion=(eventName,options)=>{void send({eventName,...options})};
     window.trackBidScopeInternalSearch=(query,resultCount)=>{if(query.trim().length>=2)void send({internalSearch:{query:query.trim(),resultCount}})};
     return()=>{delete window.trackBidScopeSeoConversion;delete window.trackBidScopeInternalSearch};
-  },[path,search]);
+  },[analyticsAllowed,path,search]);
   return null;
 }

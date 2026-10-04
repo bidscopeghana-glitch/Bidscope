@@ -72,6 +72,7 @@ export function AuthPanel({ initialMode = "sign-in", returnTo = "/customer", tur
       if (!result.accessToken) throw new Error("A secure session could not be created. Please try again.");
 
       storeSession({ accessToken: result.accessToken, refreshToken: result.refreshToken, expiresIn: result.expiresIn });
+      if (mode === "sign-up") window.trackBidScopeSeoConversion?.(usageMode === "buyer" ? "buyer_signup" : "supplier_signup");
       setState("success");
       setMessage(mode === "sign-up" ? "Your account is ready. Opening BidScope…" : "Welcome back. Opening BidScope…");
       const destination = await resolveWorkspaceEntry(result.accessToken, {

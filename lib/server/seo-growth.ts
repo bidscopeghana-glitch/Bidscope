@@ -7,24 +7,24 @@ const since=(days:number)=>new Date(Date.now()-days*86400000).toISOString();
 async function count(path:string){const{response}=await supabaseRest<unknown[]>(path,{count:"exact"});return Number(response.headers.get("content-range")?.split("/")[1]||0)}
 
 export async function getSeoGrowthOverview(days=30){
-  const safeDays=[7,28,90,180,365].includes(days)?days:28;
+  const safeDays=[7,28,30,90,180,365].includes(days)?days:30;
   const from=since(safeDays);
   const staleCutoff=since(7);
   const [
-    {data:settings},{data:keywords},{data:content},{data:pageMetrics},{data:alerts},{data:backlinks},{data:experiments},{data:syncRuns},{data:insightEvents},
+    {data:settings},{data:keywords},{data:content},{data:allPageMetrics},{data:alerts},{data:backlinks},{data:experiments},{data:syncRuns},{data:insightEvents},
     sessions,organicSessions,signups,subscriptions,buyerSignups,supplierSignups,tenderWatches,bidsStarted,bidsSubmitted,tenderPosts,openTenders,staleTenders,thinTenders,operations
   ]=await Promise.all([
     supabaseRest<Array<Record<string,unknown>>>("seo_settings?singleton_key=eq.default&select=*&limit=1"),
     supabaseRest<Array<Record<string,unknown>>>("seo_keywords?select=*&order=opportunity_score.desc,priority.desc&limit=100"),
     supabaseRest<Array<Record<string,unknown>>>("seo_content_items?select=*&order=planned_for.asc.nullslast,updated_at.desc&limit=100"),
-    supabaseRest<Array<Record<string,unknown>>>(`seo_page_metrics?select=*&metric_date=gte.${from.slice(0,10)}&order=metric_date.asc&limit=5000`),
+    supabaseRest<Array<Record<string,unknown>>>(`seo_page_metrics?select=*&metric_date=gte.${from.slice(0,10)}&order=metric_date.desc&limit=5000`),
     supabaseRest<Array<Record<string,unknown>>>("seo_alerts?select=*&resolved_at=is.null&order=detected_at.desc&limit=50"),
     supabaseRest<Array<Record<string,unknown>>>("seo_backlinks?select=*&order=updated_at.desc&limit=100"),
     supabaseRest<Array<Record<string,unknown>>>("seo_experiments?select=*&order=created_at.desc&limit=50"),
     supabaseRest<Array<Record<string,unknown>>>("seo_sync_runs?select=*&order=started_at.desc&limit=10"),
     supabaseRest<Array<{page_path:string|null}>>(`seo_conversion_events?event_name=eq.insight_cta_clicked&created_at=gte.${from}&select=page_path&limit=5000`),
     count(`seo_traffic_sessions?select=id&first_seen_at=gte.${from}`),
-    count(`seo_traffic_sessions?select=id&first_seen_at=gte.${from}&or=(first_medium.eq.organic,first_source.eq.google)`),
+    count(`seo_traffic_sessions?select=id&first_seen_at=gte.${from}&first_medium=eq.organic`),
     count(`seo_conversion_events?select=id&event_name=in.(sign_up,buyer_signup,supplier_signup)&created_at=gte.${from}`),
     count(`seo_conversion_events?select=id&event_name=in.(subscription_started,subscription_completed,subscription_paid)&created_at=gte.${from}`),
     count(`seo_conversion_events?select=id&event_name=eq.buyer_signup&created_at=gte.${from}`),
@@ -33,18 +33,27 @@ export async function getSeoGrowthOverview(days=30){
     count(`seo_conversion_events?select=id&event_name=eq.bid_started&created_at=gte.${from}`),
     count(`seo_conversion_events?select=id&event_name=eq.bid_submitted&created_at=gte.${from}`),
     count(`seo_conversion_events?select=id&event_name=in.(tender_post_started,tender_post_completed)&created_at=gte.${from}`),
-    count(`procurement_opportunities?select=id&status=in.(OPEN,CLOSING_SOON)&deadline_at=gt.${now()}`),
-    count(`procurement_opportunities?select=id&status=in.(OPEN,CLOSING_SOON)&last_verified_at=lt.${staleCutoff}`),
-    count("procurement_opportunities?select=id&status=in.(OPEN,CLOSING_SOON)&or=(summary.eq.,description.eq.)"),
+    count(`procurement_opportunities?select=id&source_removed_at=is.null&published_at=not.is.null&status=in.(OPEN,CLOSING_SOON)&deadline_at=gt.${now()}`),
+    count(`procurement_opportunities?select=id&source_removed_at=is.null&published_at=not.is.null&status=in.(OPEN,CLOSING_SOON)&deadline_at=gt.${now()}&or=(last_verified_at.is.null,last_verified_at.lt.${staleCutoff})`),
+    count(`procurement_opportunities?select=id&source_removed_at=is.null&published_at=not.is.null&status=in.(OPEN,CLOSING_SOON)&deadline_at=gt.${now()}&or=(summary.is.null,summary.eq.)`),
     getSeoOperations(safeDays),
   ]);
-  const totalImpressions=pageMetrics.reduce((sum,row)=>sum+Number(row.impressions||0),0);
-  const totalClicks=pageMetrics.reduce((sum,row)=>sum+Number(row.clicks||0),0);
+  // Search Console syncs overlapping 28-day snapshots. Only the latest snapshot
+  // may contribute search clicks; summing daily snapshots inflates the total.
+  const searchConsoleAsOf=allPageMetrics.filter(row=>row.source==="search_console").reduce<string|null>((latest,row)=>{
+    const date=String(row.metric_date||"");return date&&(!latest||date>latest)?date:latest;
+  },null);
+  const pageMetrics=allPageMetrics.filter(row=>row.source!=="search_console"||row.metric_date===searchConsoleAsOf);
+  const searchMetrics=pageMetrics.filter(row=>row.source==="search_console");
+  const totalImpressions=searchMetrics.reduce((sum,row)=>sum+Number(row.impressions||0),0);
+  const totalClicks=searchMetrics.reduce((sum,row)=>sum+Number(row.clicks||0),0);
   const revenueMinor=pageMetrics.reduce((sum,row)=>sum+Number(row.revenue_minor||0),0);
-  const avgPosition=pageMetrics.length?pageMetrics.reduce((sum,row)=>sum+Number(row.average_position||0),0)/pageMetrics.filter(row=>row.average_position!=null).length:0;
+  const positioned=searchMetrics.filter(row=>row.average_position!=null);
+  const avgPosition=positioned.length?positioned.reduce((sum,row)=>sum+Number(row.average_position||0),0)/positioned.length:0;
   const articleMetrics=content.filter(row=>String(row.slug||"")).map(row=>{const page=`/insights/${String(row.slug)}`,metrics=pageMetrics.filter(metric=>String(metric.page_url)===page||String(metric.page_url)===`https://www.bidscopeghana.com${page}`);return{slug:String(row.slug),impressions:metrics.reduce((sum,metric)=>sum+Number(metric.impressions||0),0),clicks:metrics.reduce((sum,metric)=>sum+Number(metric.clicks||0),0),sessions:metrics.reduce((sum,metric)=>sum+Number(metric.organic_sessions||0),0),signups:metrics.reduce((sum,metric)=>sum+Number(metric.signups||0),0),tenderViews:metrics.reduce((sum,metric)=>sum+Number(metric.tender_views||0),0),tenderWatches:metrics.reduce((sum,metric)=>sum+Number(metric.tender_watches||0),0),subscriptions:metrics.reduce((sum,metric)=>sum+Number(metric.subscriptions||0),0),buyerRegistrations:metrics.reduce((sum,metric)=>sum+Number(metric.buyer_registrations||0),0),ctaClicks:insightEvents.filter(event=>event.page_path===page).length}});
   return {
     rangeDays:safeDays,
+    searchConsoleAsOf,
     settings:settings[0]||null,
     connection:{
       searchConsole:Boolean(settings[0]?.search_console_connected),
