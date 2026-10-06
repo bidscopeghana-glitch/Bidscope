@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { after } from "next/server";
 import { escapeHtml } from "./alerts";
+import { isGhanepsSource } from "./ghaneps-alert-policy";
 import { claimMatchingTenderEmail } from "./matching-email-quota";
 import { createSecureToken } from "./outreach/campaign";
 import { phoneForUser, sendSms, smsProviderConfigured, SMS_EVENT_ALLOWLIST, type SmsEventType } from "./sms";
@@ -63,7 +64,7 @@ export async function createNotification(input:NotificationInput) {
   return notification;
 }
 
-type PendingDelivery = { id:string; channel:"email"|"whatsapp"|"sms"|"push"; retry_count:number; notification:{id:string;user_id:string;type:AlertType;title:string;message:string;related_url:string|null;metadata:Record<string,unknown>;dedupe_key:string} };
+type PendingDelivery = { id:string; channel:"email"|"whatsapp"|"sms"|"push"; retry_count:number; notification:{id:string;user_id:string;type:AlertType;title:string;message:string;related_entity_type:string|null;related_entity_id:string|null;related_url:string|null;metadata:Record<string,unknown>;dedupe_key:string} };
 
 async function emailAddress(userId:string) {
   const { data } = await supabaseRest<Array<{email:string}>>(`profiles?select=email&id=eq.${userId}&limit=1`);
@@ -114,13 +115,21 @@ async function sendSmsAlert(delivery:PendingDelivery){
 }
 
 export async function processPendingDeliveries(limit = 100, channel?: "push") {
-  const query = new URLSearchParams({ select:"id,channel,retry_count,notification:notifications(id,user_id,type,title,message,related_url,metadata,dedupe_key)", status:"eq.pending", scheduled_for:`lte.${new Date().toISOString()}`, order:"scheduled_for.asc", limit:String(limit) });
+  const query = new URLSearchParams({ select:"id,channel,retry_count,notification:notifications(id,user_id,type,title,message,related_entity_type,related_entity_id,related_url,metadata,dedupe_key)", status:"eq.pending", scheduled_for:`lte.${new Date().toISOString()}`, order:"scheduled_for.asc", limit:String(limit) });
   if(channel)query.set("channel",`eq.${channel}`);
   const { data } = await supabaseRest<PendingDelivery[]>(`notification_deliveries?${query}`);
   const counts = { sent:0, failed:0, skipped:0 };
   for (const delivery of data) {
     const {data:claimed}=await supabaseRest<Array<{id:string}>>(`notification_deliveries?id=eq.${delivery.id}&status=eq.pending`, { method:"PATCH", headers:{Prefer:"return=representation"}, body:JSON.stringify({status:"processing"}) });
     if(!claimed.length)continue;
+    if(delivery.notification.related_entity_type==="opportunity"&&delivery.notification.related_entity_id){
+      const {data:opportunities}=await supabaseRest<Array<{source_name:string}>>(`procurement_opportunities?select=source_name&id=eq.${delivery.notification.related_entity_id}&limit=1`);
+      if(isGhanepsSource(opportunities[0]?.source_name)){
+        await supabaseRest(`notification_deliveries?id=eq.${delivery.id}`,{method:"PATCH",body:JSON.stringify({status:"skipped",failure_reason:"GHANEPS notifications are disabled."})});
+        counts.skipped++;
+        continue;
+      }
+    }
     const result = delivery.channel === "push" ? await (async()=>{const sent=await sendPushDelivery(delivery.notification.id,delivery.notification.user_id);return sent.accepted>0?{status:"sent" as const,providerMessageId:null}:sent.failed>0?{status:"failed" as const,reason:"Push service did not accept the notification."}:{status:"skipped" as const,reason:"No active push subscription accepted the notification."};})() : delivery.channel === "email" ? await sendEmail(delivery) : delivery.channel === "sms" ? await sendSmsAlert(delivery) : await sendWhatsAppAlert();
     counts[result.status]++;
     const retry=result.status==="failed"&&delivery.retry_count<2&&(delivery.channel==="push"||("transient" in result&&result.transient));

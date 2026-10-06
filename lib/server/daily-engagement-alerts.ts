@@ -11,7 +11,7 @@ export async function generateDailyEngagementAlerts(now=new Date()){
   const dayStart=`${utcDay(now)}T00:00:00.000Z`;
   const [{data:profiles},{response:newOpportunityResponse},{data:todayNotifications}]=await Promise.all([
     supabaseRest<Profile[]>("profiles?select=id&order=created_at.asc&limit=5000"),
-    supabaseRest<Array<{id:string}>>(`procurement_opportunities?select=id&status=in.(OPEN,CLOSING_SOON)&created_at=gte.${since}&deadline_at=gt.${now.toISOString()}`,{count:"exact"}),
+    supabaseRest<Array<{id:string}>>(`procurement_opportunities?select=id&status=in.(OPEN,CLOSING_SOON)&created_at=gte.${since}&deadline_at=gt.${now.toISOString()}&source_name=not.ilike.*GHANEPS*`,{count:"exact"}),
     supabaseRest<TodayNotification[]>(`notifications?select=user_id,type&created_at=gte.${dayStart}&type=in.(opportunity_match,matching_tender)&limit=5000`),
   ]);
   const newOpportunityCount=Number(newOpportunityResponse.headers.get("content-range")?.split("/")[1]||0);
