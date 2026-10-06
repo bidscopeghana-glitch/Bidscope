@@ -1,7 +1,7 @@
 import { stripImportedHtml } from "./safety.ts";
 
 export type GuestOpportunityInput = {
-  slug: string; title: string; summary?: string | null; buyer_name?: string | null; source_name?: string | null;
+  slug: string; title: string; summary?: string | null; buyer_name?: string | null; source_name?: string | null; source_type?: string | null;
   country?: string | null; country_code?: string | null; region?: string | null; sector?: string | null;
   category?: string | null; published_at?: string | null; deadline_at?: string | null; status?: string | null;
   estimated_value?: number | null; currency?: string | null; contract_type?: string | null; procurement_method?: string | null;

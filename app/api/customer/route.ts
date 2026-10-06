@@ -6,6 +6,7 @@ import { pagination } from "@/lib/server/query";
 import {getEntitlement,getPlanLimit,primaryOrganization,requireEntitlement,requireUserResourceCapacity} from "@/lib/server/entitlements";
 import {guestOpportunityPreview,type GuestOpportunityInput} from "@/lib/server/procurement/guest-preview";
 import {tenderAccessForUser} from "@/lib/server/tender-access";
+import {ghanepsFactualDisplay} from "@/lib/server/procurement/ghaneps-factual-display";
 
 export const dynamic = "force-dynamic";
 const uuid = z.string().uuid();
@@ -38,8 +39,8 @@ export async function GET(request:Request) {
       const access=await tenderAccessForUser(user);
       if(!access.allowed)for(const key of ["buyer","source","funding","contractType","procurementMethod"] as const)delete filters[key];
       const {data}=await supabaseRpc<{data:Array<GuestOpportunityInput&Record<string,unknown>>;pagination:Record<string,unknown>}>("customer_discover",{p_user:user.id,filters,page_number:page,page_size:pageSize});
-      if(access.allowed)return Response.json(data,{headers:{"Cache-Control":"private, no-store",Vary:"Authorization"}});
-      const previews=data.data.map(item=>({...guestOpportunityPreview(item),access:"member_preview" as const,match:item.match}));
+      if(access.allowed)return Response.json({...data,data:data.data.map(ghanepsFactualDisplay)},{headers:{"Cache-Control":"private, no-store",Vary:"Authorization"}});
+      const previews=data.data.map(item=>({...guestOpportunityPreview(ghanepsFactualDisplay(item)),access:"member_preview" as const,match:item.match}));
       return Response.json({...data,data:previews},{headers:{"Cache-Control":"private, no-store",Vary:"Authorization"}});
     }
     if(resource==="pulse") {const {data}=await supabaseRpc<Record<string,unknown>>("customer_pulse",{p_user:user.id});const access=await tenderAccessForUser(user);return Response.json({data:access.allowed?data:{...data,buyers:[]}},{headers:{"Cache-Control":"private, no-store",Vary:"Authorization"}});}

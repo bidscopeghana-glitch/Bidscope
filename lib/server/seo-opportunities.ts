@@ -3,8 +3,9 @@ import {cache} from "react";
 import {guestOpportunityPreview,type GuestOpportunityInput} from "@/lib/server/procurement/guest-preview";
 import {currentOpportunityStatus} from "@/lib/server/procurement/normalization";
 import {supabaseRest} from "@/lib/server/supabase-rest";
+import {ghanepsFactualDisplay} from "@/lib/server/procurement/ghaneps-factual-display";
 
-const fields="slug,title,summary,buyer_name,source_name,country,country_code,region,sector,category,published_at,deadline_at,status,estimated_value,currency,contract_type,procurement_method";
+const fields="slug,title,summary,buyer_name,source_name,source_type,country,country_code,region,sector,category,published_at,deadline_at,status,estimated_value,currency,contract_type,procurement_method";
 export type PublicTender=ReturnType<typeof guestOpportunityPreview>;
 
 export const tenderCategories={
@@ -38,7 +39,7 @@ function baseParams(limit:number,offset=0){return new URLSearchParams({select:fi
 export const getPublicTender=cache(async(slug:string):Promise<PublicTender|null>=>{
   const params=new URLSearchParams({select:fields,slug:`eq.${slug.slice(0,220)}`,source_removed_at:"is.null",published_at:"not.is.null",status:"neq.DRAFT",limit:"1"});
   const{data}=await supabaseRest<GuestOpportunityInput[]>(`procurement_opportunities?${params}`);
-  return data[0]?guestOpportunityPreview({...data[0],status:currentOpportunityStatus(data[0].status,data[0].deadline_at)}):null;
+  return data[0]?guestOpportunityPreview(ghanepsFactualDisplay({...data[0],status:currentOpportunityStatus(data[0].status,data[0].deadline_at)})):null;
 });
 
 export async function listPublicTenders(input:{limit?:number;offset?:number;category?:TenderCategorySlug;location?:TenderLocationSlug;ghanaOnly?:boolean;excludeSlug?:string}={}){
@@ -49,7 +50,7 @@ export async function listPublicTenders(input:{limit?:number;offset?:number;cate
   if(input.excludeSlug)params.set("slug",`neq.${input.excludeSlug}`);
   const{data,response}=await supabaseRest<GuestOpportunityInput[]>(`procurement_opportunities?${params}`,{count:"exact"});
   const total=Number(response.headers.get("content-range")?.split("/")[1]||data.length);
-  return{items:data.map(guestOpportunityPreview),total:Number.isFinite(total)?total:data.length};
+  return{items:data.map(item=>guestOpportunityPreview(ghanepsFactualDisplay(item))),total:Number.isFinite(total)?total:data.length};
 }
 
 async function listIndexableRows<T extends{slug:string}>(select:string,limit:number,liveOnly=false){
@@ -84,7 +85,7 @@ export async function listRelatedTenders(tender:PublicTender,limit=4){
   if(category||region)params.set("or",`(${[category?`category.eq.${category}`:"",region?`region.ilike.*${region}*`:""].filter(Boolean).join(",")})`);
   params.set("slug",`neq.${tender.slug}`);
   const{data}=await supabaseRest<GuestOpportunityInput[]>(`procurement_opportunities?${params}`);
-  return data.slice(0,limit).map(guestOpportunityPreview);
+  return data.slice(0,limit).map(item=>guestOpportunityPreview(ghanepsFactualDisplay(item)));
 }
 
 export async function listTendersForInsight(categories:string[],limit=3){
