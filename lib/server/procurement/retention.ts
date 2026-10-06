@@ -1,6 +1,7 @@
 import {createHash} from "node:crypto";
 import {calculateOpportunityMatch, type MatchOpportunity, type MatchProfile} from "./matching.ts";
 import {supabaseRest} from "../supabase-rest.ts";
+import {ghanepsFactualDisplay} from "./ghaneps-factual-display.ts";
 import {documentValidity} from "../../document-passport.ts";
 
 export type Organization=MatchProfile&{
@@ -12,7 +13,7 @@ export type Organization=MatchProfile&{
 export type RetentionOpportunity=MatchOpportunity&{
  id:string;slug:string;buyer_name:string;buyer_normalized_id?:string|null;country:string;country_code:string;currency?:string|null;
  deadline_at:string|null;published_at:string|null;status:string;eligibility_status?:string|null;official_source_url:string;
- source_name:string;verification_status?:string|null;procurement_method?:string|null;contract_type?:string|null;
+ source_name:string;source_type?:string|null;verification_status?:string|null;procurement_method?:string|null;contract_type?:string|null;
  required_certifications?:string[]|null;
 };
 type SupplierDocument={id:string;document_type:string;title:string;issued_at?:string|null;expires_at:string|null;verification_status:string};
@@ -113,7 +114,7 @@ export async function refreshOrganizationRetention(userId:string){
   supabaseRest<RetentionOpportunity[]>("procurement_opportunities?select=*&status=eq.UPCOMING&source_removed_at=is.null&order=published_at.desc.nullslast&limit=100")
  ]);
  const excluded=new Set(feedback.map(f=>f.opportunity_id));
- const matches=opportunities.filter(o=>!excluded.has(o.id)).map(opportunity=>({opportunity,assessment:calculateRetentionAssessment(organization,opportunity,documents)}));
+ const matches=opportunities.filter(o=>!excluded.has(o.id)).map(sourceOpportunity=>{const opportunity=ghanepsFactualDisplay(sourceOpportunity);return{opportunity,assessment:calculateRetentionAssessment(organization,opportunity,documents)};});
  if(matches.length){const rows=matches.map(({opportunity,assessment})=>({organization_id:organization.id,opportunity_id:opportunity.id,business_match_score:assessment.components.businessMatch,eligibility_score:assessment.components.eligibility,capability_score:assessment.components.capability,financial_fit_score:assessment.components.financialFit,experience_fit_score:assessment.components.experienceFit,document_readiness_score:assessment.components.documentReadiness,deadline_feasibility_score:assessment.components.deadlineFeasibility,overall_score:assessment.overallScore,decision:assessment.decision,reasons:assessment.reasons,concerns:assessment.concerns,evidence:assessment.evidence,evidence_hash:fingerprint({opportunity:opportunity.id,hash:(opportunity as unknown as {raw_source_hash?:string}).raw_source_hash,profile:organization,documents}),calculated_at:now}));await supabaseRest("organization_opportunity_matches?on_conflict=organization_id,opportunity_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify(rows)});}
  const eligible=matches.filter(x=>!["NO_GO","UNKNOWN"].includes(x.assessment.decision)&&x.assessment.overallScore!==null).sort((a,b)=>(b.assessment.overallScore||0)-(a.assessment.overallScore||0));const best=eligible[0]||null;
  await supabaseRest(`organizations?id=eq.${organization.id}`,{method:"PATCH",body:JSON.stringify({best_match_opportunity_id:best?.opportunity.id||null,best_match_score:best?.assessment.overallScore||null,best_match_reason:best?.assessment.reasons[0]||null,best_match_at:now})});
@@ -121,7 +122,7 @@ export async function refreshOrganizationRetention(userId:string){
  const{data:current}=await supabaseRest<Array<{id:string}>>(`business_readiness_scores?select=id&organization_id=eq.${organization.id}&is_current=eq.true&limit=1`);
  const readinessRow={organization_id:organization.id,overall_score:readiness.overallScore,confidence:readiness.confidence,category_scores:readiness.categoryScores,recommendations:readiness.recommendations,evidence:readiness.evidence,evidence_hash:readinessHash,calculated_at:now,is_current:true};
  if(current[0])await supabaseRest(`business_readiness_scores?id=eq.${current[0].id}`,{method:"PATCH",body:JSON.stringify(readinessRow)});else await supabaseRest("business_readiness_scores",{method:"POST",body:JSON.stringify(readinessRow)});
- const upcoming=upcomingOpportunities.filter(o=>{const a=calculateRetentionAssessment(organization,o,documents);return !excluded.has(o.id)&&(a.components.businessMatch===null||(a.components.businessMatch||0)>0);});
+ const upcoming=upcomingOpportunities.map(ghanepsFactualDisplay).filter(o=>{const a=calculateRetentionAssessment(organization,o,documents);return !excluded.has(o.id)&&(a.components.businessMatch===null||(a.components.businessMatch||0)>0);});
  const radar=upcoming.map(o=>({organization_id:organization.id,opportunity_id:o.id,buyer_id:o.buyer_normalized_id||null,buyer_name:o.buyer_name,signal_type:"OFFICIAL_UPCOMING",title:o.title,summary:o.summary||"Officially published upcoming procurement notice.",confidence:"official",evidence:{source:o.source_name,publishedAt:o.published_at,official:true},source_url:o.official_source_url,expected_at:o.deadline_at,status:"active",dedupe_key:`official-upcoming:${o.id}`}));
  if(radar.length)await supabaseRest("procurement_radar_items?on_conflict=organization_id,dedupe_key",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify(radar)});
  return{organization,bestMatch:best?{opportunity:best.opportunity,...best.assessment}:null,readiness,matches:matches.sort((a,b)=>(b.assessment.overallScore||-1)-(a.assessment.overallScore||-1)).slice(0,10),radar:upcoming.map(o=>({opportunity_id:o.id,slug:o.slug,title:o.title,summary:o.summary,buyer_name:o.buyer_name,signal_type:"OFFICIAL_UPCOMING",confidence:"official",source_url:o.official_source_url,expected_at:o.deadline_at}))};
@@ -130,9 +131,9 @@ export async function refreshOrganizationRetention(userId:string){
 export async function assessOpportunityForUser(userId:string,opportunityId:string,persistDecision=false){
  const organization=await primaryOrganization(userId);if(!organization)return null;
  const[{data:opportunities},{data:documents}]=await Promise.all([supabaseRest<RetentionOpportunity[]>(`procurement_opportunities?select=*&id=eq.${opportunityId}&limit=1`),supabaseRest<SupplierDocument[]>(`supplier_documents?select=id,document_type,title,issued_at,expires_at,verification_status&organization_id=eq.${organization.id}`)]);
- if(!opportunities[0])return null;const assessment=calculateRetentionAssessment(organization,opportunities[0],documents);
+ if(!opportunities[0])return null;const opportunity=ghanepsFactualDisplay(opportunities[0]);const assessment=calculateRetentionAssessment(organization,opportunity,documents);
  if(persistDecision)await supabaseRest("bid_decisions?on_conflict=user_id,opportunity_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify({user_id:userId,organization_id:organization.id,opportunity_id:opportunityId,overall_score:assessment.overallScore,decision:assessment.decision,component_scores:assessment.components,reasons:assessment.reasons,concerns:assessment.concerns,evidence:assessment.evidence,calculated_at:new Date().toISOString()})});
- return{organizationId:organization.id,opportunity:opportunities[0],...assessment};
+ return{organizationId:organization.id,opportunity,...assessment};
 }
 
 export async function refreshAllOrganizationRetention(limit=25){const{data:members}=await supabaseRest<Array<{organization_id:string;user_id:string}>>(`organization_members?select=organization_id,user_id&order=created_at.asc&limit=${Math.min(100,limit*4)}`);const owners=[...new Map(members.map(item=>[item.organization_id,item])).values()].slice(0,limit);let refreshed=0;const errors:string[]=[];for(const owner of owners){try{await refreshOrganizationRetention(owner.user_id);refreshed++;}catch(error){errors.push(error instanceof Error?error.message:"Retention refresh failed");}}return{organizations:owners.length,refreshed,failed:errors.length,errors:errors.slice(0,10)};}
