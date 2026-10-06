@@ -17,7 +17,7 @@ export function redactGuestText(value: string | null | undefined, hiddenTerms: A
   for (const term of hiddenTerms.filter((item): item is string => Boolean(item?.trim())).sort((a, b) => b.length - a.length)) {
     output = output.replace(new RegExp(escapePattern(term.trim()), "gi"), "the issuing authority");
   }
-  output = output.replace(/\b(?:GHANEPS|SAM\.gov|UNGM|TED|Contracts Finder|Find a Tender)\b/gi, "the procurement portal").replace(/\s+/g, " ").trim();
+  output = output.replace(/\b(?:GHANEPS|SAM\.gov|TED|Contracts Finder|Find a Tender)\b/gi, "the procurement portal").replace(/\s+/g, " ").trim();
   return output.length > maximum ? `${output.slice(0, maximum).replace(/\s+\S*$/, "").trim()}…` : output;
 }
 

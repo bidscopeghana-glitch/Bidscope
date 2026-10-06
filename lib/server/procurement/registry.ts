@@ -2,7 +2,6 @@ import { ManualReviewAdapter } from "./manual-adapter";
 import { WorldBankAdapter } from "./world-bank-adapter";
 import { AfricanUnionAdapter, EcowasAdapter, GhanaRoadsAdapter, GhanepsAdapter } from "./structured-adapters";
 import { BankOfGhanaAdapter, GhanaHighwayAuthorityAdapter, GhanaMinistryFinanceAdapter, MrhEbidsAdapter } from "./ghana-adapters";
-import { UngmAdapter } from "./ungm-adapter";
 import { SamGovAdapter } from "./sam-gov-adapter";
 import { contractsFinderAdapter, findATenderAdapter, TedAdapter } from "./international-adapters";
 import type { ProcurementSourceAdapter } from "./types";
@@ -17,7 +16,6 @@ const adapters: Record<string, ProcurementSourceAdapter> = {
   "uk-contracts-finder": contractsFinderAdapter,
   "uk-find-a-tender": findATenderAdapter,
   "mrh-ebids": new MrhEbidsAdapter(),
-  ungm: new UngmAdapter(),
   "sam-gov": new SamGovAdapter(),
   "ghana-highway-authority": new GhanaHighwayAuthorityAdapter(),
   "ghana-ministry-finance": new GhanaMinistryFinanceAdapter(),

@@ -21,9 +21,7 @@ export function getSubmissionDestination(opportunity: SubmissionOpportunity) {
   const label = !submissionAvailable(opportunity) ? "View Official Notice"
     : source.includes("ghaneps") ? "Apply on GHANEPS"
     : source.includes("mrh") ? "Continue on MRH e-Bids"
-    : source.includes("ungm") ? "Continue on UNGM"
     : source.includes("world bank") || source.includes("african development") ? "View Official Procurement"
     : "View Official Tender";
   return { destination, label };
 }
-
