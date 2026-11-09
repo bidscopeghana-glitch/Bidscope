@@ -605,3 +605,81 @@ code to runtime ffa2971 to restore the earlier USD preview presentation.
 Validation: 418 backend tests passed; production build including TypeScript
 passed. Focused tests cover markup-before-FX, rounding, zero/unknown costs,
 expired rates and bounded/deduplicated draft lookup identifiers.
+
+## Durable sandbox shopping flow - 10 November 2026 (prepared, not activated)
+
+The owner selected: BidScope absorbs payment processing fees; customers pay
+import duties/taxes/carrier charges excluded from the supplier quote. The shared
+checkoutCostPolicy records that choice. It does not claim excluded charges are zero.
+
+Prepared migration: supabase/migrations/20261110000100_shop_order_ledger.sql.
+It adds private quotes, orders, jobs, audit and customer-request tables and
+service-role-only transactional functions. No existing tender, subscription,
+catalogue or user records are changed. It extends the existing CJ gate lease to
+210 seconds for bounded multi-line quote checks. Customer browser roles receive
+no direct table/function access; APIs filter ownership from the verified session.
+
+New hosted sandbox flow:
+- Refreshed variants can be added to a labelled test bag with indicative GHS prices.
+- /shop/checkout collects delivery details, shows the cost disclosure, then calls
+  the official CJ product/stock/freight reads for up to five options. Prices come
+  from the supplier, never from browser amounts. Missing/contradictory freight,
+  unavailable stock, foreign variants and expired FX/quotes block progression.
+- /api/commerce/quotes is administrator-only and stores a five-minute test quote.
+  No catalogue publication permission is inferred and no supplier order is created.
+- /api/commerce/test-checkout uses only sk_test_ credentials. Persistent order and
+  initialization claims prevent duplicate provider initializations. A timeout or
+  ambiguous initialization goes to reconciliation; it is not automatically retried.
+- /api/commerce/payment-status and /api/commerce/payment-webhook verify the actual
+  Paystack reference, successful status, amount, currency and test/live domain.
+  Verified amount/currency mismatches are retained for payment review. Repeated
+  callbacks cannot add a second fulfilment job or reset progressed order status.
+- The isolated commerce webhook supports legacy raw-body HMAC and the current
+  timestamped Paystack-Signature protocol. A configured modern secret prevents
+  downgrade to legacy verification. Existing subscription webhooks are unchanged.
+- /shop/orders lists only the customer's orders and tracking records, with explicit
+  test labels. Cancellation/return/support requests are durable and idempotent;
+  a request is not cancellation approval or a confirmed refund.
+- /shop/operations is administrator-only and shows orders, private supplier costs,
+  payment exceptions, queued jobs and customer requests. Actual merchant fees/net
+  margin are not invented. No automatic supplier payment or refund is enabled.
+
+Required activation (not performed in this source step):
+1. Apply the reviewed migration in BidScope bclyhnbzbgugfmxrtlvu and verify roles,
+   duplicate requests, transaction invariants and preserved existing records.
+2. With owner approval, save the existing commerce Paystack TEST key as
+   BIDSCOPE_COMMERCE_PAYSTACK_TEST_SECRET in Vercel Preview branch
+   codex/bidscope-commerce-preview only. Keep live/subscription keys separate.
+3. Set BIDSCOPE_SHOP_LEDGER_READY=1 in that branch only and deploy normally.
+4. Use fictional delivery details. Test a real CJ route quote and a Paystack test
+   checkout, then verify the saved order/one pending fulfilment job and requests.
+5. Do not overwrite the Paystack account's existing global webhook URL. Its shared
+   routing must be reviewed before introducing commerce webhooks in production.
+   Signed-in test payment reconciliation works without changing that URL.
+
+Validation: 424 backend tests passed; full lint passed; isolated PostgreSQL/WASM
+integration tests passed 26 checks covering duplicate order/payment admission,
+foreign ownership, key conflicts, quote expiry, exact/mismatched payments, repeat
+mismatch events, cancellation requests and history-preserving rollback. PGlite is
+an ignored, pinned test-only install (0.5.16), not a runtime dependency. See
+scripts/test-shop-ledger.mjs. No external database/payment/supplier calls run in it.
+
+Rollback: disable new ledger/test-payment flags and restore e164f96. Preserve all
+new payment/order/audit data. docs/commerce/rollback-order-ledger.sql revokes new
+service functions without deleting history. Do not drop a populated ledger, revoke
+shared account keys or alter existing subscription data blindly.
+
+Still required before public sales: publication/media scope review, curated
+approved catalogue, seller/privacy/shipping/return disclosures, supplier job
+processing and reconciliation, separate supplier funding/payment, tracking and
+refund validation, real-user isolation tests, and an explicit production cutover.
+The public checkout route remains an unconditional 503. This is a test-flow build,
+not a declaration that the shop is ready for launch.
+
+Official references reviewed:
+https://paystack.com/docs/payments/accept-payments/
+https://paystack.com/docs/payments/webhooks/
+https://developers.cjdropshipping.com/en/api/start/Products-Synchronization-Processing.html
+https://developers.cjdropshipping.com/en/api/api2/api/shopping.html
+Production build including TypeScript also passed for this stage. No new live
+migration, hosted credential change or production-domain promotion was performed.

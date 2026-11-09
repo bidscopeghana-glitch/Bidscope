@@ -20,7 +20,7 @@ export function normalizeCjDraft(raw:unknown,now=new Date().toISOString()):CjDra
 }
 
 // Private local account inspection only. No public catalogue, media, order or payment methods.
-export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:typeof fetch=fetch,minimumIntervalMs=1100){
+export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:typeof fetch=fetch,minimumIntervalMs=1100,requestTimeoutMs=20000){
  let tail=Promise.resolve(),lastStarted=0;
  let points:{remaining:number;total:number;usedToday:number}|null=null;
  async function call(path:string,body?:unknown){
@@ -31,7 +31,7 @@ export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:
   if(!credentials.accessToken||Date.parse(credentials.accessTokenExpiryDate)<=Date.now()||!Number.isFinite(Date.parse(credentials.accessTokenExpiryDate)))throw Error("CJ token is not usable.");
   if(process.env.BIDSCOPE_COMMERCE_LOCAL_SETUP==="1"&&minimumIntervalMs>0)await waitForCjRequestStart(minimumIntervalMs);else{const wait=minimumIntervalMs-(Date.now()-lastStarted);if(wait>0)await pause(wait);}
   lastStarted=Date.now();
-  const response=await transport("https://developers.cjdropshipping.com/api2.0/v1/"+path,{method:body?"POST":"GET",headers:{"CJ-Access-Token":credentials.accessToken,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,redirect:"error",cache:"no-store",signal:AbortSignal.timeout(20000)});
+  const response=await transport("https://developers.cjdropshipping.com/api2.0/v1/"+path,{method:body?"POST":"GET",headers:{"CJ-Access-Token":credentials.accessToken,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,redirect:"error",cache:"no-store",signal:AbortSignal.timeout(requestTimeoutMs)});
   const result=await response.json() as {code?:number;result?:boolean;data?:unknown;pointsInfo?:{remaining:number;total:number;usedToday:number}};
   // Some failed responses contain an all-zero placeholder, not an account quota.
   // Preserve the last usable snapshot; a real zero remaining quota has a positive

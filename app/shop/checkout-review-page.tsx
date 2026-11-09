@@ -6,9 +6,12 @@ import {CommerceHeader} from "./commerce-header";
 import {readBag,shoppingBagKey,type BagLine} from "@/lib/commerce/shopping-bag";
 import {deliveryDestinations} from "@/lib/commerce/retail-pricing";
 import type {ReviewRecord} from "@/lib/commerce/checkout-review";
+import {HostedCheckout} from "./hosted-checkout";
+import {isLocalCommercePreview} from "@/lib/client/commerce-preview";
 const usd=(v:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(v/100);
 const attemptKey="bidscope-checkout-review-attempt-v1";
-export function CheckoutReviewPage(){
+export function CheckoutReviewPage(){const[local,setLocal]=useState<boolean|null>(null);useEffect(()=>{queueMicrotask(()=>setLocal(isLocalCommercePreview()));},[]);return local===null?<p>Loading checkout…</p>:local?<LocalCheckoutReviewPage/>:<HostedCheckout/>;}
+function LocalCheckoutReviewPage(){
  const[bag,setBag]=useState<BagLine[]>([]),[ready,setReady]=useState(false),[destination,setDestination]=useState("GH"),[origin,setOrigin]=useState("CN"),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[records,setRecords]=useState<ReviewRecord[]>([]),[selected,setSelected]=useState<ReviewRecord|null>(null),[now,setNow]=useState(0);
  async function history(){try{const response=await fetch("/api/commerce/local-checkout",{cache:"no-store"});const data=await response.json() as {error?:string;records?:ReviewRecord[]};if(!response.ok||!data.records)throw Error(data.error||"Saved reviews are unavailable.");setRecords(data.records);}catch(error){setMessage((error as Error).message);}}
  useEffect(()=>{queueMicrotask(()=>{setBag(readBag(localStorage.getItem(shoppingBagKey)));setReady(true);setNow(Date.now());void history();});const timer=setInterval(()=>setNow(Date.now()),30000);return()=>clearInterval(timer);},[]);
