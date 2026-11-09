@@ -29,8 +29,8 @@ try{
    console.log(JSON.stringify({imported:store.count(),target,pages:processed,category:category.name,quota:state.quota}));
   }catch(error){
    state={...state,status:"paused",reason:error instanceof CjReadError?error.message:"Temporary source read or response validation failure.",quota:api.quota(),updatedAt:new Date().toISOString()};store.save([],state);
-   if(error instanceof CjReadError&&[429,16900500].includes(error.providerCode)&&retries++<5){console.log("CJ quota pause; cursor preserved. Waiting 60 seconds.");await pause(60000);continue;}
-   if((error instanceof DOMException&&error.name==="TimeoutError"||error instanceof TypeError&&error.message==="fetch failed"||error instanceof CjReadError&&error.providerCode>=500)&&retries++<3){console.log("Transient CJ read failure; retrying the saved cursor with backoff.");await pause(Math.min(60000,5000*2**retries));continue;}
+   if(error instanceof CjReadError&&[429,16900500,1600200,1600201].includes(error.providerCode)&&retries++<5){console.log("CJ quota pause; cursor preserved. Waiting 60 seconds.");await pause(60000);continue;}
+   if((error instanceof DOMException&&error.name==="TimeoutError"||error instanceof TypeError&&error.message==="fetch failed"||error instanceof CjReadError&&([500,502,503,504,1600000,1600301].includes(error.providerCode)))&&retries++<3){console.log("Transient CJ read failure; retrying the saved cursor with backoff.");await pause(Math.min(60000,5000*2**retries));continue;}
    throw error;
   }
  }

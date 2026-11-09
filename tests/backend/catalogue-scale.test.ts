@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import {openCatalogue} from "../../lib/server/commerce/catalogue-store.ts";
-import {reserveCjReadSlot} from "../../lib/server/commerce/cj-read-pacer.ts";
+import {claimCjRequestStart} from "../../lib/server/commerce/cj-read-pacer.ts";
 import {catalogueItem,priceRange,interleaveDepartments,nextCatalogueDirection,upgradeCatalogueMediaPolicy,type CatalogueState} from "../../lib/commerce/catalogue.ts";
 const state:CatalogueState={target:50000,page:1,categoryIndex:0,status:"running",reason:"",updatedAt:new Date().toISOString(),categories:[],quota:null};
 const item=(id:string)=>catalogueItem({id,nameEn:"Storage "+id,sku:id,bigImage:"https://cf.cjdropshipping.com/photo.jpg",sellPrice:"2.03 -- 4.50",saleStatus:"3"},{id:"cat",name:"Home / Storage"})!;
@@ -37,7 +37,7 @@ test("large catalogue persistence deduplicates products, resumes checkpoints and
   assert.equal(store.claim("current"),true);assert.equal(store.search("","",1,"featured").workerActive,true);store.release("current");assert.equal(store.search("","",1,"featured").workerActive,false);
  }finally{store.close();assert.equal(path.dirname(path.resolve(directory)),path.resolve(os.tmpdir()));rmSync(directory,{recursive:true,force:true});}
 });
-test("independent local clients reserve separate CJ request slots",()=>{
+test("independent clients cannot start together or spend an obsolete slot after a delay",()=>{
  const directory=mkdtempSync(path.join(os.tmpdir(),"bidscope-cj-rate-test-")),file=path.join(directory,"rate.sqlite");
- try{assert.equal(reserveCjReadSlot(1100,1000,file),0);assert.equal(reserveCjReadSlot(1100,1000,file),1100);assert.equal(reserveCjReadSlot(1100,1000,file),2200);assert.equal(reserveCjReadSlot(1100,10000,file),0);}finally{assert.equal(path.dirname(path.resolve(directory)),path.resolve(os.tmpdir()));rmSync(directory,{recursive:true,force:true});}
+ try{assert.equal(claimCjRequestStart(1100,1000,file),0);assert.equal(claimCjRequestStart(1100,1000,file),1100);assert.equal(claimCjRequestStart(1100,1000,file),1100);assert.equal(claimCjRequestStart(1100,10000,file),0);assert.equal(claimCjRequestStart(1100,10001,file),1099);}finally{assert.equal(path.dirname(path.resolve(directory)),path.resolve(os.tmpdir()));rmSync(directory,{recursive:true,force:true});}
 });

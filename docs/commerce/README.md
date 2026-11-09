@@ -44,7 +44,7 @@ reads, stock, freight, sandbox order creation and order polling. Sandbox creatio
 always sends isSandbox=1 and payType=3, so it cannot debit a supplier balance.
 It has no live payment method or automatic write retries. A timeout is ambiguous:
 query the existing merchant reference before deciding to submit again.
-The order adapter has been tested with fixture transport; no actual CJ order has been created.
+The order adapter has fixture coverage and a completed official CJ sandbox pilot. No real supplier purchase or shipment has been made.
 The Alibaba interface is reserved; the factory rejects calls until partner access,
 scopes and official integration details have been established.
 
@@ -287,10 +287,9 @@ Restore by renaming it back and restoring the reviewed grants. Recheck RLS.
   reviewed key exchange/refresh process, scoped product/media publication evidence,
   explicit destination/route tests and supplier funding arrangement.
 - Alibaba authorised partner/OAuth approval and scoped documentation later.
-- Paystack test credentials for the commerce ledger; business/model eligibility and
-  supported GHS payment channels confirmed with Paystack before live activation.
+- Paystack TEST key is connected locally and a GHS 1.00 hosted sandbox payment was verified. Live commerce merchant eligibility, funding, webhooks and refunds still require validation before activation.
 - Contracting seller/legal identity, BidScope role, destination markets, prohibited
-  goods, compliance checks, FX source/expiry, margin policy, fee disclosure,
+  goods, compliance checks, fee disclosure,
   duty/tax payer and importer of record.
 - Supplier payment funding, reconciliation owner, price-change/refund rules,
   cancellation/return process, customer support ownership and old subscriber plan.
@@ -310,3 +309,84 @@ API availability and public documentation do not establish approval for BidScope
 CJ documents explicitly require isSandbox=1 because the default is a real order.
 Alibaba describes account authorisation through approved dropshipping partners;
 this does not establish that BidScope is an approved partner.
+
+
+## Retail and payment pilot update - 9 November 2026
+
+Approved choices: 30% markup on supplier product cost; international destinations
+rather than Ghana only; daily USD-to-GHS conversions. The catalogue scan completed
+both bounded category passes with 36,555 distinct products, all mirrored to the
+approved private Supabase table. There are zero non-draft records and zero rights
+promotions. The scan did not achieve 50,000; do not restart it as if more products
+are guaranteed or count variants as distinct products.
+
+The customer preview now has larger photo-led product cards, full product pages,
+image galleries, supplier variants, current price inspection, destination/origin
+checks and a separate persistent real-item shopping bag. CJ is retained as source
+provenance rather than a customer marketing headline. No fake ratings, discounts,
+stock promises or delivery guarantees were added. Sign-in links reuse existing
+BidScope authentication; the production customer order-account flow is not yet wired.
+
+USD prices use the approved markup; indicative GHS quotes are calculated server-side
+from the daily ExchangeRate-API open feed. A stale or unavailable rate is rejected,
+not silently reused. Attribution is displayed. Its informational rate is not a bank
+settlement guarantee. Before live payment, lock a fresh merchant quote with FX,
+stock, variant, shipping, duty/tax treatment and expiry in durable order storage.
+Official feed documentation: https://www.exchangerate-api.com/docs/free
+Terms: https://www.exchangerate-api.com/terms
+
+### Executed sandbox checks
+- The existing BidScope Paystack TEST key was copied with explicit approval only to
+  the ignored local server-secret file; it is never returned to the browser or Git.
+- A fixed GHS 1.00 hosted TEST checkout completed successfully and was verified
+  server-side against its known reference, exact amount, currency and success state.
+  A second verification returned the existing result without a duplicate operation.
+- The Paystack test is deliberately separate from the shopping bag. It does not
+  create or pay a supplier order. No real customer charge occurred.
+- CJ sandbox order SD2611091946200664600 was created with isSandbox=1 and payType=3.
+  Its sandbox identity and merchant reference were queried and reconciled. Official
+  sandbox confirmation, simulated payment, processing, labelled tracking, shipping
+  and delivery completed; the final provider status was DELIVERED. No CJ balance
+  deduction or real shipment occurred. This is a supplier pilot, not proof that the
+  end-to-end customer-payment-to-supplier-order production workflow exists.
+- The shared SQLite limiter now gates actual request starts, including token
+  authentication. Rate-limit replies preserve the saved cursor; uncertain supplier
+  writes stop for reconciliation rather than creating another order.
+- Desktop and 390px browser checks covered product galleries, variants, an actual
+  CN-to-GB freight response, bag quantity changes, reload persistence and removal.
+  Review bag navigates without incrementing quantity a second time.
+- Final automated results: 399 backend tests passed; lint and TypeScript passed.
+  The Next.js production build also passed.
+
+### Local setup and repeat-test safety
+Use Node 24. Set BIDSCOPE_COMMERCE_LOCAL_SETUP=1 only on this private loopback
+server, then run npm run dev -- --webpack --port 3012 --hostname 127.0.0.1.
+Open /shop, /shop/catalogue, /shop/product/{supplierId}, /shop/cart and
+/shop/payment-test. The local APIs fail closed on public hosts or without the flag.
+The payment page accepts only sk_test_ credentials and a fixed sandbox amount.
+Do not put BIDSCOPE_COMMERCE_LOCAL_SETUP=1 on a public deployment.
+
+CJ test creation is opt-in via BIDSCOPE_CJ_SANDBOX_TEST=1 and
+node --experimental-strip-types scripts/test-cj-sandbox.mts. It refuses to overwrite
+an existing pilot file. For an incomplete existing pilot, inspect the saved audit
+then use scripts/resume-cj-sandbox.mts, which never creates an order and verifies
+sandbox identity before every mutation. The completed pilot should not be recreated
+just to obtain another success screenshot. Keep the ignored local ledgers for
+reconciliation; do not upload them with code.
+
+### Remaining launch gates
+Customer checkout continues returning 503 unconditionally. Before accepting real
+money, implement and validate durable commerce order/payment/refund storage,
+signed payment webhooks and replay handling, supplier funding/payment separation,
+exception reconciliation, cancellation/returns, split shipments, customer order
+history and support. Complete catalogue/product media permission evidence, restricted
+product review, destination coverage, merchant eligibility and editable seller,
+privacy, shipping, duty/tax and returns disclosures. Alibaba remains unavailable
+until official account/API approval is established.
+
+Rollback this unpublished preview by restoring the prior application branch and
+stopping the local server. Preserve existing test ledgers and private catalogue.
+The separate catalogue rollback SQL archives rather than deletes its table and
+must not run blindly or overwrite an existing archive name. No tender records,
+existing subscription payment settings or production webhooks were changed by
+this pilot. No commerce conversion deployment has been made.

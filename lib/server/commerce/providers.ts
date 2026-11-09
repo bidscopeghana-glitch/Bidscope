@@ -19,10 +19,10 @@ export class CjSandboxProvider implements SourcingProvider{
  private permission:Permission;
  private transport:typeof fetch;
  constructor(token:string,tokenExpiresAt:string,permission:Permission,transport:typeof fetch=fetch){this.token=token;this.tokenExpiresAt=tokenExpiresAt;this.permission=permission;this.transport=transport;}
- private async call(path:string,body?:unknown){
+ private async call(path:string,body?:unknown,method:"POST"|"PATCH"="POST"){
   if(!this.token||!Number.isFinite(Date.parse(this.tokenExpiresAt))||Date.parse(this.tokenExpiresAt)<=Date.now())throw Error("CJ server token missing or expired.");
   if(!this.permission.approved||!this.permission.evidence||!Number.isFinite(Date.parse(this.permission.expiresAt))||Date.parse(this.permission.expiresAt)<=Date.now())throw Error("CJ account permission evidence is required.");
-  const response=await this.transport("https://developers.cjdropshipping.com/api2.0/v1/"+path,{method:body?"POST":"GET",headers:{"CJ-Access-Token":this.token,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000),cache:"no-store",redirect:"error"});
+  const response=await this.transport("https://developers.cjdropshipping.com/api2.0/v1/"+path,{method:body?method:"GET",headers:{"CJ-Access-Token":this.token,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000),cache:"no-store",redirect:"error"});
   const result=await response.json() as {code?:number;result?:boolean;data?:unknown};
   if(!response.ok||result.result===false||result.code!==undefined&&![0,200].includes(result.code))throw Error("CJ request failed. Reconcile before retrying order writes.");
   return result.data;
@@ -39,5 +39,14 @@ export class CjSandboxProvider implements SourcingProvider{
   return this.call("shopping/order/createOrderV3",{orderNumber:input.merchantReference,shippingCustomerName:a.name,shippingPhone:a.phone,shippingCountryCode:a.countryCode,shippingCountry:a.country,shippingProvince:a.province,shippingCity:a.city,shippingZip:a.postalCode,shippingAddress:a.address,fromCountryCode:input.origin,logisticName:input.logisticName,products:input.lines.map(l=>({vid:l.variantId,quantity:l.quantity})),isSandbox:1,payType:3});
  }
  order(id:string){return this.call("shopping/order/getOrderDetail?orderId="+encodeURIComponent(id));}
+ async confirmSandboxOrder(id:string){const order=await this.order(id) as {isSandbox?:number|string;orderStatus?:string};if(String(order?.isSandbox)!=="1")throw Error("Only a confirmed sandbox order can be prepared.");if(!["CREATED","IN_CART"].includes(order.orderStatus||""))return {alreadyPrepared:true};return this.call("shopping/order/confirmOrder",{orderId:id},"PATCH");}
+ async sandboxAction(id:string,action:"pay"|"status"|"tracking",value?:number|string){
+  const order=await this.order(id) as {isSandbox?:number|string};
+  if(String(order?.isSandbox)!=="1")throw Error("Only a confirmed sandbox order can be simulated.");
+  if(action==="pay")return this.call("shopping/sandbox/simulatePay",{orderId:id});
+  if(action==="status"){if(typeof value!=="number"||![400,500,600,700].includes(value))throw Error("Unsupported sandbox status.");return this.call("shopping/sandbox/updateStatus",{orderId:id,targetStatus:value});}
+  if(action!=="tracking"||typeof value!=="string"||!/^BIDSCOPE-TEST-[A-Za-z0-9_-]{1,45}$/.test(value))throw Error("A labelled sandbox tracking number is required.");
+  return this.call("shopping/sandbox/updateTrackNumber",{orderId:id,trackNumber:value});
+ }
 }
 export function alibabaProvider():never{throw Error("Alibaba adapter is unavailable until authorised partner API access, scopes, terms and Ghana coverage are verified.");}

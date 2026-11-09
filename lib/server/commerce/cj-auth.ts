@@ -1,9 +1,11 @@
 export type CjToken={accessToken:string;accessTokenExpiryDate:string;refreshToken:string;refreshTokenExpiryDate:string};
+import {waitForCjRequestStart} from "./cj-read-pacer.ts";
 type Envelope={code?:number;result?:boolean;data?:CjToken};
 export function createCjTokenManager(apiKey:()=>Promise<string>,transport:typeof fetch=fetch,clock:()=>number=Date.now){
  let cached:CjToken|null=null,pending:Promise<CjToken>|null=null,lastFailureAt:number|null=null;
  async function request(path:string,body:Record<string,string>){
   let response:Response;
+  if(process.env.BIDSCOPE_COMMERCE_LOCAL_SETUP==="1")await waitForCjRequestStart();
   try{response=await transport("https://developers.cjdropshipping.com/api2.0/v1/authentication/"+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),cache:"no-store",redirect:"error",signal:AbortSignal.timeout(15000)});}
   catch{throw Error("CJ authentication could not be reached. Try again later.");}
   const envelope=await response.json().catch(()=>null) as Envelope|null;

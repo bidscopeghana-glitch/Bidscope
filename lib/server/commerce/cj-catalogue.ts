@@ -2,7 +2,7 @@ import {createHash} from "node:crypto";
 import {setTimeout as pause} from "node:timers/promises";
 import {z} from "zod";
 import type {CjToken} from "./cj-auth.ts";
-import {reserveCjReadSlot} from "./cj-read-pacer.ts";
+import {waitForCjRequestStart} from "./cj-read-pacer.ts";
 
 const identifier=z.string().trim().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/);
 const amount=z.union([z.number(),z.string().regex(/^\d+(\.\d{1,2})?$/)]).transform(Number).pipe(z.number().finite().nonnegative().max(1_000_000));
@@ -27,10 +27,10 @@ export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:
   const previous=tail;let release!:()=>void;tail=new Promise<void>(resolve=>{release=resolve;});
   await previous;
   try{
-  const wait=process.env.BIDSCOPE_COMMERCE_LOCAL_SETUP==="1"&&minimumIntervalMs>0?reserveCjReadSlot(minimumIntervalMs):minimumIntervalMs-(Date.now()-lastStarted);if(wait>0)await pause(wait);
-  lastStarted=Date.now();
   const credentials=await token();
   if(!credentials.accessToken||Date.parse(credentials.accessTokenExpiryDate)<=Date.now()||!Number.isFinite(Date.parse(credentials.accessTokenExpiryDate)))throw Error("CJ token is not usable.");
+  if(process.env.BIDSCOPE_COMMERCE_LOCAL_SETUP==="1"&&minimumIntervalMs>0)await waitForCjRequestStart(minimumIntervalMs);else{const wait=minimumIntervalMs-(Date.now()-lastStarted);if(wait>0)await pause(wait);}
+  lastStarted=Date.now();
   const response=await transport("https://developers.cjdropshipping.com/api2.0/v1/"+path,{method:body?"POST":"GET",headers:{"CJ-Access-Token":credentials.accessToken,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,redirect:"error",cache:"no-store",signal:AbortSignal.timeout(20000)});
   const result=await response.json() as {code?:number;result?:boolean;data?:unknown;pointsInfo?:{remaining:number;total:number;usedToday:number}};
   // Some failed responses contain an all-zero placeholder, not an account quota.
@@ -68,17 +68,18 @@ export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:
    return data.content.flatMap(group=>group.productList).slice(0,12).map(p=>({supplierId:p.id,name:p.nameEn,sku:p.sku||"",priceRangeUsd:p.sellPrice||"Unquoted"}));
   },
   product,
-  async shipping(productId:string,variantId:string,origin:string,quantity:number):Promise<CjShippingCheck>{
-   identifier.parse(variantId);z.string().regex(/^[A-Z]{2}$/).parse(origin);z.number().int().min(1).max(999).parse(quantity);
+  async details(productId:string){const raw=await call("product/query?pid="+encodeURIComponent(identifier.parse(productId)));return {draft:normalizeCjDraft(raw),raw};},
+  async shipping(productId:string,variantId:string,origin:string,quantity:number,destination="GH"):Promise<CjShippingCheck>{
+   identifier.parse(variantId);z.string().regex(/^[A-Z]{2}$/).parse(origin);z.string().regex(/^[A-Z]{2}$/).parse(destination);z.number().int().min(1).max(999).parse(quantity);
    const draft=await product(productId);
    if(!draft.variants.some(v=>v.supplierId===variantId))throw Error("Variant does not belong to this product.");
    const rawStock=await call("product/stock/queryByVid?vid="+encodeURIComponent(variantId));
    const stocks=z.array(z.object({vid:identifier,countryCode:z.string(),totalInventoryNum:z.number().int().nonnegative(),cjInventoryNum:z.number().int().nonnegative(),factoryInventoryNum:z.number().int().nonnegative()})).parse(rawStock).filter(s=>s.vid===variantId&&s.countryCode===origin);
    const stock=stocks.reduce((n,s)=>({total:n.total+s.totalInventoryNum,warehouse:n.warehouse+s.cjInventoryNum,factory:n.factory+s.factoryInventoryNum}),{total:0,warehouse:0,factory:0});
    if(stock.total<quantity)throw Error("Insufficient reported stock at the selected origin. Choose another route or product.");
-   const rawFreight=await call("logistic/freightCalculate",{startCountryCode:origin,endCountryCode:"GH",products:[{vid:variantId,quantity}]});
+   const rawFreight=await call("logistic/freightCalculate",{startCountryCode:origin,endCountryCode:destination,products:[{vid:variantId,quantity}]});
    const routes=z.array(z.object({logisticName:z.string().min(1),logisticAging:z.string(),logisticPrice:amount,taxesFee:amount.nullish(),clearanceOperationFee:amount.nullish(),totalPostageFee:amount.nullish()})).parse(rawFreight).map(r=>({name:r.logisticName,estimate:r.logisticAging,shippingUsdMinor:cents(r.logisticPrice),taxUsdMinor:r.taxesFee==null?null:cents(r.taxesFee),clearanceUsdMinor:r.clearanceOperationFee==null?null:cents(r.clearanceOperationFee),totalPostageUsdMinor:r.totalPostageFee==null?null:cents(r.totalPostageFee)}));
-   return {checkedAt:new Date().toISOString(),origin,destination:"GH",quantity,stock,routes,checkoutEnabled:false};
+   return {checkedAt:new Date().toISOString(),origin,destination,quantity,stock,routes,checkoutEnabled:false};
   }
  };
 }

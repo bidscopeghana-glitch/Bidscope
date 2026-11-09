@@ -79,6 +79,15 @@ test("payment signatures and server verification reject tampering and production
  assert.equal((await verifyTestPayment("test-ref",{amount:123,currency:"GHS"},secret,transport)).verified,true);
  await assert.rejects(verifyTestPayment("test-ref",{amount:124,currency:"GHS"},secret,transport));
 });
+test("supplier simulations refuse real orders and use only sandbox mutation endpoints",async()=>{
+ let sandbox=0;const calls:Array<{url:string;method:string}>=[];
+ const transport=(async(url,init)=>{calls.push({url:String(url),method:init?.method||"GET"});return Response.json({code:200,result:true,data:String(url).includes("getOrderDetail")?{isSandbox:sandbox,orderStatus:"CREATED"}:true});}) as typeof fetch;
+ const provider=new CjSandboxProvider("fixture-token","2099-01-01",{approved:true,evidence:"TEST ONLY",expiresAt:"2099-01-01",productIds:["p"],mediaAllowed:false},transport);
+ await assert.rejects(provider.sandboxAction("real","pay"));await assert.rejects(provider.confirmSandboxOrder("real"));assert.equal(calls.some(c=>["POST","PATCH"].includes(c.method)),false);
+ sandbox=1;await provider.confirmSandboxOrder("sandbox");assert.equal(calls.filter(c=>c.method==="PATCH").length,1);assert.ok(calls.find(c=>c.method==="PATCH")?.url.endsWith("/shopping/order/confirmOrder"));
+ sandbox=1;await provider.sandboxAction("sandbox","pay");await provider.sandboxAction("sandbox","status",400);await provider.sandboxAction("sandbox","tracking","BIDSCOPE-TEST-fixture");await assert.rejects(provider.sandboxAction("sandbox","tracking","REAL-TRACKING"));await assert.rejects(provider.sandboxAction("sandbox","status",900));
+ assert.ok(calls.filter(c=>c.method==="POST").every(c=>c.url.includes("/shopping/sandbox/")));assert.equal(calls.filter(c=>c.method==="POST").length,3);
+});
 test("read retries are bounded; uncertain supplier writes enter the exception queue",()=>{
  const base:Job={id:"j",kind:"tracking",attempts:0,status:"pending",availableAt:0,leaseUntil:null,error:null};
  const claimed=claimJob(base,now)!;assert.equal(claimed.attempts,1);assert.equal(claimJob(claimed,now),null);
