@@ -1,0 +1,11 @@
+# Server-side only. Do not copy production credentials into the sample preview.
+BIDSCOPE_COMMERCE_STORAGE_READY=0
+BIDSCOPE_COMMERCE_NOTIFICATIONS_ENABLED=0
+# Test verification helper accepts sk_test_ only. Do not reuse subscription keys.
+BIDSCOPE_COMMERCE_PAYSTACK_TEST_KEY=
+# CJ candidate adapter accepts a short-lived token with explicit expiry.
+# Token retrieval / refresh requires a reviewed server secret store integration.
+CJ_ACCESS_TOKEN=
+CJ_ACCESS_TOKEN_EXPIRES_AT=
+# Record permissions and allowed products in commerce.sources, not just flags.
+# No environment variable can enable live checkout: route returns 503.

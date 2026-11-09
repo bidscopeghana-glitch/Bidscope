@@ -4,6 +4,7 @@
 /node_modules
 /.npm-cache-task/
 /.npm-cache/
+/.npm-commerce-cache/
 /.responsive-checks/
 /.pnp
 .pnp.*

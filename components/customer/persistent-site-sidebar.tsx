@@ -10,7 +10,7 @@ import { navGroups } from "@/components/customer/navigation";
 import { useData } from "@/components/customer/data";
 import {CountryNavigation} from "@/components/customer/country-navigation";
 
-const ownNavigation = ["/customer", "/procurement", "/admin", "/post-tender"];
+const ownNavigation = ["/", "/customer", "/procurement", "/admin", "/post-tender", "/shop"];
 const fullScreenOrAuth = ["/sign-in", "/auth", "/meetings", "/unsubscribe", "/r"];
 
 function isWithin(pathname: string, section: string) {
