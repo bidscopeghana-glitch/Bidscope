@@ -585,3 +585,23 @@ Stock/freight/duties, customer order processing, supplier payment and refunds st
 require the production workflow. Checkout stays disabled. The production tender
 site, DNS, historical records and catalogue publication permissions were unchanged.
 The rollback instructions above remain applicable. No real payment or order was made.
+
+## Cedi storefront pricing - 9 November 2026
+
+Product tiles, hosted product details and current CJ variant reviews now display
+GHS as the primary product currency. The hosted administrator-only prices route
+loads known draft product costs server-side, applies the approved 30% markup and
+converts with the existing daily USD/GHS feed. Integer conversion rounds upward
+to the nearest pesewa. Raw supplier costs remain USD internally for reconciliation.
+The exchange-rate table is not exposed; responses contain only converted prices,
+rate date and expiry. Attribution remains visible on the shop pages.
+
+Missing, invalid or expired rates do not fall back to a dollar selling price.
+The UI shows Cedi price unavailable and never treats the indicative amount as a
+final payable total. Shipping, fees and duties remain separate. No database or
+credential change is required; checkout remains disabled. Rollback the pricing
+code to runtime ffa2971 to restore the earlier USD preview presentation.
+
+Validation: 418 backend tests passed; production build including TypeScript
+passed. Focused tests cover markup-before-FX, rounding, zero/unknown costs,
+expired rates and bounded/deduplicated draft lookup identifiers.

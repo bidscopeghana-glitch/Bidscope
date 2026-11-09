@@ -7,6 +7,8 @@ import {hostedCatalogueQuery} from "@/lib/server/commerce/hosted-catalogue";
 import {reviewHostedCjProduct} from "@/lib/server/commerce/hosted-cj-review";
 import {cjConnection} from "@/lib/server/commerce/cj-connection";
 import {createCjCatalogueInspector,CjReadError} from "@/lib/server/commerce/cj-catalogue";
+import {getDailyFx,ghsMinor} from "@/lib/server/commerce/daily-fx";
+import {retailUsdMinor} from "@/lib/commerce/retail-pricing";
 
 export const runtime="nodejs";
 export const maxDuration=60;
@@ -21,5 +23,6 @@ export async function POST(request:Request){try{
   async release(lease){await supabaseRpc("bidscope_cj_review_release",{p_lease:lease});},
   async product(id){try{return await createCjCatalogueInspector(async()=>{const token=await cjConnection.token();await pause(1100);return token;}).product(id);}catch(error){throw new ApiError(503,error instanceof CjReadError?error.message:"CJ could not complete the product review. Try again later.","cj_review_failed");}}
  });
- return Response.json(result,{headers:{"Cache-Control":"private, no-store","Vary":"Authorization"}});
+ const fx=await getDailyFx().catch(()=>null);
+ return Response.json({...result,fxAsOf:fx?.asOf??null,fxValidUntil:fx?.validUntil??null,product:{...result.product,variants:result.product.variants.map(variant=>({...variant,retailGhsMinor:fx?ghsMinor(retailUsdMinor(variant.costUsdMinor),fx):null}))}},{headers:{"Cache-Control":"private, no-store","Vary":"Authorization"}});
  }catch(error){const response=apiErrorResponse(error);response.headers.set("Cache-Control","private, no-store");if(response.status===429)response.headers.set("Retry-After","90");return response;}}
