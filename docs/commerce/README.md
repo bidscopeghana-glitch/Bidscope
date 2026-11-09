@@ -169,6 +169,9 @@ errors receive at most three retries with backoff; quota errors receive bounded
 one-minute pauses, and 1,000 reported points are reserved for account inspection.
 The worker stops on account suspension, invalid provider responses or exhausted
 categories. Re-running resumes the last committed page without duplicate products.
+All-zero quota placeholders on failed responses do not replace the last valid
+quota snapshot. A real zero remaining balance with a positive total is retained;
+provider errors still receive only the existing bounded retries.
 Remaining categories rotate between departments, preserving the active category's
 page cursor, so a large first department cannot occupy the whole catalogue target.
 Local browser checks and the background worker share a persisted rate-slot ledger.
@@ -204,7 +207,7 @@ and refuses a local catalogue exceeding the approved 50,000-product limit. It ca
 follow an active importer and temporary quota/read pauses, up to a bounded wait.
 Refresh the private catalogue screen to read the latest actual count.
 
-Validation for the bulk catalogue revision: 386 backend tests pass, with no
+Validation for the bulk catalogue revision: 387 backend tests pass, with no
 failures or skipped tests. ESLint, TypeScript and the production webpack build
 pass. Browser checks verified header search, 24-item pagination, and no horizontal
 overflow at 1,024 px and 390 px. A live service-role count confirmed the cloud

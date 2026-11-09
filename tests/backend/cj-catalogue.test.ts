@@ -61,3 +61,14 @@ test("bulk reads respect the 6,000-result window and surface quota exhaustion",a
  const failed=createCjCatalogueInspector(token,(async()=>Response.json({code:429,result:false,pointsInfo:{total:50000,usedToday:50000,remaining:0}},{status:429})) as typeof fetch,0);
  await assert.rejects(failed.cataloguePage("category",1),e=>e instanceof Error&&"providerCode" in e&&e.providerCode===429);assert.equal(failed.quota()?.remaining,0);
 });
+test("failed-response quota placeholders cannot overwrite a usable quota snapshot",async()=>{
+ let calls=0;
+ const api=createCjCatalogueInspector(token,(async()=>++calls===1
+  ?Response.json({code:200,result:true,data:{totalPages:1,content:[]},pointsInfo:{total:50000,usedToday:100,remaining:49900}})
+  :Response.json({code:500,result:false,pointsInfo:{total:0,usedToday:0,remaining:0}},{status:500})) as typeof fetch,0);
+ await api.cataloguePage("category",1);
+ await assert.rejects(api.cataloguePage("category",1));
+ assert.deepEqual(api.quota(),{total:50000,usedToday:100,remaining:49900});
+ const unavailable=createCjCatalogueInspector(token,(async()=>Response.json({code:500,result:false,pointsInfo:{total:0,usedToday:0,remaining:0}},{status:500})) as typeof fetch,0);
+ await assert.rejects(unavailable.cataloguePage("category",1));assert.equal(unavailable.quota(),null);
+});

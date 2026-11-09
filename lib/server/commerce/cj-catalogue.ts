@@ -33,7 +33,10 @@ export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:
   if(!credentials.accessToken||Date.parse(credentials.accessTokenExpiryDate)<=Date.now()||!Number.isFinite(Date.parse(credentials.accessTokenExpiryDate)))throw Error("CJ token is not usable.");
   const response=await transport("https://developers.cjdropshipping.com/api2.0/v1/"+path,{method:body?"POST":"GET",headers:{"CJ-Access-Token":credentials.accessToken,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,redirect:"error",cache:"no-store",signal:AbortSignal.timeout(20000)});
   const result=await response.json() as {code?:number;result?:boolean;data?:unknown;pointsInfo?:{remaining:number;total:number;usedToday:number}};
-  if(result.pointsInfo&&[result.pointsInfo.remaining,result.pointsInfo.total,result.pointsInfo.usedToday].every(n=>Number.isFinite(n)&&n>=0))points=result.pointsInfo;
+  // Some failed responses contain an all-zero placeholder, not an account quota.
+  // Preserve the last usable snapshot; a real zero remaining quota has a positive
+  // total and is still accepted. Provider errors keep their bounded retry policy.
+  if(result.pointsInfo&&result.pointsInfo.total>0&&result.pointsInfo.remaining<=result.pointsInfo.total&&[result.pointsInfo.remaining,result.pointsInfo.total,result.pointsInfo.usedToday].every(n=>Number.isSafeInteger(n)&&n>=0))points=result.pointsInfo;
   if(!response.ok||result.code!==200||result.result!==true)throw new CjReadError(result.code||response.status);
   return result.data;
   }finally{release();}
