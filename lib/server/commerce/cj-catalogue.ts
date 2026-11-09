@@ -49,9 +49,9 @@ export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:
    const parsed=z.array(z.object({categoryFirstName:z.string(),categoryFirstList:z.array(z.object({categorySecondName:z.string(),categorySecondList:z.array(z.object({categoryId:identifier,categoryName:z.string()}))}))})).parse(data);
    return parsed.flatMap(first=>first.categoryFirstList.flatMap(second=>second.categorySecondList.map(leaf=>({id:leaf.categoryId,name:[first.categoryFirstName,second.categorySecondName,leaf.categoryName].join(" / ")}))));
   },
-  async cataloguePage(categoryId:string,page:number){
-   identifier.parse(categoryId);z.number().int().min(1).max(60).parse(page);
-   const raw=await call("product/listV2?"+new URLSearchParams({categoryId,page:String(page),size:"100",features:"enable_category",sort:"asc",orderBy:"3"}));
+  async cataloguePage(categoryId:string,page:number,direction:"asc"|"desc"="asc"){
+   identifier.parse(categoryId);z.number().int().min(1).max(60).parse(page);z.enum(["asc","desc"]).parse(direction);
+   const raw=await call("product/listV2?"+new URLSearchParams({categoryId,page:String(page),size:"100",features:"enable_category",sort:direction,orderBy:"3"}));
    const parsed=z.object({totalPages:z.number(),content:z.array(z.object({productList:z.array(z.unknown())}))}).parse(raw);
    return {totalPages:Math.min(60,parsed.totalPages),items:parsed.content.flatMap(g=>g.productList)};
   },

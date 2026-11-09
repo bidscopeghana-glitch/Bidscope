@@ -10,8 +10,11 @@ test("real CJ preview preserves supplier mapping without claiming stock or publi
  assert.throws(()=>quoteCart([product],[{variantId:product.variants[0].id,quantity:1}],samplePricing,"GH"));
 });
 test("preview image validation rejects arbitrary hosts, credentials, ports and non-HTTPS media",()=>{
- for(const url of ["http://cf.cjdropshipping.com/x.jpg","https://cjdropshipping.com.evil.invalid/x.jpg","https://private.example/x.jpg","https://user:secret@cf.cjdropshipping.com/x.jpg","https://cf.cjdropshipping.com:8443/x.jpg","data:image/png;base64,abc"]){assert.equal(cjPreviewImage(url),undefined);assert.throws(()=>cjStorefrontPreview(draft,url,"Home","lamp"));}
+ for(const url of ["http://cf.cjdropshipping.com/x.jpg","https://cjdropshipping.com.evil.invalid/x.jpg","https://private.example/x.jpg","https://user:secret@cf.cjdropshipping.com/x.jpg","https://cf.cjdropshipping.com:8443/x.jpg","https://other-bucket.oss-accelerate.aliyuncs.com/x.jpg","https://cj-product-center.oss-accelerate.aliyuncs.com.evil.invalid/x.jpg","data:image/png;base64,abc"]){assert.equal(cjPreviewImage(url),undefined);assert.throws(()=>cjStorefrontPreview(draft,url,"Home","lamp"));}
  assert.equal(cjPreviewImage("https://cf.cjdropshipping.com/x.jpg"),"https://cf.cjdropshipping.com/x.jpg");
+});
+test("only the exact CJ API media buckets are allowed without granting publication or stock",()=>{
+ for(const host of ["cj-product-center.oss-accelerate.aliyuncs.com","cc-west-usa.oss-us-west-1.aliyuncs.com"]){const p=cjStorefrontPreview(draft,`https://${host}/photo.jpg`,"Home","lamp");assert.equal(p.permission,"unknown");assert.equal(p.variants[0].stock,0);assert.equal(p.image,`https://${host}/photo.jpg`);}
 });
 test("private feed schema strips unknown fields and rejects publication or stock escalation",()=>{
  const product=cjStorefrontPreview(draft,"https://cf.cjdropshipping.com/photo.jpg","Home","lamp");

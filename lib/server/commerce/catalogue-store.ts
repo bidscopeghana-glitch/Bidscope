@@ -10,6 +10,7 @@ export function openCatalogue(filename=path.join(process.cwd(),".codex-tmp","com
  db.exec("CREATE TABLE IF NOT EXISTS cloud_sync(product_id TEXT PRIMARY KEY,checked_at TEXT NOT NULL)");
  return {
   close(){db.close();},count,
+  workerActive(now=Date.now()){const row=db.prepare("SELECT expires FROM worker WHERE id=1").get() as {expires:number}|undefined;return Boolean(row&&row.expires>now);},
   claim(owner:string,now=Date.now()){const result=db.prepare("INSERT INTO worker VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,expires=excluded.expires WHERE worker.expires<? OR worker.owner=excluded.owner").run(owner,now+120000,now);return result.changes===1;},
   release(owner:string){db.prepare("DELETE FROM worker WHERE id=1 AND owner=?").run(owner);},
   state():CatalogueState|null{const row=db.prepare("SELECT state FROM progress WHERE id=1").get() as {state:string}|undefined;return row?JSON.parse(row.state):null;},

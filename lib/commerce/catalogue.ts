@@ -15,7 +15,14 @@ export function catalogueItem(raw:unknown,category:{id:string;name:string}):Cata
  const result=catalogueItemSchema.safeParse({supplierId:p.id,name:p.nameEn,sku:p.sku||"",category:category.name,categoryId:category.id,image:p.bigImage,priceText,minUsdMinor:range.min,maxUsdMinor:range.max,checkedAt:new Date().toISOString()});
  return result.success?result.data:null;
 }
-export type CatalogueState={target:number;categoryIndex:number;page:number;status:"running"|"paused"|"complete"|"exhausted"|"error";reason:string;updatedAt:string;categories:{id:string;name:string}[];quota:{remaining:number;total:number;usedToday:number}|null;orderingVersion?:number};
+export type CatalogueState={target:number;categoryIndex:number;page:number;status:"running"|"paused"|"complete"|"exhausted"|"error";reason:string;updatedAt:string;categories:{id:string;name:string}[];quota:{remaining:number;total:number;usedToday:number}|null;orderingVersion?:number;direction?:"asc"|"desc";mediaPolicyVersion?:number};
+export function upgradeCatalogueMediaPolicy(state:CatalogueState,hasProducts:boolean):CatalogueState{
+ if(state.mediaPolicyVersion===1)return state;
+ return {...state,mediaPolicyVersion:1,...(hasProducts?{categoryIndex:0,page:1,direction:"desc" as const,status:"running" as const,reason:""}:{})};
+}
+export function nextCatalogueDirection(state:CatalogueState):CatalogueState|null{
+ return state.categoryIndex>=state.categories.length&&state.direction!=="desc"?{...state,categoryIndex:0,page:1,direction:"desc",status:"running",reason:""}:null;
+}
 export function interleaveDepartments(categories:{id:string;name:string}[]){
  const groups=new Map<string,{id:string;name:string}[]>();for(const category of categories){const key=category.name.split(" / ")[0];const list=groups.get(key)||[];list.push(category);groups.set(key,list);}
  const result:{id:string;name:string}[]=[];let more=true;while(more){more=false;for(const list of groups.values()){const next=list.shift();if(next){result.push(next);more=true;}}}return result;

@@ -125,7 +125,7 @@ one-request-per-second limit. Unsupported products/media are skipped.
 The opt-in loopback-only `/api/commerce/local-catalogue/feed` endpoint validates and
 allowlists the saved feed. The shop uses it in place of the sample collection,
 including actual product photos, categories, variant mappings and USD reference
-prices. It rejects non-CJ image hosts, treats stock as unverified, keeps public
+prices. It rejects image hosts outside the reviewed CJ media allowlist, treats stock as unverified, keeps public
 publication permission unknown and prevents real products entering sample checkout.
 No GHS selling price, confirmed origin or delivery promise is invented. Supplier
 photos remain external and lazy-loaded; they are not copied into the repository.
@@ -162,6 +162,10 @@ local SQLite staging database. Run with `BIDSCOPE_COMMERCE_LOCAL_SETUP=1` and
 pagination is capped at the documented 6,000-result window per query, and products
 are deduplicated by supplier ID across categories. No scraping, paid quota purchase,
 provider order creation, image mirroring or public publication is performed.
+If the oldest-first category pass does not reach the target, one newest-first
+pass uses CJ's documented create-time sort. It retains the same 60-page limit,
+excluded categories, deduplication, quota checks and retry bounds. The direction
+is checkpointed; it cannot cycle indefinitely or restart the newer pass on resume.
 
 Each successful page and cursor are committed together. A short worker lease
 prevents concurrent importers; expired leases are recoverable. Timeouts and server
@@ -178,6 +182,13 @@ Local browser checks and the background worker share a persisted rate-slot ledge
 Use Ctrl+C for a graceful worker pause; the current read commits before shutdown.
 Unsupported media hosts and non-sale products are skipped, rather than replaced
 with fabricated listings. An exhausted category set may yield fewer than 50,000.
+The media allowlist includes CJ subdomains and two exact auxiliary buckets:
+`cj-product-center.oss-accelerate.aliyuncs.com` was returned by the authenticated
+official V2 API on 9 November 2026; `cc-west-usa.oss-us-west-1.aliyuncs.com` is used
+in CJ's official API documentation. Other Alibaba Cloud buckets are denied.
+This allows only private review, without changing publication or stock approval.
+The versioned media-policy checkpoint replays an existing catalogue once in newest
+order to recover previously skipped records; it preserves stored rows and the cap.
 
 SQLite scale tests use **synthetic fixtures**, not real supplier imports: 50,000
 rows, exact deduplication, pagination, literal wildcard handling, injection-looking
@@ -204,10 +215,12 @@ No paid Supabase upgrade or production Vercel deployment has been activated.
 Run the mirror only with `BIDSCOPE_CATALOGUE_SUPABASE_READY=1` and the confirmed
 BidScope server-side Supabase environment. It refuses any other project hostname
 and refuses a local catalogue exceeding the approved 50,000-product limit. It can
-follow an active importer and temporary quota/read pauses, up to a bounded wait.
+follow the active importer's persisted lease through temporary quota/read pauses,
+up to a bounded wait. It does not infer liveness from error-message wording or a
+stale running status after the worker has exited.
 Refresh the private catalogue screen to read the latest actual count.
 
-Validation for the bulk catalogue revision: 387 backend tests pass, with no
+Validation for the bulk catalogue revision: 390 backend tests pass, with no
 failures or skipped tests. ESLint, TypeScript and the production webpack build
 pass. Browser checks verified header search, 24-item pagination, and no horizontal
 overflow at 1,024 px and 390 px. A live service-role count confirmed the cloud

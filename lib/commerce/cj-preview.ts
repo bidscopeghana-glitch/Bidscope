@@ -1,9 +1,12 @@
 import {z} from "zod";
 import type {Product} from "./core.ts";
 import type {CjDraft} from "../server/commerce/cj-catalogue.ts";
-// Preview media is restricted to CJ's own HTTPS CDN, never arbitrary API URLs.
+// Exact auxiliary bucket hosts: product-center was observed in the authenticated
+// CJ listV2 response; cc-west-usa appears in CJ's official product API example.
+// This permits private image review only, never approval of publication rights.
+const cjMediaBuckets=new Set(["cj-product-center.oss-accelerate.aliyuncs.com","cc-west-usa.oss-us-west-1.aliyuncs.com"]);
 export function cjPreviewImage(value:string){
- try{const url=new URL(value);return url.protocol==="https:"&&!url.username&&!url.password&&!url.port&&(url.hostname==="cjdropshipping.com"||url.hostname.endsWith(".cjdropshipping.com"))?url.href:undefined;}catch{return undefined;}
+ try{const url=new URL(value);return url.protocol==="https:"&&!url.username&&!url.password&&!url.port&&(url.hostname==="cjdropshipping.com"||url.hostname.endsWith(".cjdropshipping.com")||cjMediaBuckets.has(url.hostname))?url.href:undefined;}catch{return undefined;}
 }
 export function cjStorefrontPreview(draft:CjDraft,image:string,category:string,art:Product["art"]):Product{
  const safeImage=cjPreviewImage(image);

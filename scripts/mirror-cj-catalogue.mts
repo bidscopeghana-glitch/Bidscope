@@ -6,7 +6,7 @@ const store=openCatalogue();let batches=0,idle=0;
 try{while(batches<1000){
  if(store.count()>50000)throw Error("The approved 50,000-product backfill limit was exceeded.");
  const rows=store.pendingCloud();
- if(!rows.length){const state=store.state(),temporaryPause=state?.status==="paused"&&/Temporary source|quota is temporarily/.test(state.reason);if((state?.status==="running"||temporaryPause)&&idle++<240){await pause(15000);continue;}console.log("All available local drafts have been copied to private Supabase storage.");break;}
+ if(!rows.length){if(store.workerActive()&&idle++<240){await pause(15000);continue;}console.log("All available local drafts have been copied to private Supabase storage.");break;}
  idle=0;
  // Only supplier metadata is upserted. Rights and publication status cannot be promoted.
  const payload=rows.map(row=>({source_id:"cj",...row}));let success=false;
