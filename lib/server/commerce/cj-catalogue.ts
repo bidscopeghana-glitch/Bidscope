@@ -2,6 +2,7 @@ import {createHash} from "node:crypto";
 import {setTimeout as pause} from "node:timers/promises";
 import {z} from "zod";
 import type {CjToken} from "./cj-auth.ts";
+import {reserveCjReadSlot} from "./cj-read-pacer.ts";
 
 const identifier=z.string().trim().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/);
 const amount=z.union([z.number(),z.string().regex(/^\d+(\.\d{1,2})?$/)]).transform(Number).pipe(z.number().finite().nonnegative().max(1_000_000));
@@ -11,6 +12,7 @@ export type CjDraft={provider:"cj";id:string;supplierId:string;name:string;sku:s
 export type CjShippingCheck={checkedAt:string;origin:string;destination:string;quantity:number;stock:{total:number;warehouse:number;factory:number};routes:{name:string;estimate:string;shippingUsdMinor:number;taxUsdMinor:number|null;clearanceUsdMinor:number|null;totalPostageUsdMinor:number|null}[];checkoutEnabled:false};
 function mapping(product:string,variant:string){return createHash("sha256").update(JSON.stringify(["cj",product,variant])).digest("hex");}
 function cents(value:number){return Math.round(value*100);}
+export class CjReadError extends Error{readonly providerCode:number;constructor(code:number){super(code===429||code===16900500?"CJ quota is temporarily unavailable.":code===1600014?"CJ account API access requires reactivation.":"CJ catalogue read failed.");this.providerCode=code;}}
 export function normalizeCjDraft(raw:unknown,now=new Date().toISOString()):CjDraft{
  const p=productSchema.parse(raw);
  if(new Set(p.variants.map(v=>v.vid)).size!==p.variants.length||p.variants.some(v=>v.pid&&v.pid!==p.pid))throw Error("CJ returned inconsistent variant mappings.");
@@ -20,22 +22,36 @@ export function normalizeCjDraft(raw:unknown,now=new Date().toISOString()):CjDra
 // Private local account inspection only. No public catalogue, media, order or payment methods.
 export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:typeof fetch=fetch,minimumIntervalMs=1100){
  let tail=Promise.resolve(),lastStarted=0;
+ let points:{remaining:number;total:number;usedToday:number}|null=null;
  async function call(path:string,body?:unknown){
   const previous=tail;let release!:()=>void;tail=new Promise<void>(resolve=>{release=resolve;});
   await previous;
   try{
-  const wait=minimumIntervalMs-(Date.now()-lastStarted);if(wait>0)await pause(wait);
+  const wait=process.env.BIDSCOPE_COMMERCE_LOCAL_SETUP==="1"&&minimumIntervalMs>0?reserveCjReadSlot(minimumIntervalMs):minimumIntervalMs-(Date.now()-lastStarted);if(wait>0)await pause(wait);
   lastStarted=Date.now();
   const credentials=await token();
   if(!credentials.accessToken||Date.parse(credentials.accessTokenExpiryDate)<=Date.now()||!Number.isFinite(Date.parse(credentials.accessTokenExpiryDate)))throw Error("CJ token is not usable.");
   const response=await transport("https://developers.cjdropshipping.com/api2.0/v1/"+path,{method:body?"POST":"GET",headers:{"CJ-Access-Token":credentials.accessToken,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,redirect:"error",cache:"no-store",signal:AbortSignal.timeout(20000)});
-  const result=await response.json() as {code?:number;result?:boolean;data?:unknown};
-  if(!response.ok||result.code!==200||result.result!==true)throw Error("CJ could not complete this product check. No order was placed.");
+  const result=await response.json() as {code?:number;result?:boolean;data?:unknown;pointsInfo?:{remaining:number;total:number;usedToday:number}};
+  if(result.pointsInfo&&[result.pointsInfo.remaining,result.pointsInfo.total,result.pointsInfo.usedToday].every(n=>Number.isFinite(n)&&n>=0))points=result.pointsInfo;
+  if(!response.ok||result.code!==200||result.result!==true)throw new CjReadError(result.code||response.status);
   return result.data;
   }finally{release();}
  }
  async function product(productId:string){return normalizeCjDraft(await call("product/query?pid="+encodeURIComponent(identifier.parse(productId))));}
  return {
+  quota(){return points;},
+  async categories(){
+   const data=await call("product/getCategory");
+   const parsed=z.array(z.object({categoryFirstName:z.string(),categoryFirstList:z.array(z.object({categorySecondName:z.string(),categorySecondList:z.array(z.object({categoryId:identifier,categoryName:z.string()}))}))})).parse(data);
+   return parsed.flatMap(first=>first.categoryFirstList.flatMap(second=>second.categorySecondList.map(leaf=>({id:leaf.categoryId,name:[first.categoryFirstName,second.categorySecondName,leaf.categoryName].join(" / ")}))));
+  },
+  async cataloguePage(categoryId:string,page:number){
+   identifier.parse(categoryId);z.number().int().min(1).max(60).parse(page);
+   const raw=await call("product/listV2?"+new URLSearchParams({categoryId,page:String(page),size:"100",features:"enable_category",sort:"asc",orderBy:"3"}));
+   const parsed=z.object({totalPages:z.number(),content:z.array(z.object({productList:z.array(z.unknown())}))}).parse(raw);
+   return {totalPages:Math.min(60,parsed.totalPages),items:parsed.content.flatMap(g=>g.productList)};
+  },
   async preview(productId:string){
    const raw=await call("product/query?pid="+encodeURIComponent(identifier.parse(productId)));
    const draft=normalizeCjDraft(raw);

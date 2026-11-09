@@ -1,10 +1,10 @@
 # BidScope commerce preview
 
-Isolated conversion preview. Checkout and supplier purchases remain disabled. No production database changes have been applied.
+Isolated conversion preview. Checkout and supplier purchases remain disabled. The separately approved private catalogue table has been created in BidScope Supabase; historical tables remain unchanged.
 
 ## Identity and architecture
 - Repository: bidscopeghana-glitch/Bidscope; GitHub main checked at 600dc10.
-- Branch: codex/bidscope-commerce-preview. No push or deployment.
+- Branch: codex/bidscope-commerce-preview, pushed to GitHub for review. No public commerce deployment.
 - Intended existing hosting: Vercel bidscope-ghana/bidscope.
 - Intended existing database: BidScope Supabase bclyhnbzbgugfmxrtlvu.
 - All new work is in this isolated BidScope checkout. OdoMatch is out of scope.
@@ -147,6 +147,74 @@ Vercel auto-deployment setting is disabled in `vercel.json`; no production branc
 merge or deployment is authorised. To roll back the real-item preview, unset the
 local-setup flag and restart the server, or move the private feed out of that path.
 No historical tender records or database structures are changed.
+
+## 50,000-product staging catalogue
+The new `/shop/catalogue` browser requests 24 products per page, with server-side
+search, category filters and price sorting. It never loads 50,000 products into
+React. Actual imported totals are shown separately from the 50,000-product target.
+Source price ranges retain both endpoints. Full variants are fetched on request;
+unfetched variants are never invented or counted as separate products.
+
+`scripts/sync-cj-catalogue.mts` imports official V2 list metadata into an ignored
+local SQLite staging database. Run with `BIDSCOPE_COMMERCE_LOCAL_SETUP=1` and
+`CJ_CATALOGUE_BATCH_PAGES=10` for a bounded batch, or up to 1,000 for a longer run.
+`CJ_CATALOGUE_TARGET` defaults to 50,000 and cannot exceed that limit. Source category
+pagination is capped at the documented 6,000-result window per query, and products
+are deduplicated by supplier ID across categories. No scraping, paid quota purchase,
+provider order creation, image mirroring or public publication is performed.
+
+Each successful page and cursor are committed together. A short worker lease
+prevents concurrent importers; expired leases are recoverable. Timeouts and server
+errors receive at most three retries with backoff; quota errors receive bounded
+one-minute pauses, and 1,000 reported points are reserved for account inspection.
+The worker stops on account suspension, invalid provider responses or exhausted
+categories. Re-running resumes the last committed page without duplicate products.
+Remaining categories rotate between departments, preserving the active category's
+page cursor, so a large first department cannot occupy the whole catalogue target.
+Local browser checks and the background worker share a persisted rate-slot ledger.
+Use Ctrl+C for a graceful worker pause; the current read commits before shutdown.
+Unsupported media hosts and non-sale products are skipped, rather than replaced
+with fabricated listings. An exhausted category set may yield fewer than 50,000.
+
+SQLite scale tests use **synthetic fixtures**, not real supplier imports: 50,000
+rows, exact deduplication, pagination, literal wildcard handling, injection-looking
+search input, target limits and worker lease recovery are verified. Live product
+totals must always be obtained from the progress endpoint or database itself.
+
+Supabase staging is defined in `catalogue-staging.sql`, with a separate
+reversible retirement script. It creates one new private draft table, indexes and
+service-role-only access; it does not modify existing tender, account or payment
+tables. Public publication is excluded by the status constraint. The migration was
+applied on 9 November 2026 after explicit user approval. RLS, four indexes, denied
+anon/authenticated reads and denied service-role deletion were verified in live SQL.
+The user separately approved a private backfill of up to 50,000 draft records.
+`scripts/mirror-cj-catalogue.mts` performs bounded, idempotent upserts of metadata
+only. Rights/publication fields are never included in its payload. Local version
+markers are updated only after the cloud write succeeds; a newer local version
+remains pending even if an older cloud write completes later. No customer records
+or existing tender tables are modified. At the first cloud check, 8,749 rows were
+all drafts with rights review pending, using 12 MB including indexes.
+On 9 November 2026 the confirmed BidScope project showed 286 MB of its 500 MB
+dashboard allowance, and the read-only SQL size check returned 258 MB. Recheck
+capacity before any cloud backfill, retaining headroom for the existing site.
+No paid Supabase upgrade or production Vercel deployment has been activated.
+Run the mirror only with `BIDSCOPE_CATALOGUE_SUPABASE_READY=1` and the confirmed
+BidScope server-side Supabase environment. It refuses any other project hostname
+and refuses a local catalogue exceeding the approved 50,000-product limit. It can
+follow an active importer and temporary quota/read pauses, up to a bounded wait.
+Refresh the private catalogue screen to read the latest actual count.
+
+Validation for the bulk catalogue revision: 386 backend tests pass, with no
+failures or skipped tests. ESLint, TypeScript and the production webpack build
+pass. Browser checks verified header search, 24-item pagination, and no horizontal
+overflow at 1,024 px and 390 px. A live service-role count confirmed the cloud
+copy contains only draft records with publication rights still pending review.
+
+To roll back the local catalogue, stop its worker and disable local setup. Keep
+the SQLite database and its WAL files together for recovery; do not delete them
+while the worker is active. Existing tender/customer data is unaffected. The
+Supabase rollback script renames its new draft table and revokes access, preserving
+records; review any archive-name collision before use.
 
 Alibaba's openapi-account developer profile was incomplete at inspection: legal
 company name, registration number, registered address and certificate were missing,

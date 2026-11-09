@@ -11,5 +11,9 @@ CJ_ACCESS_TOKEN_EXPIRES_AT=
 CJ_API_KEY=
 # Local-only setup form. Never enable on Vercel or another public server.
 BIDSCOPE_COMMERCE_LOCAL_SETUP=0
+# Private catalogue jobs only; enable after the reviewed migration is applied.
+BIDSCOPE_CATALOGUE_SUPABASE_READY=0
+CJ_CATALOGUE_TARGET=50000
+CJ_CATALOGUE_BATCH_PAGES=10
 # Record permissions and allowed products in commerce.sources, not just flags.
 # No environment variable can enable live checkout: route returns 503.

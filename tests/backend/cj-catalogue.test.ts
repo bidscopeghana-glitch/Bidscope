@@ -53,3 +53,11 @@ test("CJ account reads are serialised and paced for the free tier",async()=>{
  await Promise.all([api.product("p1"),api.product("p1")]);
  assert.equal(maxActive,1);assert.ok(started[1]-started[0]>=23);
 });
+test("bulk reads respect the 6,000-result window and surface quota exhaustion",async()=>{
+ let url="",calls=0;const transport=(async(input)=>{url=String(input);calls++;return Response.json({code:200,result:true,data:{totalPages:100,content:[{productList:[{id:"p1"}]}]},pointsInfo:{total:50000,usedToday:50,remaining:49950}});}) as typeof fetch;
+ const api=createCjCatalogueInspector(token,transport,0),page=await api.cataloguePage("category",1);
+ assert.equal(page.totalPages,60);assert.equal(new URL(url).searchParams.get("size"),"100");assert.equal(new URL(url).searchParams.get("categoryId"),"category");assert.equal(api.quota()?.remaining,49950);
+ await assert.rejects(api.cataloguePage("category",61));assert.equal(calls,1);
+ const failed=createCjCatalogueInspector(token,(async()=>Response.json({code:429,result:false,pointsInfo:{total:50000,usedToday:50000,remaining:0}},{status:429})) as typeof fetch,0);
+ await assert.rejects(failed.cataloguePage("category",1),e=>e instanceof Error&&"providerCode" in e&&e.providerCode===429);assert.equal(failed.quota()?.remaining,0);
+});

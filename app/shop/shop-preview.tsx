@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
+import {useRouter} from "next/navigation";
 import {BrandLogo} from "@/components/brand/brand-logo";
 import {ShoppingBag,Search,ArrowRight,Globe2,Truck,ShieldCheck,X,Settings2,MapPin,Menu,Package,UserRound,ChevronRight} from "lucide-react";
 import {sampleProducts,samplePricing,quoteCart,variantFor,newOrder,recordPayment,submitSupplier,paySupplier,trackShipment,requestResolution,refundOrder,money,type Order,type Line,type Product} from "@/lib/commerce/core";
@@ -11,6 +12,7 @@ import {cjPreviewFeedSchema} from "@/lib/commerce/cj-preview";
 type Tab="shop"|"bag"|"orders"|"admin"|"help"|"policies";
 const key="bidscope-shopping-samples-v1";
 export function ShopPreview(){
+ const router=useRouter();
  const [tab,setTab]=useState<Tab>("shop"),[search,setSearch]=useState(""),[category,setCategory]=useState("All"),[destination,setDestination]=useState("GH"),[sort,setSort]=useState("featured");
  const [cart,setCart]=useState<Line[]>([]),[orders,setOrders]=useState<Order[]>([]),[product,setProduct]=useState<Product|null>(null),[variant,setVariant]=useState(""),[quantity,setQuantity]=useState(1);
  const [message,setMessage]=useState(""),[requests,setRequests]=useState<string[]>([]),[ready,setReady]=useState(false),[pricing,setPricing]=useState(samplePricing),[catalogue,setCatalogue]=useState(sampleProducts);
@@ -32,7 +34,7 @@ export function ShopPreview(){
  <header className="shop-header">
   <a href="/shop" className="shop-brand"><BrandLogo reversed className="shop-logo"/><small>SHOP & SOURCE</small></a>
   <div className="market-destination"><MapPin size={20}/><span>Shopping for<strong>Ghana</strong></span></div>
-  <form className="market-search" onSubmit={e=>{e.preventDefault();setTab("shop");document.getElementById("collection")?.scrollIntoView({behavior:"smooth"});}}>
+  <form className="market-search" onSubmit={e=>{e.preventDefault();router.push("/shop/catalogue?"+new URLSearchParams({q:search.slice(0,100)}));}}>
    <select aria-label="Search department" value={category} onChange={e=>{setCategory(e.target.value);setTab("shop");}}>{["All",...new Set(catalogue.map(p=>p.category))].map(c=><option key={c}>{c}</option>)}</select>
    <input aria-label="Search products" placeholder="Search BidScope for products and more" value={search} onChange={e=>{setSearch(e.target.value);setTab("shop");}}/>
    <button type="submit" aria-label="Search catalogue"><Search size={25}/></button>
@@ -42,7 +44,7 @@ export function ShopPreview(){
   <div className="shop-header-actions"><button aria-label="Sample administration" onClick={()=>setTab("admin")}><Settings2 size={20}/></button><button className="market-bag" onClick={()=>setTab("bag")}><ShoppingBag size={30}/><strong>Bag ({cart.reduce((n,l)=>n+l.quantity,0)})</strong></button></div>
  </header>
  <nav className="market-nav" aria-label="Shopping navigation">
-  <button onClick={()=>{setTab("shop");setCategory("All");}}><Menu size={20}/> All departments</button>
+  <button onClick={()=>{router.push("/shop/catalogue");}}><Menu size={20}/> All departments</button>
   <button onClick={()=>{setTab("shop");setCategory("All");}}>Discover</button>
   {departments.map(p=><button key={p.id} onClick={()=>{setTab("shop");setCategory(p.category);}}>{p.category}</button>)}
   <button onClick={()=>setTab("help")}>Customer service</button><span>Shop. Source. All in one place.</span>
@@ -55,6 +57,7 @@ export function ShopPreview(){
  </section>
  <section className="market-member-strip"><div className="member-icon"><UserRound size={24}/></div><div><h2>A little more personal. A lot more possibilities.</h2><p>Sign in to your BidScope account, or create one to get started.</p></div><a href="/sign-in?next=%2Fshop">Sign in <ArrowRight size={16}/></a><a className="member-register" href="/sign-in?mode=sign-up&amp;next=%2Fshop">Create account</a></section>
  <div className="market-notice"><ShieldCheck size={22}/><span><strong>A transparent start to shopping.</strong> {realCatalogue?"Real CJ products are shown for private review. Reference prices are not final customer prices. Availability, shipping and publication rights need review; checkout is closed.":"You are viewing a sample catalogue. Real products, shipping routes and checkout will open after supplier verification."}</span></div>
+ <div className="market-notice"><Package size={22}/><span><strong>Explore the full supplier catalogue.</strong> Browse the growing import by category, search and price.</span><a href="/shop/catalogue">Browse all products →</a></div>
  <section id="collection" className="shop-collection">
  <div className="shop-section-title"><div><h2>{category==="All"?(realCatalogue?"Discover products from CJ":"Explore the sample collection"):category}</h2><p>{products.length} {realCatalogue?"CJ":"sample"} {products.length===1?"product":"products"} · discover, compare and choose your options</p></div><label className="market-sort">Sort by<select aria-label="Sort products" value={sort} onChange={e=>setSort(e.target.value)}><option value="featured">Featured</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></label></div>
  <div className="shop-filters">{["All",...new Set(catalogue.map(p=>p.category))].map(c=><button key={c} className={category===c?"selected":""} onClick={()=>setCategory(c)}>{c==="All"?"All products":c}</button>)}</div>
