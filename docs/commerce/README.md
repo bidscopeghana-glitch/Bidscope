@@ -438,3 +438,31 @@ catalogue and historical tender records are untouched.
 
 Validation for this step: 407 backend tests passed; ESLint, standalone TypeScript
 and the production Next.js build all passed. Preview auto-deployment remains disabled.
+
+
+## Live credential connection setup - 9 November 2026
+
+/shop/payments and /api/commerce/local-live-payments add a separate loopback-only
+live-key connection flow. It requires BIDSCOPE_COMMERCE_LOCAL_SETUP=1, validates
+same-origin JSON requests and accepts only sk_live_ secret keys. Validation uses
+only GET https://api.paystack.co/integration/payment_session_timeout, the official
+read-only integration setting endpoint. It never initializes a payment, fetches
+customer records or balances, changes Paystack settings or sends a supplier order.
+Official reference: https://paystack.com/docs/api/integration/
+
+After explicit owner approval to copy the credential, the verified key is saved
+only under .codex-tmp/commerce/paystack-live-key.json, excluded from Git. The API
+returns configured state and validation time, never the secret. The existing
+TEST key and old subscription key/configuration remain separate. Connection does
+not mean live checkout is enabled: the customer checkout route still returns
+503 unconditionally. No live credential is packaged with code or automatically
+uploaded to Vercel. This is local preparation, not production activation.
+
+Rollback this setup by restoring the previous application commit 5bb43d3 and
+stopping the private server. Preserve the credential securely or remove its local
+file through an explicit owner-approved cleanup; do not revoke or regenerate the
+shared Paystack account key blindly, as other BidScope billing may use it.
+
+Validation: 409 backend tests passed; ESLint, standalone TypeScript and the
+production Next.js build passed. The live credential itself is never included
+in these source commits or build artifacts.
