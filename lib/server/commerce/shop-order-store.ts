@@ -13,6 +13,6 @@ export async function recordShopPayment(order:StoredShopOrder,payment:{providerT
 }
 export async function ownShopOrders(customerId:string){
  requireShopLedger();
- const query=new URLSearchParams({select:"id,payment_reference,payment_mode,status,currency,total_minor,shipping_minor,customer_fee_minor,import_charges_policy,created_at,items,shipments",customer_id:"eq."+customerId,order:"created_at.desc,id.desc",limit:"50"});
+ const query=new URLSearchParams({select:"id,payment_reference,payment_mode,status,currency,total_minor,shipping_minor,customer_fee_minor,import_charges_policy,created_at,items,shipments,refunds:bidscope_shop_refunds(amount_minor,status,created_at)",customer_id:"eq."+customerId,order:"created_at.desc,id.desc",limit:"50"});
  return (await supabaseRest<unknown[]>("bidscope_shop_orders?"+query)).data;
 }

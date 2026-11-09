@@ -725,3 +725,55 @@ Proof artifacts (ignored local files): outputs/shop-ledger-permissions.png,
 outputs/shop-ghana-sandbox-quote.png, outputs/shop-test-payment-paid.png,
 outputs/shop-sandbox-operations.png. The main domain still serves its previous
 production deployment. No production promotion or DNS change was performed.
+
+## Supplier fulfilment and refund sandbox - 9 November 2026
+
+Additive migration: 20261110010000_shop_sandbox_fulfilment.sql. It adds private
+bidscope_shop_supplier_orders and bidscope_shop_refunds tables plus six service-only
+functions. Existing data is preserved. The supplier ledger has a hard is_sandbox
+constraint, deterministic per-option references, unique provider IDs and a write
+claim that cannot be automatically repeated after a timeout. Each quoted option
+is a separate supplier order so different dispatch/services are not silently merged.
+
+The administrator sandbox controls prepare one shipment at a time, recheck current
+supplier price/stock/freight and reject higher supplier cost or postage. A supplier
+write is attempted only after an exact verified TEST customer payment. CJ creation
+always uses isSandbox=1 and payType=3; no real balance-payment method is exposed.
+Reconciliation queries the original merchant/provider ID, verifies isSandbox=1 and
+matches the merchant reference before any simulation. Supplier payment state is
+recorded separately as unpaid/simulated_paid. Tracking is explicitly BIDSCOPE-TEST
+and customer shipments carry simulated=true. Split statuses aggregate without
+regressing delivered data or overwriting cancellation/refund states.
+
+POST /api/commerce/sandbox-refunds uses only the existing sk_test_ key. Refund
+reservations are atomic, cumulative amounts cannot exceed the verified payment,
+repeated request keys return the existing refund, and provider submission has one
+claim. Ambiguous writes stay reserved in exception status and must be reconciled
+by saved provider ID/reference. Even failed refunds are not automatically freed for
+another attempt. Only a verified provider processed status can mark the customer
+order refunded; pending/processing remains pending. Partial refunds are supported
+by the API/ledger, while the current private test UI offers a full test refund.
+Refunding a customer payment does not cancel or refund a supplier order.
+
+The operations screen displays supplier state, separate simulated supplier payment,
+tracking, exceptions and refunds. Customer order history displays simulated shipments
+and refund state without exposing supplier costs. These routes require existing
+super-admin authentication (writes) or verified customer ownership (order history).
+No new public database grants, live keys or global webhook changes are introduced.
+
+Validation before activation: 428 backend tests, 27 isolated PostgreSQL checks,
+full lint, TypeScript and production build passed. The SQL checks cover split
+shipments, duplicate write claims, refund reservation/caps, request collisions,
+non-regressing delivery/refund states, service-only permissions and rollback that
+preserves history. Run node scripts/test-shop-fulfilment.mjs with the existing
+ignored PGlite test install. No external calls occur in those tests.
+
+Rollback: stop new sandbox actions, wait up to 210 seconds for the CJ lease, restore
+runtime 56b5f57, and optionally run rollback-sandbox-fulfilment.sql. Preserve all
+supplier/refund rows and reconcile external references. Do not delete audit data,
+revoke shared keys or assume a customer refund reverses a supplier payment.
+
+Official references reviewed:
+https://developers.cjdropshipping.com/en/api/start/sandbox.html
+https://developers.cjdropshipping.com/en/api/api2/api/shopping.html
+https://paystack.com/docs/api/refund/

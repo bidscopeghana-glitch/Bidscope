@@ -1,0 +1,46 @@
+// Isolated PostgreSQL test only. No Supabase, CJ or Paystack network calls.
+import {readFile} from "node:fs/promises";
+import {pathToFileURL} from "node:url";
+import path from "node:path";
+import {randomUUID} from "node:crypto";
+import assert from "node:assert/strict";
+const {PGlite}=await import(pathToFileURL(path.resolve(".codex-tmp/commerce-sql-test/node_modules/@electric-sql/pglite/dist/index.js")).href);
+const db=new PGlite();let checks=0;
+const check=value=>{assert.ok(value);checks++;};const rejects=async work=>{await assert.rejects(work);checks++;};
+const rpc=async(name,args)=>{const slots=args.map((_,i)=>"$"+(i+1)).join(",");return (await db.query(`select public.${name}(${slots}) as value`,args)).rows[0].value;};
+try{
+ await db.exec("create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key);");
+ for(const file of ["20261109230000_commerce_cj_review_gate.sql","20261110000100_shop_order_ledger.sql","20261110010000_shop_sandbox_fulfilment.sql"])await db.exec(await readFile("supabase/migrations/"+file,"utf8"));
+ const user=randomUUID();await db.query("insert into auth.users values($1)",[user]);let transaction=100;
+ async function order(){const quote=randomUUID();const lines=[0,1].map(index=>({productId:"p"+index,variantId:"v"+index,quantity:1,origin:"CN",destination:"GH",service:"Test",supplierUnitUsdMinor:100,postageUsdMinor:100}));await db.query(`insert into public.bidscope_shop_quotes(id,customer_id,mode,merchandise_minor,shipping_minor,total_minor,items,fulfilment_snapshot,delivery_address,expires_at) values($1,$2,'test',2000,2000,4000,'[{"name":"FICTIONAL TEST","quantity":1,"unitGhsMinor":2000}]',$3,'{}',now()+interval '5 minutes')`,[quote,user,JSON.stringify({lines})]);const id=await rpc("bidscope_shop_create_order",[user,quote,randomUUID()]);const ref=(await db.query("select payment_reference from public.bidscope_shop_orders where id=$1",[id])).rows[0].payment_reference;await rpc("bidscope_shop_record_payment",[ref,String(transaction++),4000,"GHS","test"]);return id;}
+ const id=await order();check(await rpc("bidscope_shop_prepare_supplier",[id])===2);check(await rpc("bidscope_shop_prepare_supplier",[id])===2);
+ const rows=(await db.query("select * from public.bidscope_shop_supplier_orders where order_id=$1 order by line_index",[id])).rows;
+ check(rows[0].merchant_reference!==rows[1].merchant_reference);check(rows[0].merchant_reference.length<=50);
+ check(await rpc("bidscope_shop_claim_supplier",[rows[0].id])===true);check(await rpc("bidscope_shop_claim_supplier",[rows[0].id])===false);
+ await rpc("bidscope_shop_sync_supplier",[rows[0].id,"cj1","CREATED",null,"Test"]);
+ await rpc("bidscope_shop_claim_supplier",[rows[1].id]);await rpc("bidscope_shop_sync_supplier",[rows[1].id,"cj2","PENDING",null,"Test"]);
+ check(await rpc("bidscope_shop_sync_supplier",[rows[0].id,"cj1","SHIPPED","BIDSCOPE-TEST-1","Test"])==="partially_shipped");
+ await rpc("bidscope_shop_sync_supplier",[rows[0].id,"cj1","DELIVERED","BIDSCOPE-TEST-1","Test"]);
+ check(await rpc("bidscope_shop_sync_supplier",[rows[1].id,"cj2","SHIPPED","BIDSCOPE-TEST-2","Test"])==="shipped");
+ check(await rpc("bidscope_shop_sync_supplier",[rows[1].id,"cj2","DELIVERED","BIDSCOPE-TEST-2","Test"])==="delivered");
+ check(await rpc("bidscope_shop_sync_supplier",[rows[0].id,"cj1","CREATED",null,null])==="delivered");
+ await rejects(()=>rpc("bidscope_shop_sync_supplier",[rows[0].id,"wrong","CREATED",null,null]));
+ const refundKey=randomUUID(),refund=await rpc("bidscope_shop_reserve_refund",[id,refundKey,1000,"TEST partial refund"]);
+ check(refund===await rpc("bidscope_shop_reserve_refund",[id,refundKey,1000,"TEST partial refund"]));
+ await rejects(()=>rpc("bidscope_shop_reserve_refund",[id,refundKey,2000,"TEST partial refund"]));
+ await rejects(()=>rpc("bidscope_shop_reserve_refund",[id,randomUUID(),1000,"Another request"]));
+ check(await rpc("bidscope_shop_claim_refund",[refund])===true);check(await rpc("bidscope_shop_claim_refund",[refund])===false);
+ await rpc("bidscope_shop_sync_refund",[refund,"11","pending"]);check((await db.query("select status from public.bidscope_shop_orders where id=$1",[id])).rows[0].status==="refund_pending");
+ await rpc("bidscope_shop_sync_refund",[refund,"11","processed"]);check((await db.query("select status from public.bidscope_shop_orders where id=$1",[id])).rows[0].status==="delivered");
+ check(await rpc("bidscope_shop_sync_refund",[refund,"11","pending"])==="processed");
+ await rejects(()=>rpc("bidscope_shop_reserve_refund",[id,randomUUID(),3001,"Too much"]));
+ const rest=await rpc("bidscope_shop_reserve_refund",[id,randomUUID(),3000,"Remaining refund"]);await rpc("bidscope_shop_claim_refund",[rest]);await rpc("bidscope_shop_sync_refund",[rest,"12","processed"]);
+ check((await db.query("select status from public.bidscope_shop_orders where id=$1",[id])).rows[0].status==="refunded");
+ await rpc("bidscope_shop_sync_supplier",[rows[0].id,"cj1","DELIVERED",null,null]);check((await db.query("select status from public.bidscope_shop_orders where id=$1",[id])).rows[0].status==="refunded");
+ const failedOrder=await order(),failed=await rpc("bidscope_shop_reserve_refund",[failedOrder,randomUUID(),4000,"TEST failed refund"]);await rpc("bidscope_shop_claim_refund",[failed]);await rpc("bidscope_shop_sync_refund",[failed,"13","failed"]);await rejects(()=>rpc("bidscope_shop_reserve_refund",[failedOrder,randomUUID(),4000,"Must reconcile first"]));
+ const cancelled=await order();await rpc("bidscope_shop_request",[user,cancelled,randomUUID(),"cancellation","TEST cancel"]);await rejects(()=>rpc("bidscope_shop_prepare_supplier",[cancelled]));
+ const rights=(await db.query("select bool_and(c.relrowsecurity and not has_table_privilege('anon',c.oid,'select') and not has_table_privilege('authenticated',c.oid,'select')) as protected from pg_class c where c.relname in('bidscope_shop_supplier_orders','bidscope_shop_refunds')")).rows[0];check(rights.protected);
+ const functions=(await db.query("select count(*) as n,bool_and(not has_function_privilege('anon',p.oid,'execute') and not has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute')) as protected from pg_proc p where p.proname in('bidscope_shop_prepare_supplier','bidscope_shop_claim_supplier','bidscope_shop_sync_supplier','bidscope_shop_reserve_refund','bidscope_shop_claim_refund','bidscope_shop_sync_refund')")).rows[0];check(Number(functions.n)===6&&functions.protected);
+ const count=Number((await db.query("select count(*) as n from public.bidscope_shop_refunds")).rows[0].n);await db.exec(await readFile("docs/commerce/rollback-sandbox-fulfilment.sql","utf8"));check(Number((await db.query("select count(*) as n from public.bidscope_shop_refunds")).rows[0].n)===count);
+ console.log(`PASS: ${checks} supplier/refund PostgreSQL checks; no external calls.`);
+}finally{await db.close();}
