@@ -497,3 +497,16 @@ migration, catalogue publication, customer charge or supplier order is involved.
 Validation: 412 backend tests passed. ESLint passed and the production Next.js
 build (including TypeScript) passed. Read-only live database checks returned
 36,555 drafts, 20 desk-lamp matches and the selected lamp record.
+
+
+### Preview OAuth configuration
+With explicit owner approval, Supabase's existing production Site URL and callback
+were retained and this exact additional redirect was saved (no wildcard):
+https://bidscope-git-codex-bidscope-commerce-preview-bidscope-ghana.vercel.app/auth/callback?next=%2Fshop
+Vercel NEXT_PUBLIC_SITE_URL was added as a Config override only for Preview branch
+codex/bidscope-commerce-preview, pointing to that stable branch hostname. The
+Production value was not edited. This corrects Google returning preview sign-ins
+to the production Site URL when the preview redirect was absent from the allowlist.
+Rollback these settings by removing only that exact additional Supabase URL and
+that branch-scoped Vercel override. Do not remove the production callback or reset
+the project's main Site URL. A fresh deployment is required after env changes.
