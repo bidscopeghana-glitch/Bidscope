@@ -10,10 +10,13 @@ import "./marketplace.css";
 import {ProductVisual as Art,ProductPicture} from "./product-visual";
 import {ProductTile} from "./product-tile";
 import {CommerceHeader} from "./commerce-header";
+import {HostedShop} from "./hosted-shop";
+import {isLocalCommercePreview} from "@/lib/client/commerce-preview";
 import {cjPreviewFeedSchema} from "@/lib/commerce/cj-preview";
 type Tab="shop"|"bag"|"orders"|"admin"|"help"|"policies";
 const key="bidscope-shopping-samples-v1";
-export function ShopPreview(){
+export function ShopPreview(){const[local,setLocal]=useState<boolean|null>(null);useEffect(()=>{queueMicrotask(()=>setLocal(isLocalCommercePreview()));},[]);return local===null?<main className="retail-page"><CommerceHeader/><p className="retail-state">Loading BidScope…</p></main>:local?<LocalShopPreview/>:<HostedShop/>;}
+function LocalShopPreview(){
  const router=useRouter();
  const [tab,setTab]=useState<Tab>("shop"),[search,setSearch]=useState(""),[category,setCategory]=useState("All"),[destination,setDestination]=useState("GH"),[sort,setSort]=useState("featured");
  const [cart,setCart]=useState<Line[]>([]),[orders,setOrders]=useState<Order[]>([]),[product,setProduct]=useState<Product|null>(null),[variant,setVariant]=useState(""),[quantity,setQuantity]=useState(1);

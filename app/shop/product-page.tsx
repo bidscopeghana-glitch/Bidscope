@@ -3,13 +3,16 @@ import {useEffect,useState} from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {Truck,ShieldCheck,ShoppingBag,ArrowLeft,Check} from "lucide-react";
+import {HostedProduct} from "./hosted-product";
+import {isLocalCommercePreview} from "@/lib/client/commerce-preview";
 import {CommerceHeader} from "./commerce-header";
 import type {ProductPresentation} from "@/lib/commerce/product-presentation";
 import type {CjShippingCheck} from "@/lib/server/commerce/cj-catalogue";
 import {addBagLine,readBag,shoppingBagKey} from "@/lib/commerce/shopping-bag";
 import {retailUsdMinor,deliveryDestinations} from "@/lib/commerce/retail-pricing";
 const usd=(v:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(v/100);
-export function ProductPage({productId}:{productId:string}){
+export function ProductPage({productId}:{productId:string}){const[local,setLocal]=useState<boolean|null>(null);useEffect(()=>{queueMicrotask(()=>setLocal(isLocalCommercePreview()));},[]);return local===null?<main className="retail-page"><CommerceHeader/><p className="retail-state">Loading product…</p></main>:local?<LocalProductPage productId={productId}/>:<HostedProduct id={productId}/>;}
+function LocalProductPage({productId}:{productId:string}){
  const [destination,setDestination]=useState("GH"),[origin,setOrigin]=useState("CN");
  const [attempt,setAttempt]=useState(0),[routeIndex,setRouteIndex]=useState(0);
  const [data,setData]=useState<ProductPresentation|null>(null),[error,setError]=useState(""),[variantId,setVariantId]=useState(""),[image,setImage]=useState(""),[quantity,setQuantity]=useState(1),[message,setMessage]=useState(""),[checking,setChecking]=useState(false),[shipping,setShipping]=useState<CjShippingCheck|null>(null);

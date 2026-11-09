@@ -466,3 +466,34 @@ shared Paystack account key blindly, as other BidScope billing may use it.
 Validation: 409 backend tests passed; ESLint, standalone TypeScript and the
 production Next.js build passed. The live credential itself is never included
 in these source commits or build artifacts.
+
+
+## Hosted catalogue repair - 9 November 2026
+
+The Vercel preview previously fell back to the fictional sample storefront because
+its real feed and catalogue APIs required localhost and read ignored workstation
+files. Hosted pages now use a separate Supabase-backed GET /api/commerce/catalogue
+endpoint. It checks existing requireSuperAdmin authentication before any server-role
+query. It reads only CJ draft/held rows, maps through the existing field/media
+allowlist, bounds pagination to 24 and supports full-text search, category filtering,
+stable price ordering and single-product lookup. Responses are private/no-store.
+No anonymous database policy or publication status was changed.
+
+The hosted home, catalogue and saved product-detail views send the existing
+BidScope access token. They show an administrator sign-in state rather than
+substituting sample stock when access is unavailable. The local CJ-rich preview
+continues to work separately. Hosted detail pages show the saved import record;
+current CJ variants, stock and shipping still require the provider server connection.
+They do not imply that unreviewed products can be purchased. Local daily FX preview
+requests are not sent from the hosted draft views.
+
+Vercel's existing BIDSCOPE_ADMIN_EMAIL variable was extended from Production to
+Production and Preview with explicit owner approval. Existing Supabase Preview
+variables were already configured and no secret values were revealed. Production
+application and DNS remain unchanged. Rollback code to 49a2808 and, if desired,
+restore the administrator-email environment scope to Production only. No database
+migration, catalogue publication, customer charge or supplier order is involved.
+
+Validation: 412 backend tests passed. ESLint passed and the production Next.js
+build (including TypeScript) passed. Read-only live database checks returned
+36,555 drafts, 20 desk-lamp matches and the selected lamp record.
