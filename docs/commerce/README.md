@@ -555,3 +555,33 @@ account key or change existing billing keys. Historical data is preserved.
 Validation for this staged step: 416 backend tests passed; full ESLint passed;
 the production webpack build including TypeScript passed. The migration and live
 hosted CJ call have not been executed; they remain activation checks.
+
+### Hosted CJ review activation verified - 9 November 2026
+
+With explicit owner approval, the gate migration was executed in BidScope Supabase
+bclyhnbzbgugfmxrtlvu. Verification confirmed RLS enabled, no anon/authenticated
+SELECT access, no anon/authenticated acquire execution, and service-role execution.
+API checks confirmed exactly one winner from two concurrent claims, a wrong-owner
+release cannot unlock the gate, and the release cooldown blocks an immediate claim.
+
+CJ_API_KEY was saved as a Secret only for Preview branch
+codex/bidscope-commerce-preview. BIDSCOPE_CJ_HOSTED_REVIEW=1 was saved in the same
+branch scope. Production and Development were excluded. The credential value was
+not printed, committed or exposed to the browser application.
+
+Vercel deployment 222XTdcv9Dw5HHLebsZyr9cS5c6S is Ready, runtime commit ffa2971:
+https://bidscope-6107p60c6-bidscope-ghana.vercel.app/
+The stable branch alias remains:
+https://bidscope-git-codex-bidscope-commerce-preview-bidscope-ghana.vercel.app/
+
+Signed-in browser acceptance refreshed product
+000C4974-8AF3-43AD-A614-2C073DC6135C through the hosted official CJ API connection.
+Both returned variants appeared with the approved 30% markup (USD 4.96 each at
+21:40:42 GMT on 9 November 2026). These are historical review prices, not an offer.
+Proof: outputs/hosted-cj-review-success.png; database permission proof:
+outputs/cj-gate-permissions.png (ignored local review artifacts).
+
+Stock/freight/duties, customer order processing, supplier payment and refunds still
+require the production workflow. Checkout stays disabled. The production tender
+site, DNS, historical records and catalogue publication permissions were unchanged.
+The rollback instructions above remain applicable. No real payment or order was made.
