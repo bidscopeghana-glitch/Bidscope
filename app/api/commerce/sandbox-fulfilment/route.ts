@@ -47,6 +47,7 @@ export async function POST(request:Request){try{
    await supabaseRest(path,{method:"PATCH",body:JSON.stringify({provider_order_id:providerId})});
   }
   let remote=checkedSandboxOrder(await provider.order(providerId||supplier.merchant_reference),supplier.merchant_reference,providerId||undefined);
+  if(providerId&&providerId!==remote.orderId)await supabaseRpc("bidscope_shop_canonicalize_supplier",{p_supplier:supplier.id,p_alias:providerId,p_canonical:remote.orderId});
   providerId=remote.orderId;
   if(input.action==="pay"){
    if(["CREATED","IN_CART"].includes(remote.orderStatus)){await provider.confirmSandboxOrder(providerId);remote=checkedSandboxOrder(await provider.order(providerId),supplier.merchant_reference,providerId);}

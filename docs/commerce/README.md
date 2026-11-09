@@ -777,3 +777,21 @@ Official references reviewed:
 https://developers.cjdropshipping.com/en/api/start/sandbox.html
 https://developers.cjdropshipping.com/en/api/api2/api/shopping.html
 https://paystack.com/docs/api/refund/
+
+### CJ ID alias correction discovered in hosted sandbox acceptance
+
+CJ created the intended sandbox order and returned SD2611092252410649700. Querying
+that exact code returned internal orderId 2611092252430647600, the exact original
+merchant reference BIDSCOPE-SANDBOX-d6284c91c174b1769f69dea4, isSandbox=1 and
+CREATED. The original strict same-ID check held the workflow in exception; it did
+not create a second supplier order. A rate-gated read of identity fields confirmed
+the mapping without printing credentials or customer addresses.
+
+20261110011000_shop_supplier_aliases.sql adds a private provider_order_alias column
+and a service-only canonicalization function. Only SD/DP numeric codes can map to
+a numeric internal ID; the application also requires the exact merchant reference
+and isSandbox=1 from the official API response. The original alias is retained in
+the ledger/audit, and arbitrary provider-ID changes remain rejected. The migration
+was applied in BidScope and its service-only permissions verified. No order was
+recreated. 428 backend tests, 29 isolated supplier/refund SQL checks, lint, TypeScript
+and production build passed after this correction.

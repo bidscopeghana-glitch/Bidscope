@@ -12,7 +12,8 @@ export function sandboxSupplierInput(merchantReference:string,payload:unknown,ad
 }
 export function checkedSandboxOrder(raw:unknown,expectedReference:string,expectedProviderId?:string){
  const order=z.object({orderId:identifier,orderNum:z.string(),isSandbox:z.union([z.literal(1),z.literal("1")]),orderStatus:z.enum(["CREATED","IN_CART","UNPAID","PENDING","PROCESSING","UNSHIPPED","SHIPPED","DELIVERED"]),trackNumber:z.string().nullish(),trackingProvider:z.string().nullish()}).parse(raw);
- if(order.orderNum!==expectedReference||expectedProviderId&&order.orderId!==expectedProviderId)throw Error("Supplier response does not match this sandbox order.");
+ const cjAlias=Boolean(expectedProviderId&&/^(SD|DP)\d{8,100}$/.test(expectedProviderId)&&/^\d{8,100}$/.test(order.orderId));
+ if(order.orderNum!==expectedReference||expectedProviderId&&order.orderId!==expectedProviderId&&!cjAlias)throw Error("Supplier response does not match this sandbox order.");
  return order;
 }
 export function nextSandboxStatus(status:string):number|null{

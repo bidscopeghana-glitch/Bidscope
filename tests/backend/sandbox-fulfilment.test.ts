@@ -12,6 +12,8 @@ test("sandbox supplier plan binds destination, supplier IDs and bounded quantity
 test("supplier reconciliation rejects real orders and mismatched provider or merchant IDs",()=>{
  const raw={orderId:"cj1",orderNum:reference,isSandbox:1,orderStatus:"CREATED"};assert.equal(checkedSandboxOrder(raw,reference,"cj1").orderId,"cj1");
  assert.throws(()=>checkedSandboxOrder({...raw,isSandbox:0},reference));assert.throws(()=>checkedSandboxOrder(raw,"other"));assert.throws(()=>checkedSandboxOrder(raw,reference,"wrong"));
+ assert.equal(checkedSandboxOrder({...raw,orderId:"2611092252430647600"},reference,"SD2611092252410649700").orderId,"2611092252430647600");
+ assert.throws(()=>checkedSandboxOrder({...raw,orderId:"2611092252430647600",orderNum:"another-reference"},reference,"SD2611092252410649700"));
  assert.equal(nextSandboxStatus("PENDING"),400);assert.equal(nextSandboxStatus("PROCESSING"),500);assert.equal(nextSandboxStatus("SHIPPED"),600);assert.equal(nextSandboxStatus("DELIVERED"),null);
 });
 const expected={reference:"BSC-RF-SBX-"+"a".repeat(32),paymentReference:"BSC-SBX-test",transactionId:"123",amountMinor:2000};
