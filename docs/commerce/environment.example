@@ -4,8 +4,12 @@ BIDSCOPE_COMMERCE_NOTIFICATIONS_ENABLED=0
 # Test verification helper accepts sk_test_ only. Do not reuse subscription keys.
 BIDSCOPE_COMMERCE_PAYSTACK_TEST_KEY=
 # CJ candidate adapter accepts a short-lived token with explicit expiry.
-# Token retrieval / refresh requires a reviewed server secret store integration.
+# The server token manager handles retrieval and refresh from CJ_API_KEY.
 CJ_ACCESS_TOKEN=
 CJ_ACCESS_TOKEN_EXPIRES_AT=
+# Preferred: official API key, exchanged and cached only by the server.
+CJ_API_KEY=
+# Local-only setup form. Never enable on Vercel or another public server.
+BIDSCOPE_COMMERCE_LOCAL_SETUP=0
 # Record permissions and allowed products in commerce.sources, not just flags.
 # No environment variable can enable live checkout: route returns 503.

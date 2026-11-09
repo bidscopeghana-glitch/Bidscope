@@ -53,11 +53,35 @@ No CJ/Alibaba account permissions, publication grants, Ghana business eligibilit
 Ghana shipping routes, actual inventory or supplier balances have been verified.
 No signed supplier webhook receiver is enabled: polling is the intended first path
 until the account's webhook authentication contract can be tested.
-Token issuance/refresh, raw supplier normalisation, durable catalogue sync workers,
+Raw supplier normalisation, durable catalogue sync workers,
 durable order orchestration, customer-payment initialization, refund submission and
 provider-specific return workflows still require implementation and validation
 against the authorised account. The current provider methods return raw responses
 for review; they do not automatically publish those responses.
+
+### CJ connection setup added 9 November 2026
+The CJ account's BidScope-Commerce-Sandbox key was created with explicit approval.
+Authentication was verified against the official CJ token endpoint and rechecked
+using the saved local server credential. The key is not a provider-scoped sandbox
+credential; BidScope's adapter enforces sandbox order requests and has no balance
+payment method. Product/media publication and Ghana routes remain unverified.
+
+The server token manager handles token exchange, in-memory caching, single-flight
+concurrency, refresh and failure cooldown. No token or key is returned to clients.
+The local setup screen is /shop/integrations. It requires the explicit runtime
+flag BIDSCOPE_COMMERCE_LOCAL_SETUP=1 and loopback Host / same-origin JSON checks.
+It saves the key under .codex-tmp/commerce/cj-credential.json, ignored by Git.
+It is a local workstation setup flow, not a public admin credential endpoint.
+Disable this flag outside local development. For a future reviewed deployment,
+put CJ_API_KEY in the hosting secret manager; never publish the local credential
+file or commit credentials. Existing super-admin API responses expose status only.
+
+Alibaba's openapi-account developer profile was incomplete at inspection: legal
+company name, registration number, registered address and certificate were missing,
+and the country default was China. Complete with the real BidScope legal details
+and obtain approval for the intended dropshipping APIs before implementing a
+provider-specific credential exchange. A separate 1688 browser page was blocked
+by the browser site-safety policy; no alternate access was attempted.
 
 ## Database rollout
 1. Export a full database backup and record tender/customer/payment row counts.
