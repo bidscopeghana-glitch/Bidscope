@@ -28,12 +28,13 @@ test("large catalogue persistence deduplicates products, resumes checkpoints and
  try{
   const rows=Array.from({length:50000},(_,i)=>item("p"+String(i).padStart(5,"0")));
   store.save(rows,{...state,page:2});assert.equal(store.count(),50000);store.save([rows[0]],{...state,page:3});assert.equal(store.count(),50000);assert.equal(store.state()?.page,3);
-  const first=store.search("","",1,"featured"),second=store.search("","",2,"featured");assert.equal(first.total,50000);assert.equal(first.items.length,24);assert.notEqual(first.items[0].supplierId,second.items[0].supplierId);
+  const first=store.search("","",1,"featured"),second=store.search("","",2,"featured");assert.equal(first.total,50000);assert.equal(first.items.length,24);assert.equal(first.workerActive,false);assert.notEqual(first.items[0].supplierId,second.items[0].supplierId);
   const pending=store.pendingCloud();assert.equal(pending.length,200);store.markCloud(pending);assert.equal(store.pendingCloud().some(p=>p.supplier_product_id===pending[0].supplier_product_id),false);
   const changed={...rows[0],checkedAt:"2099-01-01T00:00:00.000Z"};store.save([changed],state);store.markCloud([pending[0]]);assert.equal(store.pendingCloud()[0].supplier_product_id,changed.supplierId);assert.equal(store.pendingCloud()[0].synced_at,changed.checkedAt);
   assert.equal(store.search("p49999","",1,"featured").total,1);assert.equal(store.search("%","",1,"featured").total,0);assert.equal(store.search("' OR 1=1 --","",1,"featured").total,0);
   store.save([item("beyond-target")],state);assert.equal(store.count(),50000);
   assert.equal(store.claim("a",1000),true);assert.equal(store.workerActive(1001),true);assert.equal(store.workerActive(121001),false);assert.equal(store.claim("b",1001),false);assert.equal(store.claim("b",122000),true);store.release("a");assert.equal(store.workerActive(122001),true);assert.equal(store.claim("a",122001),false);store.release("b");assert.equal(store.workerActive(122001),false);
+  assert.equal(store.claim("current"),true);assert.equal(store.search("","",1,"featured").workerActive,true);store.release("current");assert.equal(store.search("","",1,"featured").workerActive,false);
  }finally{store.close();assert.equal(path.dirname(path.resolve(directory)),path.resolve(os.tmpdir()));rmSync(directory,{recursive:true,force:true});}
 });
 test("independent local clients reserve separate CJ request slots",()=>{

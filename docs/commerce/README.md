@@ -218,7 +218,12 @@ and refuses a local catalogue exceeding the approved 50,000-product limit. It ca
 follow the active importer's persisted lease through temporary quota/read pauses,
 up to a bounded wait. It does not infer liveness from error-message wording or a
 stale running status after the worker has exited.
-Refresh the private catalogue screen to read the latest actual count.
+The private catalogue refreshes its local 24-row query every 15 seconds while the
+worker lease is active, pausing during a product-detail inspection or a fetch
+error. This polling does not call CJ. It shows the remaining target, current
+category/pass, worker liveness and pause reason. A stopped worker remains resumable;
+use Refresh catalogue after restarting it. Initial loading is labelled explicitly
+instead of briefly claiming zero products or an unstarted import.
 
 Validation for the bulk catalogue revision: 390 backend tests pass, with no
 failures or skipped tests. ESLint, TypeScript and the production webpack build

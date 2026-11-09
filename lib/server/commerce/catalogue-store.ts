@@ -31,7 +31,7 @@ export function openCatalogue(filename=path.join(process.cwd(),".codex-tmp","com
    const total=Number((db.prepare("SELECT count(*) AS n FROM products"+filter).get(...params) as {n:number}).n);
    const order=sort==="low"?"min_cost IS NULL,min_cost ASC,id":sort==="high"?"min_cost IS NULL,min_cost DESC,id":"id";
    const rows=db.prepare("SELECT * FROM products"+filter+" ORDER BY "+order+" LIMIT 24 OFFSET ?").all(...params,(page-1)*24) as unknown as {id:string;name:string;sku:string;category:string;category_id:string;image:string;price_text:string;min_cost:number|null;max_cost:number|null;checked_at:string}[];
-   return {total,page,pageSize:24,items:rows.map(p=>({supplierId:p.id,name:p.name,sku:p.sku,category:p.category,categoryId:p.category_id,image:p.image,priceText:p.price_text,minUsdMinor:p.min_cost,maxUsdMinor:p.max_cost,checkedAt:p.checked_at})),categories:(db.prepare("SELECT DISTINCT category FROM products ORDER BY category").all() as {category:string}[]).map(row=>row.category),imported:count(),progress:this.state()};
+   return {total,page,pageSize:24,items:rows.map(p=>({supplierId:p.id,name:p.name,sku:p.sku,category:p.category,categoryId:p.category_id,image:p.image,priceText:p.price_text,minUsdMinor:p.min_cost,maxUsdMinor:p.max_cost,checkedAt:p.checked_at})),categories:(db.prepare("SELECT DISTINCT category FROM products ORDER BY category").all() as {category:string}[]).map(row=>row.category),imported:count(),progress:this.state(),workerActive:this.workerActive()};
   }
  };
 }
