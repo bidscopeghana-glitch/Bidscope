@@ -44,13 +44,15 @@ reads, stock, freight, sandbox order creation and order polling. Sandbox creatio
 always sends isSandbox=1 and payType=3, so it cannot debit a supplier balance.
 It has no live payment method or automatic write retries. A timeout is ambiguous:
 query the existing merchant reference before deciding to submit again.
-The adapter has been tested with fixture transport, not a CJ account.
+The order adapter has been tested with fixture transport; no actual CJ order has been created.
 The Alibaba interface is reserved; the factory rejects calls until partner access,
 scopes and official integration details have been established.
 
 No real catalogue was imported and no supplier images were republished.
-No CJ/Alibaba account permissions, publication grants, Ghana business eligibility,
-Ghana shipping routes, actual inventory or supplier balances have been verified.
+CJ API authentication and limited product/route reads have been verified as
+described below. Publication grants, Ghana business eligibility, supplier balances
+and Alibaba permissions remain unverified. Reported stock is not independently
+verified or reserved, and one available route does not establish catalogue-wide coverage.
 No signed supplier webhook receiver is enabled: polling is the intended first path
 until the account's webhook authentication contract can be tested.
 Raw supplier normalisation, durable catalogue sync workers,
@@ -75,6 +77,40 @@ It is a local workstation setup flow, not a public admin credential endpoint.
 Disable this flag outside local development. For a future reviewed deployment,
 put CJ_API_KEY in the hosting secret manager; never publish the local credential
 file or commit credentials. Existing super-admin API responses expose status only.
+
+### Private CJ catalogue review
+`/shop/integrations` now includes official V2 keyword search, product/variant
+inspection and a Ghana freight check. The separate local-only inspector reads the
+connected account without treating that as publication approval. It returns a
+strict allowlist of fields, never supplier HTML, media or credentials. Stable
+BidScope mappings retain CJ product and variant IDs and supplier costs in USD cents.
+The review does not save or publish products, and does not replace the sample shop.
+It re-fetches the product to validate variant ownership, checks reported inventory
+at the selected origin, then requests Ghana freight estimates. Factory stock is
+distinguished from CJ warehouse stock. Missing tax or clearance amounts stay
+unknown; an empty route list is not treated as Ghana coverage. Estimates are
+timestamped, not delivery guarantees, and stock is not reserved.
+
+`POST /api/commerce/local-catalogue` uses the same explicit local-setup and
+same-origin restrictions as credential setup, validates bounded inputs and limits
+concurrent requests. Only keyword search, product reads, inventory reads and the
+freight calculation endpoint are exposed. There are no order/payment/publication
+actions. Leave the local-setup flag disabled on public hosts. No database migration
+is needed for this private review. Roll back these changes with the app commit;
+there are no catalogue rows or external orders to reverse.
+
+Live read-only acceptance on 9 November 2026 verified the saved CJ credential,
+searched `desk lamp` and inspected product `4D76667F-8B43-447D-8E7E-55E753ED323A`
+(CJJZSNSN00624). CJ returned three variants. For the first variant, quantity one,
+CN to GH, it reported factory stock (zero CJ warehouse stock) and three freight
+options: USD 12.64, 14.40 and 16.10. These are historical API estimates, not prices
+to promise customers. No supplier order, customer charge or publication occurred.
+The review screen was also checked at 390px width without horizontal overflow.
+Validation: 377 backend tests pass, including seven new CJ catalogue cases;
+lint, TypeScript and the production webpack build pass. Local HTTP checks reject
+cross-site catalogue access (403), unsupported publication actions (400), and live
+checkout (503). The build also required removing an unused helper export from the
+existing notification route, which Next.js disallows; processing behaviour is unchanged.
 
 Alibaba's openapi-account developer profile was incomplete at inspection: legal
 company name, registration number, registered address and certificate were missing,
