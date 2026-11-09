@@ -606,7 +606,7 @@ Validation: 418 backend tests passed; production build including TypeScript
 passed. Focused tests cover markup-before-FX, rounding, zero/unknown costs,
 expired rates and bounded/deduplicated draft lookup identifiers.
 
-## Durable sandbox shopping flow - 10 November 2026 (prepared, not activated)
+## Durable sandbox shopping flow - 9 November 2026 (implementation record)
 
 The owner selected: BidScope absorbs payment processing fees; customers pay
 import duties/taxes/carrier charges excluded from the supplier quote. The shared
@@ -683,3 +683,45 @@ https://developers.cjdropshipping.com/en/api/start/Products-Synchronization-Proc
 https://developers.cjdropshipping.com/en/api/api2/api/shopping.html
 Production build including TypeScript also passed for this stage. No new live
 migration, hosted credential change or production-domain promotion was performed.
+
+
+### Hosted sandbox activation verified - 9 November 2026
+
+The owner explicitly approved applying the order-ledger migration and saving the
+existing Paystack TEST credential plus ledger-ready flag in the commerce preview.
+The migration succeeded in BidScope bclyhnbzbgugfmxrtlvu. SQL verification returned
+five protected tables and four protected transaction functions: RLS is enabled,
+anon/authenticated cannot SELECT the tables or execute those functions, and the
+service role can execute the functions. Existing records were not deleted.
+
+Vercel Preview branch codex/bidscope-commerce-preview now has:
+- BIDSCOPE_COMMERCE_PAYSTACK_TEST_SECRET (Secret; existing sk_test_ key)
+- BIDSCOPE_SHOP_LEDGER_READY=1 (Config)
+Both were explicitly restricted to that branch; Production and Development were
+excluded. The existing live/subscription keys and global webhook URL were unchanged.
+
+Ready deployment: 6rD7SYjRi34q4tHPbGgaMUkahUVC, runtime commit 56b5f57.
+Deployment URL: https://bidscope-9q3xr6igu-bidscope-ghana.vercel.app/
+Stable alias: https://bidscope-git-codex-bidscope-commerce-preview-bidscope-ghana.vercel.app/
+
+Browser acceptance used fictional address details labelled DO NOT SHIP and one
+real CJ lamp option. The CN-to-GH API quote returned merchandise GHc53.36,
+shipping/known provider charges GHc147.58, customer processing fee GHc0.00 and
+TEST total GHc200.94. The selected carrier estimate was 20-60 days, not guaranteed.
+These figures are historical test evidence, not a live offer or general delivery
+promise. The amount and service must be revalidated for each future selection.
+
+Paystack's visibly labelled TEST checkout completed using its built-in Success
+option. BidScope independently verified it and saved paid sandbox order:
+BSC-SBX-7aff531c-d55e-49bd-9793-e6b03392be2c.
+A browser callback replay and subsequent plain order-history reload preserved one
+order and one pending fulfilment job, with attempts=0. One clearly labelled UAT
+support request was saved and appeared in the administrator operations screen.
+No supplier order, shipment, live customer charge or refund was created. Supplier
+processing is still pending; the paid TEST state must not be confused with live
+fulfilment readiness or permission to sell the catalogue.
+
+Proof artifacts (ignored local files): outputs/shop-ledger-permissions.png,
+outputs/shop-ghana-sandbox-quote.png, outputs/shop-test-payment-paid.png,
+outputs/shop-sandbox-operations.png. The main domain still serves its previous
+production deployment. No production promotion or DNS change was performed.
