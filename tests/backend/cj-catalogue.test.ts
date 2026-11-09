@@ -25,6 +25,9 @@ test("Ghana freight validates product mapping and stock, with separate unknown t
  assert.equal(JSON.stringify(result).includes("fixture-secret"),false);
 });
 test("international freight uses the selected destination rather than silently defaulting to Ghana",async()=>{const{api,calls}=fixture();const result=await api.shipping("p1","v1","CN",1,"GB");assert.equal(result.destination,"GB");const request=calls.find(c=>c.init?.method==="POST")!;assert.equal(JSON.parse(String(request.init?.body)).endCountryCode,"GB");await assert.rejects(api.shipping("p1","v1","CN",1,"INVALID"));});
+test("checkout line inspection binds the current price and variant to the same three supplier reads",async()=>{
+ const {api,calls}=fixture();const checked=await api.checkoutLine("p1","v1","CN",2,"GB");assert.equal(checked.productId,"p1");assert.equal(checked.variantId,"v1");assert.equal(checked.costUsdMinor,925);assert.equal(checked.shipping.quantity,2);assert.equal(checked.shipping.destination,"GB");assert.equal(calls.length,3);assert.equal(calls.filter(call=>call.url.includes("product/query?")).length,1);
+});
 test("foreign variants and insufficient origin stock never request freight",async()=>{
  const {api,calls}=fixture(0);await assert.rejects(api.shipping("p1","foreign","CN",1));assert.equal(calls.length,1);
  await assert.rejects(api.shipping("p1","v1","CN",1));assert.ok(calls.every(c=>!c.url.includes("freightCalculate")));

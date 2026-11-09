@@ -42,6 +42,20 @@ export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:
   }finally{release();}
  }
  async function product(productId:string){return normalizeCjDraft(await call("product/query?pid="+encodeURIComponent(identifier.parse(productId))));}
+ async function checkoutLine(productId:string,variantId:string,origin:string,quantity:number,destination="GH"){
+   identifier.parse(variantId);z.string().regex(/^[A-Z]{2}$/).parse(origin);z.string().regex(/^[A-Z]{2}$/).parse(destination);z.number().int().min(1).max(999).parse(quantity);
+   const draft=await product(productId);
+   const variant=draft.variants.find(v=>v.supplierId===variantId);if(!variant)throw Error("Variant does not belong to this product.");
+   const rawStock=await call("product/stock/queryByVid?vid="+encodeURIComponent(variantId));
+   const stocks=z.array(z.object({vid:identifier,countryCode:z.string(),totalInventoryNum:z.number().int().nonnegative(),cjInventoryNum:z.number().int().nonnegative(),factoryInventoryNum:z.number().int().nonnegative()})).parse(rawStock).filter(s=>s.vid===variantId&&s.countryCode===origin);
+   const stock=stocks.reduce((n,s)=>({total:n.total+s.totalInventoryNum,warehouse:n.warehouse+s.cjInventoryNum,factory:n.factory+s.factoryInventoryNum}),{total:0,warehouse:0,factory:0});
+   if(stock.total<quantity)throw Error("Insufficient reported stock at the selected origin. Choose another route or product.");
+   const rawFreight=await call("logistic/freightCalculate",{startCountryCode:origin,endCountryCode:destination,products:[{vid:variantId,quantity}]});
+   const routes=z.array(z.object({logisticName:z.string().min(1),logisticAging:z.string(),logisticPrice:amount,taxesFee:amount.nullish(),clearanceOperationFee:amount.nullish(),totalPostageFee:amount.nullish()})).parse(rawFreight).map(r=>({name:r.logisticName,estimate:r.logisticAging,shippingUsdMinor:cents(r.logisticPrice),taxUsdMinor:r.taxesFee==null?null:cents(r.taxesFee),clearanceUsdMinor:r.clearanceOperationFee==null?null:cents(r.clearanceOperationFee),totalPostageUsdMinor:r.totalPostageFee==null?null:cents(r.totalPostageFee)}));
+   const shipping:CjShippingCheck={checkedAt:new Date().toISOString(),origin,destination,quantity,stock,routes,checkoutEnabled:false};
+   return {productId:draft.supplierId,variantId:variant.supplierId,name:draft.name,variantName:variant.name,costUsdMinor:variant.costUsdMinor,shipping};
+  }
+
  return {
   quota(){return points;},
   async categories(){
@@ -69,17 +83,7 @@ export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:
   },
   product,
   async details(productId:string){const raw=await call("product/query?pid="+encodeURIComponent(identifier.parse(productId)));return {draft:normalizeCjDraft(raw),raw};},
-  async shipping(productId:string,variantId:string,origin:string,quantity:number,destination="GH"):Promise<CjShippingCheck>{
-   identifier.parse(variantId);z.string().regex(/^[A-Z]{2}$/).parse(origin);z.string().regex(/^[A-Z]{2}$/).parse(destination);z.number().int().min(1).max(999).parse(quantity);
-   const draft=await product(productId);
-   if(!draft.variants.some(v=>v.supplierId===variantId))throw Error("Variant does not belong to this product.");
-   const rawStock=await call("product/stock/queryByVid?vid="+encodeURIComponent(variantId));
-   const stocks=z.array(z.object({vid:identifier,countryCode:z.string(),totalInventoryNum:z.number().int().nonnegative(),cjInventoryNum:z.number().int().nonnegative(),factoryInventoryNum:z.number().int().nonnegative()})).parse(rawStock).filter(s=>s.vid===variantId&&s.countryCode===origin);
-   const stock=stocks.reduce((n,s)=>({total:n.total+s.totalInventoryNum,warehouse:n.warehouse+s.cjInventoryNum,factory:n.factory+s.factoryInventoryNum}),{total:0,warehouse:0,factory:0});
-   if(stock.total<quantity)throw Error("Insufficient reported stock at the selected origin. Choose another route or product.");
-   const rawFreight=await call("logistic/freightCalculate",{startCountryCode:origin,endCountryCode:destination,products:[{vid:variantId,quantity}]});
-   const routes=z.array(z.object({logisticName:z.string().min(1),logisticAging:z.string(),logisticPrice:amount,taxesFee:amount.nullish(),clearanceOperationFee:amount.nullish(),totalPostageFee:amount.nullish()})).parse(rawFreight).map(r=>({name:r.logisticName,estimate:r.logisticAging,shippingUsdMinor:cents(r.logisticPrice),taxUsdMinor:r.taxesFee==null?null:cents(r.taxesFee),clearanceUsdMinor:r.clearanceOperationFee==null?null:cents(r.clearanceOperationFee),totalPostageUsdMinor:r.totalPostageFee==null?null:cents(r.totalPostageFee)}));
-   return {checkedAt:new Date().toISOString(),origin,destination,quantity,stock,routes,checkoutEnabled:false};
-  }
+  checkoutLine,
+  async shipping(productId:string,variantId:string,origin:string,quantity:number,destination="GH"){return (await checkoutLine(productId,variantId,origin,quantity,destination)).shipping;}
  };
 }

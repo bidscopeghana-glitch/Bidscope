@@ -390,3 +390,51 @@ The separate catalogue rollback SQL archives rather than deletes its table and
 must not run blindly or overwrite an existing archive name. No tender records,
 existing subscription payment settings or production webhooks were changed by
 this pilot. No commerce conversion deployment has been made.
+
+
+## Saved checkout reviews - 9 November 2026
+
+The real-item bag now links to /shop/checkout. This private preparation step
+revalidates up to five selected product options against the official CJ product,
+stock and freight endpoints. Each option's current supplier price comes from the
+same product read that establishes variant ownership; the approved 30% markup is
+applied on the server. Browser prices are rejected as input. Each line is treated
+as a separate shipment estimate; combined freight is not assumed. The lowest
+returned provider postage is selected unless a specific returned service is named.
+
+The review separates merchandise, freight, provider-reported tax/clearance and
+known subtotal. It saves a daily indicative GHS conversion, timestamps and a
+five-minute price-review expiry. Unknown payment fees and destination duties/taxes
+remain null, and payableGhsMinor remains null. A held review cannot authorise a
+charge, reserve stock, create a supplier order or change source permissions.
+A full delivery address and reviewed seller/tax/shipping rules are still required
+for a production quote. Provider-reported zero tax is not treated as zero import
+tax liability.
+
+Saved records live only in .codex-tmp/commerce/checkout-reviews.sqlite. Unique
+request keys prevent duplicate preparation after double clicks or browser reload.
+Reusing a key for different selections is rejected. The SQLite admission gate
+allows only one recent supplier-check operation at a time across processes;
+failures are retained for inspection. Expired or failed reviews require an explicit
+fresh request. The UI lists the latest 20 local reviews and their held/checking/
+failed state. These are workstation review records, not production customer orders
+or customer-specific order history. The endpoint requires the same loopback-only,
+explicit local setup flag and same-origin checks as the other private tools.
+
+Browser acceptance verified a real two-variant CN-to-GB supplier quote, duplicate
+prevention and saved-review retrieval after reload. At that time, merchandise was
+USD 8.20, separate provider postage USD 12.17, and known subtotal USD 20.37; those
+figures are historical estimates, not a current selling offer. The 390px view had
+no horizontal page overflow. Automated coverage includes stale FX/stock, unknown
+catalogue mappings, unsupported destinations, invalid quantities, client-price
+injection, absent routes, inconsistent postage, expiry, key conflicts, persistence
+and cross-connection concurrency. Live customer checkout remains unconditionally
+503. No additional production migration, payment, purchase or deployment was made.
+
+To roll back this step, restore the prior application commit a57159f and stop the
+private preview. Preserve the local review database for audit/reconciliation;
+there is no production schema or supplier operation to reverse. The existing
+catalogue and historical tender records are untouched.
+
+Validation for this step: 407 backend tests passed; ESLint, standalone TypeScript
+and the production Next.js build all passed. Preview auto-deployment remains disabled.
