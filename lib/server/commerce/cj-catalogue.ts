@@ -1,4 +1,5 @@
 import {createHash} from "node:crypto";
+import {setTimeout as pause} from "node:timers/promises";
 import {z} from "zod";
 import type {CjToken} from "./cj-auth.ts";
 
@@ -17,17 +18,30 @@ export function normalizeCjDraft(raw:unknown,now=new Date().toISOString()):CjDra
 }
 
 // Private local account inspection only. No public catalogue, media, order or payment methods.
-export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:typeof fetch=fetch){
+export function createCjCatalogueInspector(token:()=>Promise<CjToken>,transport:typeof fetch=fetch,minimumIntervalMs=1100){
+ let tail=Promise.resolve(),lastStarted=0;
  async function call(path:string,body?:unknown){
+  const previous=tail;let release!:()=>void;tail=new Promise<void>(resolve=>{release=resolve;});
+  await previous;
+  try{
+  const wait=minimumIntervalMs-(Date.now()-lastStarted);if(wait>0)await pause(wait);
+  lastStarted=Date.now();
   const credentials=await token();
   if(!credentials.accessToken||Date.parse(credentials.accessTokenExpiryDate)<=Date.now()||!Number.isFinite(Date.parse(credentials.accessTokenExpiryDate)))throw Error("CJ token is not usable.");
   const response=await transport("https://developers.cjdropshipping.com/api2.0/v1/"+path,{method:body?"POST":"GET",headers:{"CJ-Access-Token":credentials.accessToken,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,redirect:"error",cache:"no-store",signal:AbortSignal.timeout(20000)});
   const result=await response.json() as {code?:number;result?:boolean;data?:unknown};
   if(!response.ok||result.code!==200||result.result!==true)throw Error("CJ could not complete this product check. No order was placed.");
   return result.data;
+  }finally{release();}
  }
  async function product(productId:string){return normalizeCjDraft(await call("product/query?pid="+encodeURIComponent(identifier.parse(productId))));}
  return {
+  async preview(productId:string){
+   const raw=await call("product/query?pid="+encodeURIComponent(identifier.parse(productId)));
+   const draft=normalizeCjDraft(raw);
+   const media=z.object({bigImage:z.string().nullish(),productImage:z.string().nullish(),productImageSet:z.array(z.string()).nullish()}).parse(raw);
+   return {draft,image:media.bigImage||media.productImage||media.productImageSet?.[0]||""};
+  },
   async search(keyword:string){
    const query=z.string().trim().min(2).max(100).parse(keyword);
    const raw=await call("product/listV2?"+new URLSearchParams({page:"1",size:"12",keyWord:query}));

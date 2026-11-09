@@ -6,6 +6,8 @@ try{
  const context=await browser.newContext({viewport:{width:1440,height:1000}});
  // Test only the local preview; never transmit fixture actions to external services.
  await context.route("**/*",route=>new URL(route.request().url()).hostname==="127.0.0.1"?route.continue():route.abort());
+ // Exercise the sample fallback independently of any private local CJ feed.
+ await context.route("**/api/commerce/local-catalogue/feed",route=>route.fulfill({json:{mode:"private_cj_preview",items:[]}}));
  const page=await context.newPage(),errors=[];
  page.on("pageerror",e=>errors.push(e.message));
  page.on("console",msg=>{if(msg.type()==="error"&&/hydration|hydrated|server rendered/i.test(msg.text()))errors.push(msg.text());});

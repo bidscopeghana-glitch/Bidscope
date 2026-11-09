@@ -48,7 +48,8 @@ The order adapter has been tested with fixture transport; no actual CJ order has
 The Alibaba interface is reserved; the factory rejects calls until partner access,
 scopes and official integration details have been established.
 
-No real catalogue was imported and no supplier images were republished.
+No public catalogue has been approved or published. An opt-in local-only CJ
+storefront feed can now show actual supplier products and images for design review.
 CJ API authentication and limited product/route reads have been verified as
 described below. Publication grants, Ghana business eligibility, supplier balances
 and Alibaba permissions remain unverified. Reported stock is not independently
@@ -111,6 +112,41 @@ lint, TypeScript and the production webpack build pass. Local HTTP checks reject
 cross-site catalogue access (403), unsupported publication actions (400), and live
 checkout (503). The build also required removing an unused helper export from the
 existing notification route, which Next.js disallows; processing behaviour is unchanged.
+
+### Real items in the local storefront
+Run `BIDSCOPE_COMMERCE_LOCAL_SETUP=1` with Node's environment mechanism, then
+`node --experimental-strip-types scripts/prepare-cj-preview.mts`. On PowerShell,
+set `$env:BIDSCOPE_COMMERCE_LOCAL_SETUP='1'` first. The script performs bounded,
+serialised official API reads and writes `.codex-tmp/commerce/cj-preview.json`.
+It never creates orders or modifies the CJ account. The feed and credential files
+are ignored by Git and are not sent to GitHub. API calls are paced for CJ's free-tier
+one-request-per-second limit. Unsupported products/media are skipped.
+
+The opt-in loopback-only `/api/commerce/local-catalogue/feed` endpoint validates and
+allowlists the saved feed. The shop uses it in place of the sample collection,
+including actual product photos, categories, variant mappings and USD reference
+prices. It rejects non-CJ image hosts, treats stock as unverified, keeps public
+publication permission unknown and prevents real products entering sample checkout.
+No GHS selling price, confirmed origin or delivery promise is invented. Supplier
+photos remain external and lazy-loaded; they are not copied into the repository.
+Public media rights still need review against the current account agreement; CJ's
+older published dropshipping policy is not treated as proof of current account approval.
+If the feed is missing or local setup is disabled, the clearly labelled sample
+catalogue remains available. Existing sample order history is preserved.
+
+Four products were prepared locally on 9 November 2026: one lamp, two travel bags
+and one storage organiser. Their actual photos and variant selection were verified
+in the browser. These are private previews, not purchasable listings.
+The final revision passes 381 backend tests, lint, TypeScript and the production
+build. Browser checks verified all four photos loaded, variant selection worked,
+real checkout remained disabled and the 390px mobile layout had no horizontal
+overflow. Changing a freight quantity or origin now clears the previous estimate.
+
+GitHub delivery is to `codex/bidscope-commerce-preview` only. Its exact-branch
+Vercel auto-deployment setting is disabled in `vercel.json`; no production branch
+merge or deployment is authorised. To roll back the real-item preview, unset the
+local-setup flag and restart the server, or move the private feed out of that path.
+No historical tender records or database structures are changed.
 
 Alibaba's openapi-account developer profile was incomplete at inspection: legal
 company name, registration number, registered address and certificate were missing,

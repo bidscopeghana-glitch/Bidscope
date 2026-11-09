@@ -1,5 +1,5 @@
 export type Variant={id:string;supplierId:string;name:string;cost:number;stock:number};
-export type Product={id:string;supplierId:string;provider:"sample"|"cj"|"alibaba";name:string;category:string;description:string;origin:string;kind:"retail"|"quote";art:"lamp"|"bag"|"bottle"|"chair";permission:"sample"|"approved"|"unknown";evidence:string;sample:boolean;variants:Variant[]};
+export type Product={id:string;supplierId:string;provider:"sample"|"cj"|"alibaba";name:string;category:string;description:string;origin:string;kind:"retail"|"quote";art:"lamp"|"bag"|"bottle"|"chair";permission:"sample"|"approved"|"unknown";evidence:string;sample:boolean;image?:string;checkedAt?:string;variants:Variant[]};
 export type Line={variantId:string;quantity:number};
 export type Pricing={fx:number;markupBps:number;feeBps:number;shipping:number;duty:number|null};
 export type Quote={lines:Line[];cost:number;merchandise:number;shipping:number;duty:number|null;fee:number;total:number;margin:number;currency:"GHS";expires:number;fingerprint:string};

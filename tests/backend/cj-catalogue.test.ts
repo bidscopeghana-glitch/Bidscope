@@ -46,3 +46,10 @@ test("CJ search uses official V2, bounded results and URL-encoded keywords",asyn
  const rows=await createCjCatalogueInspector(token,transport).search("lamp & bag");
  assert.match(request,/product\/listV2\?/);assert.equal(new URL(request).searchParams.get("keyWord"),"lamp & bag");assert.equal(new URL(request).searchParams.get("size"),"12");assert.equal(rows[0].supplierId,"p1");assert.equal(JSON.stringify(rows).includes("private"),false);
 });
+test("CJ account reads are serialised and paced for the free tier",async()=>{
+ const started:number[]=[];let active=0,maxActive=0;
+ const transport=(async()=>{started.push(Date.now());active++;maxActive=Math.max(maxActive,active);await new Promise(resolve=>setTimeout(resolve,5));active--;return Response.json({code:200,result:true,data:product});}) as typeof fetch;
+ const api=createCjCatalogueInspector(token,transport,25);
+ await Promise.all([api.product("p1"),api.product("p1")]);
+ assert.equal(maxActive,1);assert.ok(started[1]-started[0]>=23);
+});

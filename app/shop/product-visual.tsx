@@ -1,5 +1,10 @@
 "use client";
 import {useId} from "react";
+import Image from "next/image";
+import type {Product} from "@/lib/commerce/core";
+export function ProductPicture({product}:{product:Product}){
+ return product.image?<Image className="shop-photo" src={product.image} alt={product.name} width={600} height={480} unoptimized/>:<ProductVisual kind={product.art}/>;
+}
 export function ProductVisual({kind}:{kind:"lamp"|"bag"|"bottle"|"chair"}){
  const id=useId().replaceAll(":","");
  const fill=(name:string)=>"url(#"+id+name+")";
