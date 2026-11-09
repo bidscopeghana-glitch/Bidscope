@@ -17,6 +17,7 @@ export async function resolveWorkspaceEntry(
   } catch {
     // Use the account choice as a safe routing fallback if profile resolution is unavailable.
   }
+  if (options.requestedPath === "/shop") return "/shop";
   if (options.intendedMode === "buyer") return "/procurement/onboarding";
   return customerReturnPath(options.requestedPath);
 }

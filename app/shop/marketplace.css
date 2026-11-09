@@ -1,0 +1,162 @@
+.bs-shop{background:#e9eded;color:#17251f;font:14px/1.5 Arial,Helvetica,sans-serif}
+.bs-shop h1,.bs-shop h2,.bs-shop h3{font-family:Arial,Helvetica,sans-serif;letter-spacing:normal}
+.bs-shop button,.bs-shop a{-webkit-tap-highlight-color:transparent}
+.shop-banner{background:#f8edcf;color:#54441f;font-size:11px;letter-spacing:.01em;padding:6px 16px}
+.shop-header{background:#102e26;color:#fff;gap:22px;padding:16px 28px;border:0;position:relative;z-index:5}
+.shop-brand{padding:0 0 9px}.shop-brand img{width:145px}.shop-brand small{color:#c2d6c8;bottom:-5px;font-size:8px}
+.market-destination{display:flex;align-items:flex-end;gap:6px;flex-shrink:0;font-size:11px;color:#d4dfd8}
+.market-destination strong{display:block;font-size:14px;color:white}
+.market-search{flex:1;min-width:150px;display:flex;height:44px;border-radius:6px;background:white;overflow:hidden;outline-offset:2px}
+.market-search:focus-within{outline:3px solid #e9b84f}
+.bs-shop .market-search select{width:64px;max-width:64px;flex-shrink:0;border:0;border-right:1px solid #d1d6d1;border-radius:0;margin:0;padding:0 8px;background:#e8ece8;color:#33463b;font-size:12px}
+.bs-shop .market-search input{width:100%;min-width:0;flex:1;border:0;margin:0;border-radius:0;padding:0 14px;color:#17251f;outline:0;font-size:15px}
+.market-search button{display:grid;place-items:center;width:50px;flex-shrink:0;background:#eaba57;color:#20372c;padding:0}
+.market-search button:hover{background:#f1c974}
+.market-account{color:white;text-decoration:none;flex-shrink:0}
+.market-account small,.market-orders small{display:block;font-size:11px;font-weight:400;color:#d3ded6}
+.market-account strong,.market-orders strong{display:block;font-size:13px}
+.shop-header .market-orders{text-align:left;line-height:1.4;flex-shrink:0}
+.shop-header-actions{gap:15px;flex-shrink:0}.market-bag{position:relative;white-space:nowrap}
+.shop-header-actions>button:first-child{color:#aec7b7}
+.market-nav{display:flex;gap:24px;align-items:center;padding:10px 28px;background:#20483a;color:white;font-size:12px;overflow-x:auto;scrollbar-width:none}
+.market-nav button{display:flex;align-items:center;gap:7px;background:none;border:0;color:inherit;white-space:nowrap;padding:0}
+.market-nav button:first-child{font-weight:700}.market-nav>span{margin-left:auto;white-space:nowrap;font-size:11px;color:#dce8d8}
+.market-home{max-width:1600px;margin:auto}
+.market-hero{min-height:330px;display:grid;grid-template-columns:1.1fr 1fr;align-items:center;background:linear-gradient(110deg,#dfead8 0%,#d9e6cf 46%,#afc7ab 100%);padding:35px 5% 65px;position:relative;overflow:hidden}
+.market-kicker{font-size:10px;letter-spacing:.13em;color:#3d654a;font-weight:700}
+.market-hero h1{font-size:clamp(29px,3.5vw,48px);font-weight:750;line-height:1.1;margin:14px 0;color:#153e2c}
+.market-hero p{font-size:15px;line-height:1.6;color:#36523b;margin:15px 0}
+.shop-primary{background:#f5c454;color:#263526;border-color:#f5c454;border-radius:24px;font-weight:600;padding:10px 22px;margin-top:5px;gap:12px}
+.shop-primary:hover{background:#e9b63e}
+.market-hero small{display:block;color:#486447;font-size:10px;margin-top:13px}
+.market-hero-products{position:relative;min-height:290px}
+.market-hero-products>div{position:absolute}.market-hero-products svg{width:100%;filter:drop-shadow(0 16px 8px #304b3320)}
+.market-hero-bag{width:65%;left:-5%;top:10px;transform:rotate(-12deg)}
+.market-hero-lamp{width:67%;right:-4%;top:-30px;transform:rotate(7deg)}
+.market-hero-bottle{width:42%;right:19%;bottom:-35px;transform:rotate(10deg)}
+.market-category-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin:-36px 28px 0;position:relative;z-index:1}
+.market-category-card{background:white;padding:20px;box-shadow:0 1px 2px #183c2410;min-width:0}
+.market-category-card h2{font-size:19px;line-height:1.2;font-weight:700;min-height:46px;margin:0 0 12px}
+.market-category-art{width:100%;border:0;display:block;background:#f0f2e9;padding:0;overflow:hidden}
+.category-1 .market-category-art{background:#f5eee1}.category-2 .market-category-art{background:#e8efea}.category-3 .market-category-art{background:#e7ebef}
+.market-category-art svg{width:100%;height:140px;transition:transform .2s}
+.market-category-art:hover svg{transform:scale(1.05)}
+.market-category-art>span{display:block;text-align:left;font-size:11px;padding:0 10px 10px;color:#354d3c}
+.market-text-link{display:flex;align-items:center;gap:6px;border:0;background:none;color:#19765b;font-size:11px;padding:13px 0 0}
+.market-text-link:hover{text-decoration:underline}
+.market-notice{display:flex;align-items:center;gap:14px;margin:20px 28px;padding:15px 20px;background:#f8fbf7;border:1px solid #d3dfce;font-size:12px;color:#54614e}
+.market-notice svg{flex-shrink:0;color:#447453}.market-notice strong{color:#254c34}
+.shop-collection{max-width:none;background:white;margin:20px 28px;padding:25px}
+.shop-section-title{align-items:center;gap:15px}
+.shop-section-title h2{font-size:23px;font-weight:700;margin:0}.shop-section-title p{font-size:12px;color:#69756d;margin:5px 0 0}
+.market-sort{display:flex!important;align-items:center;gap:8px;white-space:nowrap;color:#586b5c;font-size:11px!important}
+.bs-shop .market-sort select{width:auto;background:#f4f6f3;margin:0;font-size:11px;padding:6px 9px;border-radius:6px}
+.shop-filters{margin:20px 0;border-bottom:1px solid #e5e9e4;padding-bottom:17px;gap:8px}
+.shop-filters button{font-size:11px;padding:6px 14px;border-color:#d0d8ce}
+.shop-filters .selected{background:#234c39;color:#fff;border-color:#234c39}
+.shop-grid{gap:0;grid-template-columns:repeat(4,minmax(0,1fr))}
+.market-product-card{border:1px solid #e2e7df;min-width:0;margin-right:-1px;display:flex;flex-direction:column}
+.shop-product-art{border-radius:0;background:#f6f7f4!important}
+.shop-product-art>svg{height:190px}
+.shop-product-art>span{font-size:8px;background:#fff;padding:4px 7px;border:1px solid #e0e5db;top:10px;left:10px;color:#6b765f}
+.market-product-info{padding:17px;display:flex;flex-direction:column;flex:1}
+.market-product-info>small{font-size:10px;color:#718170}
+.shop-grid h3{font-size:16px;line-height:1.4;margin:5px 0}
+.shop-grid h3 button:hover{color:#a36518;text-decoration:underline}
+.market-product-description{font-size:12px;line-height:1.5;color:#5d6c5c;min-height:36px;margin:4px 0 10px}
+.market-price{font-size:25px;font-weight:500;letter-spacing:-.6px;color:#173424;margin:3px 0}
+.market-price small{display:block;font-size:10px;color:#6b7668;font-weight:400;letter-spacing:0}
+.market-variant-note{color:#64785b;font-size:10px;margin:5px 0 12px}
+.market-delivery{display:flex;align-items:flex-start;gap:7px;font-size:11px;margin:0 0 16px;line-height:1.5}
+.market-delivery svg{flex-shrink:0;color:#42644e;margin-top:2px}
+.market-delivery small{display:block;color:#798574;font-size:10px;margin-top:3px}
+.market-product-action{background:#f7ce5a;border:1px solid #edc449;border-radius:22px;padding:8px 12px;font-size:12px;font-weight:600;color:#263927;width:100%;margin-top:auto}
+.market-product-action:hover{background:#f0c347}
+.market-empty{text-align:center;padding:45px}.market-empty svg{margin:auto}.market-empty button{background:#f7ce5a;border:0;padding:10px 20px;border-radius:20px}
+.market-business-banner{margin:20px 28px;display:grid;grid-template-columns:1.3fr .65fr .8fr;align-items:center;gap:20px;background:#dfe8d8;padding:30px 35px}
+.market-business-banner h2{font-size:25px;font-weight:700;line-height:1.2;margin:10px 0}
+.market-business-banner p{font-size:12px;color:#506849;line-height:1.7}
+.market-business-banner>div>span{font-size:9px;letter-spacing:.1em;color:#5e7656;font-weight:700}
+.market-business-banner>svg{width:100%;max-height:200px}
+.market-business-steps{display:flex;flex-direction:column;gap:22px;border-left:1px solid #b9cbb0;padding-left:30px}
+.market-business-steps>span{display:flex;align-items:center;gap:10px;letter-spacing:0!important;font-size:12px!important;font-weight:400!important}
+.market-service-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin:20px 28px 30px;padding:25px;background:white}
+.market-service-strip>span{display:grid;grid-template-columns:30px 1fr;column-gap:9px;align-items:center}
+.market-service-strip svg{grid-row:span 2;width:24px;color:#527554}.market-service-strip strong{font-size:11px}.market-service-strip small{font-size:10px;color:#7c8775;margin-top:3px}
+.market-back-top{display:block;width:100%;background:#325847;color:white;border:0;padding:14px;font-size:12px}
+.shop-footer{background:#173c2e;color:white;align-items:flex-start;gap:40px;padding:40px max(5%,28px)}
+.shop-footer>div{display:flex;flex-direction:column;align-items:flex-start}.shop-footer strong{font-size:13px;margin:0 0 9px}.shop-footer p,.shop-footer small,.shop-footer button{color:#bdd0bf;font-size:11px;text-align:left}.shop-footer button:hover{color:white;text-decoration:underline}
+.market-footer-logo{width:145px;height:auto;display:block}.shop-footer small{margin-top:12px;max-width:180px}
+.shop-panel{max-width:1400px;background:#fff;margin:25px 28px;min-height:55vh;padding:30px}.shop-panel h1{font-size:29px;font-weight:600}.shop-summary{background:#fafbf7;border-color:#d5dfcf}.shop-secondary{border-color:#b8c8b0;background:white;border-radius:24px}.shop-order{border-color:#d6dfd0}.shop-modal{background:white;max-width:1050px;border-radius:7px;gap:45px}.shop-modal h2{font-size:28px;font-weight:600}.shop-modal-art{background:#f4f6f0;border-radius:0}.shop-modal p{font-size:13px}.shop-message{background:#fff8dd;color:#62511e;font-size:13px}
+@media(min-width:1600px){.shop-header,.market-nav{padding-inline:max(28px,calc((100vw - 1544px)/2))}}
+@media(max-width:1100px){.market-destination{display:none}.shop-header{gap:16px;padding-inline:20px}.market-account{display:none}.market-nav{gap:20px;padding-inline:20px}.market-nav>span{display:none}.market-category-grid{gap:14px;margin-inline:20px}.market-category-card{padding:15px}.market-category-card h2{font-size:17px}.market-product-info{padding:13px}.market-service-strip{gap:12px}.market-business-banner{grid-template-columns:1.2fr .8fr}.market-business-steps{display:none}}
+@media(max-width:800px){.shop-header{flex-wrap:wrap;gap:15px}.shop-brand{order:0}.shop-header-actions{order:2;margin-left:auto}.market-orders{order:1;margin-left:auto}.market-search{order:3;min-width:100%;flex-basis:100%}.market-category-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.market-category-card h2{min-height:0}.market-category-art svg{height:130px}.market-hero{min-height:290px;padding-bottom:55px}.market-hero h1{font-size:31px}.market-hero-products{min-height:210px}.market-hero p{font-size:13px}.market-hero-bottle{bottom:-10px}.market-category-grid{margin-top:-28px}.shop-grid{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:16px}.shop-section-title{flex-direction:row}.shop-footer{gap:25px;display:grid;grid-template-columns:1fr 1fr}.market-service-strip{grid-template-columns:1fr 1fr}.shop-product-art>svg{height:180px}.shop-panel{margin:20px}.shop-settings{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.shop-banner{font-size:9px;padding:5px 10px;line-height:1.5}.shop-header{padding:13px 14px;gap:12px}.shop-brand img{width:125px}.shop-brand small{font-size:7px;bottom:-4px}.shop-header-actions{gap:10px}.shop-header-actions>button:first-child{display:none}.shop-header .market-orders small{font-size:9px}.shop-header .market-orders strong{font-size:11px}.market-bag strong{font-size:11px}.market-bag svg{width:26px}.market-search{height:42px}.bs-shop .market-search input{font-size:13px;padding:0 10px}.bs-shop .market-search select{font-size:10px;width:49px;max-width:49px;padding:0 5px}.market-search button{width:43px}.market-nav{padding:10px 14px;gap:20px;font-size:11px}.market-nav button:first-child{font-size:0}.market-nav button:first-child svg{width:20px}.market-hero{grid-template-columns:1.1fr .9fr;padding:25px 16px 40px;min-height:235px;gap:5px}.market-kicker{font-size:7px;letter-spacing:.08em}.market-hero h1{font-size:24px;margin:10px 0;line-height:1.12}.market-hero p{font-size:11px;margin:10px 0}.market-hero p br{display:none}.market-hero .shop-primary{font-size:10px!important;padding:8px 12px;gap:6px}.market-hero .shop-primary svg{width:14px}.market-hero small{font-size:8px;max-width:180px}.market-hero-products{min-height:180px}.market-hero-bag{width:95%;left:-20%;top:25px}.market-hero-lamp{width:105%;right:-30%;top:5px}.market-hero-bottle{width:65%;bottom:-10px;right:0}.market-category-grid{margin:-16px 12px 0;gap:10px}.market-category-card{padding:12px}.market-category-card h2{font-size:15px;min-height:36px;margin-bottom:8px}.market-category-art svg{height:105px}.market-category-art>span{font-size:9px;padding:0 7px 7px}.market-text-link{font-size:9px;gap:4px;text-align:left;line-height:1.5}.market-text-link svg{display:none}.market-notice{margin:12px;padding:12px;font-size:10px;align-items:flex-start;gap:9px}.market-notice strong{display:block;margin-bottom:3px}.market-notice svg{width:19px}.shop-collection{margin:12px;padding:15px 12px}.shop-section-title{align-items:flex-start;gap:10px;flex-direction:column}.shop-section-title h2{font-size:20px}.shop-section-title p{font-size:10px}.market-sort{font-size:10px!important;gap:8px}.bs-shop .market-sort select{font-size:10px;padding:4px 8px}.shop-filters{gap:5px;margin:13px 0;padding-bottom:12px}.shop-filters button{font-size:9px;padding:5px 9px}.shop-grid{gap:10px}.market-product-card{margin:0}.shop-product-art>svg{height:135px}.shop-product-art>span{font-size:6px;top:7px;left:7px;padding:3px 4px}.market-product-info{padding:10px}.market-product-info>small{font-size:8px}.shop-grid h3{font-size:13px;line-height:1.35}.market-product-description{font-size:10px;min-height:45px}.market-price{font-size:19px;letter-spacing:-.6px}.market-price small{font-size:8px}.market-variant-note{font-size:8px;margin-bottom:10px}.market-delivery{font-size:9px;gap:5px}.market-delivery svg{width:12px}.market-delivery small{font-size:8px}.market-product-action{font-size:10px;padding:7px}.market-business-banner{margin:12px;grid-template-columns:1.25fr .75fr;padding:20px 16px;gap:5px}.market-business-banner>div>span{font-size:7px}.market-business-banner h2{font-size:20px}.market-business-banner p{font-size:10px}.market-business-banner p br{display:none}.market-business-banner .shop-primary{font-size:10px!important;gap:7px;padding:9px 12px}.market-business-banner .shop-primary svg{display:none}.market-business-banner>svg{max-height:150px}.market-service-strip{margin:12px 12px 20px;padding:17px;gap:20px 12px}.market-service-strip>span{display:flex;align-items:flex-start;flex-direction:column;gap:5px}.market-service-strip strong{font-size:10px}.market-service-strip small{font-size:9px;margin:0}.market-service-strip svg{width:20px}.shop-footer{padding:30px 20px;gap:25px 20px}.shop-footer strong{font-size:12px}.shop-footer button,.shop-footer p,.shop-footer small{font-size:10px}.market-footer-logo{width:120px}.shop-panel{padding:20px;margin:12px}.shop-panel h1{font-size:25px}.shop-panel h2{font-size:20px}.shop-modal{gap:15px;padding:25px}.shop-modal h2{font-size:24px}.shop-modal-art svg{max-height:190px}}
+@media(prefers-reduced-motion:reduce){.market-category-art svg{transition:none}}
+
+/* Product-sourcing storefront. Unmodified Amazon Ember files are self-hosted;
+   the official usage guidelines and provenance are retained with the assets. */
+.bs-shop{--shop-font:"Amazon Ember","Amazon Ember Display",Arial,Helvetica,sans-serif;font-family:var(--shop-font);background:#edf0ed;-webkit-font-smoothing:antialiased}
+.bs-shop h1,.bs-shop h2,.bs-shop h3,.bs-shop input,.bs-shop button,.bs-shop select,.bs-shop textarea{font-family:var(--shop-font)}
+.shop-header{padding-block:18px;background:#0d2b23;box-shadow:0 3px 15px #0b291914}
+.shop-header .market-account{display:flex;align-items:center;gap:9px;padding:7px 11px;border:1px solid #839b6d70;border-radius:8px;color:#fff;line-height:1.25}
+.market-account>svg:first-child{color:#edc46d}.market-account:hover{background:#234838;border-color:#e4bc65}.market-account small{font-size:10px}.market-account strong{font-size:14px;color:#f6d990;margin-top:3px}
+.market-search{border-radius:8px;height:46px}.market-nav{background:#1a4032;padding-block:11px}
+.market-hero{min-height:365px;background:linear-gradient(110deg,#123b2e 0%,#28533e 49%,#dce6cd 49.1%,#f0f3df 100%);padding-top:45px;padding-bottom:70px}
+.market-hero>div:first-child{position:relative;z-index:2}
+.market-kicker{display:inline-flex;align-items:center;gap:8px;font-size:9px;letter-spacing:.17em;color:#e1c584}
+.market-kicker i{width:6px;height:6px;background:#e7c76a;border-radius:50%;box-shadow:0 0 0 4px #d9bc6120}
+.market-hero h1{color:#fbfff4;font-size:clamp(30px,3.7vw,51px);font-weight:700;letter-spacing:-1.7px;line-height:1.08;margin-top:20px}
+.market-hero p{color:#c8dac5;font-size:15px;line-height:1.7}
+.market-hero small{color:#aabda3;font-size:10px;max-width:300px;line-height:1.6}
+.market-hero .shop-primary{background:linear-gradient(#ffe09a,#e9b74e);border-color:#eac06a;box-shadow:0 3px 7px #06180b30;padding:12px 24px;letter-spacing:0}
+.market-hero-products{min-height:310px;isolation:isolate}
+.hero-orbit{position:absolute;border:1px solid #a7ba903f;border-radius:50%;width:280px;height:280px;top:0;left:25%;z-index:-1}
+.hero-orbit.orbit-two{width:350px;height:350px;left:18%;top:-35px}
+.hero-plinth{position:absolute;width:82%;height:42px;border-radius:50%;bottom:8px;left:8%;background:linear-gradient(180deg,#b4c49f,#849b7050);box-shadow:0 20px 25px #49603510;z-index:-1}
+.market-hero-products .market-hero-bag{left:-3%;top:20px;width:63%;transform:rotate(-9deg)}
+.market-hero-products .market-hero-lamp{right:-2%;top:-14px;width:66%;transform:rotate(5deg)}
+.market-hero-products .market-hero-bottle{width:40%;bottom:-10px;right:21%;transform:rotate(5deg)}
+.hero-edit-label{position:absolute;bottom:-20px;left:15%;right:8%;display:flex;justify-content:space-between;font-size:8px;letter-spacing:.18em;color:#5d7450}
+.hero-edit-label span{color:#859c78}
+.market-category-grid{gap:18px;margin-top:-28px}
+.market-category-card{padding:21px;border-radius:9px;box-shadow:0 4px 18px #1239240b;border:1px solid #ffffff;transition:box-shadow .2s,transform .2s}
+.market-category-card:hover{box-shadow:0 8px 25px #12392414;transform:translateY(-3px)}
+.category-index{display:block;font-size:8px;letter-spacing:.14em;color:#85947c;font-weight:700;margin-bottom:8px}
+.market-category-card h2{font-size:20px;letter-spacing:-.45px;margin-bottom:14px}
+.market-category-art{border-radius:6px;background:radial-gradient(ellipse at 50% 35%,#f8faf2,#e5eadc)}
+.category-1 .market-category-art{background:radial-gradient(ellipse at 50% 35%,#fff8e9,#eee3cf)}
+.category-2 .market-category-art{background:radial-gradient(ellipse at 50% 35%,#f2f8ee,#dce9df)}
+.category-3 .market-category-art{background:radial-gradient(ellipse at 50% 35%,#f4f5ef,#e3e7df)}
+.market-category-art svg{height:150px}
+.market-category-art>span{font-size:11px;color:#53664a;padding-top:0}
+.market-text-link{font-weight:600;color:#2c7154}
+.market-member-strip{display:flex;align-items:center;gap:17px;padding:20px 25px;margin:22px 28px 0;background:#fff;border:1px solid #e0e6d9;border-radius:8px}
+.member-icon{width:44px;height:44px;border-radius:50%;background:#eff4e9;display:grid;place-items:center;color:#527347;flex-shrink:0}
+.market-member-strip h2{font-size:17px;font-weight:700;letter-spacing:-.3px;margin:0 0 4px}
+.market-member-strip p{font-size:12px;color:#75816f;margin:0}
+.market-member-strip>a{display:flex;align-items:center;justify-content:center;gap:15px;background:#f3c65e;color:#263b25;border:1px solid #edc264;border-radius:22px;text-decoration:none;padding:9px 23px;font-size:12px;font-weight:600;white-space:nowrap;margin-left:auto}
+.market-member-strip>a.member-register{background:transparent;border-color:#cbd6c2;margin-left:0;color:#4c6640}
+.market-notice{border-radius:7px;margin-top:14px;margin-bottom:18px}
+.shop-collection{border-radius:9px;padding:27px;box-shadow:0 4px 18px #12392405}
+.shop-section-title h2{font-size:24px;letter-spacing:-.4px}
+.market-product-card{border-radius:7px;overflow:hidden;margin:0;border:1px solid #e2e7dc;transition:box-shadow .2s}
+.market-product-card:hover{box-shadow:0 5px 20px #173d2914}
+.shop-grid{gap:14px}
+.shop-product-art{background:radial-gradient(ellipse at 50% 40%,#fff,#f1f4ec)!important}
+.shop-product-art>svg{height:220px;padding-top:5px}
+.shop-product-art>span{border-radius:3px;letter-spacing:.08em;color:#718064}
+.market-product-info{padding:19px}
+.shop-grid h3{font-size:17px;font-weight:400;line-height:1.4}
+.market-price{font-size:28px;color:#132c1d;font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:-.8px}
+.market-product-action{padding-block:10px;box-shadow:0 2px 4px #163c2510;border-color:#e9bf48}
+.market-business-banner{border-radius:8px;background:linear-gradient(105deg,#d6e2c9,#eaf0e1);padding-block:35px}
+.market-business-banner h2{font-size:29px;letter-spacing:-.65px}
+.market-service-strip{border-radius:8px}
+.shop-modal{border-radius:12px;box-shadow:0 20px 80px #031b1950}
+.shop-modal-art{border-radius:8px;background:radial-gradient(ellipse at center,#fbfcf6,#e9efdf)}
+.shop-modal-art svg{max-height:350px}
+@media(max-width:1100px){.market-hero h1{font-size:37px}.market-category-card h2{font-size:18px}.market-member-strip>a{padding-inline:18px}.market-member-strip h2{font-size:15px}.shop-header .market-account{display:flex}.market-category-card{padding:16px}.market-product-info{padding:15px}.shop-product-art>svg{height:200px}}
+@media(max-width:800px){.shop-header .market-account{margin-left:auto;order:1}.shop-header .market-orders{margin-left:0;order:1}.shop-header-actions{margin-left:0}.market-hero{min-height:320px}.market-hero h1{font-size:32px;letter-spacing:-1px}.market-category-card h2{font-size:19px}.market-member-strip{flex-wrap:wrap;gap:13px}.market-member-strip>div:nth-child(2){flex:1}.market-member-strip>a{margin-left:57px}.market-member-strip>a.member-register{margin-left:0}.shop-product-art>svg{height:195px}.market-hero-products{min-height:240px}.hero-orbit{width:220px;height:220px}.hero-orbit.orbit-two{width:280px;height:280px}}
+@media(max-width:480px){.shop-header{gap:12px;padding-block:14px}.shop-brand img{width:115px}.shop-header .market-orders{display:none}.shop-header .market-account{gap:6px;padding:5px 8px;border-color:#557347}.market-account>svg:first-child{width:16px}.market-account>svg:last-child{display:none}.market-account small{font-size:8px}.market-account strong{font-size:12px;margin-top:2px}.shop-header-actions{margin-left:0}.market-bag strong{font-size:10px}.market-bag svg{width:24px}.market-search{margin-top:3px}.market-hero{padding:27px 17px 42px;min-height:265px;grid-template-columns:1.15fr .85fr;background:linear-gradient(110deg,#163e2e 0%,#28533e 58%,#dce6cd 58.2%,#f0f3df 100%)}.market-hero h1{font-size:25px;letter-spacing:-.75px;margin:13px 0}.market-kicker{font-size:6px;letter-spacing:.09em;gap:5px}.market-kicker i{width:4px;height:4px}.market-hero p{font-size:11px;line-height:1.6}.market-hero small{font-size:8px;max-width:175px}.market-hero .shop-primary{padding:9px 15px;font-size:11px!important}.market-hero-products{min-height:200px}.market-hero-products .market-hero-bag{width:110%;left:-30%;top:45px}.market-hero-products .market-hero-lamp{width:125%;right:-35%;top:8px}.market-hero-products .market-hero-bottle{width:75%;right:-8%;bottom:-3px}.hero-plinth{width:125%;left:-9%;bottom:0}.hero-edit-label{font-size:5px;left:0;right:0;bottom:-15px;letter-spacing:.08em}.hero-orbit{width:130px;height:130px;left:0;top:30px}.hero-orbit.orbit-two{width:180px;height:180px;left:-15%;top:10px}.market-category-grid{gap:10px;margin-top:-14px}.market-category-card{padding:13px;border-radius:7px}.category-index{font-size:6px;letter-spacing:.1em;margin-bottom:6px}.market-category-card h2{font-size:15px;letter-spacing:-.3px;min-height:36px;margin-bottom:10px}.market-category-art svg{height:120px}.market-category-art>span{font-size:9px}.market-member-strip{margin:13px 12px 0;padding:17px 14px;gap:12px}.member-icon{width:33px;height:33px}.member-icon svg{width:19px}.market-member-strip h2{font-size:14px;letter-spacing:-.2px}.market-member-strip p{font-size:10px;line-height:1.5}.market-member-strip>a{margin-left:45px;padding:7px 17px;font-size:10px;gap:9px}.market-member-strip>a.member-register{margin-left:0}.market-notice{font-size:9px;margin-block:12px}.shop-collection{padding:17px 12px}.shop-section-title h2{font-size:21px}.shop-grid{gap:10px}.shop-product-art>svg{height:155px}.market-product-info{padding:11px}.shop-grid h3{font-size:14px;line-height:1.4}.market-price{font-size:21px;letter-spacing:-.7px}.market-product-description{font-size:10px;line-height:1.55}.market-product-action{padding:9px 5px;font-size:10px}.market-business-banner h2{font-size:21px}.market-business-banner{padding-block:25px}.shop-modal-art svg{max-height:220px}}
+@media(prefers-reduced-motion:reduce){.market-category-card,.market-product-card{transition:none}.market-category-card:hover{transform:none}}

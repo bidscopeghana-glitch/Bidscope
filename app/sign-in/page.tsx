@@ -5,10 +5,11 @@ import { ArrowLeft, BookmarkCheck, BriefcaseBusiness, LockKeyhole, SearchCheck }
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { AuthPanel } from "./auth-panel";
 import { customerReturnPath } from "@/lib/auth-return";
+import "../shop/fonts.css";
 
 export const metadata: Metadata = {
   title: "Sign in or create an account | BidScope",
-  description: "Access your BidScope account to explore live procurement opportunities, research awards and manage your bidding workspace.",
+  description: "Access your BidScope account and continue to shopping, product sourcing or your existing workspace.",
   robots:{index:false,follow:false},
   alternates:{canonical:"/sign-in"},
 };
@@ -21,6 +22,15 @@ const benefits = [
 
 export default async function SignInPage({ searchParams }: { searchParams: Promise<Record<string,string|string[]|undefined>> }) {
   const query = await searchParams;
+  if(customerReturnPath(query.next)==="/shop"){
+    return <main className="min-h-svh bg-[#edf1e8] text-[#183b2c]" style={{fontFamily:'"Amazon Ember", Arial, sans-serif'}}>
+      <header className="flex items-center justify-between gap-6 bg-[#102f25] px-6 py-5 sm:px-12"><Link href="/shop" aria-label="Back to shopping"><BrandLogo reversed className="h-auto w-[145px]"/></Link><Link href="/shop" className="flex items-center gap-2 text-xs text-[#d4dfc9]"><ArrowLeft size={15}/> Back to shopping</Link></header>
+      <div className="mx-auto grid max-w-[1100px] items-center gap-10 px-5 py-10 md:grid-cols-2 md:gap-20 md:py-20">
+        <section className="hidden md:block"><p className="text-[10px] font-bold tracking-[.2em] text-[#6c805b]">YOUR BIDSCOPE ACCOUNT</p><h1 className="mt-5 text-5xl font-bold leading-[1.08] tracking-[-1.5px]">Good to have<br/>you here.</h1><p className="mt-5 max-w-sm text-base leading-7 text-[#6a7e61]">Sign in to your existing BidScope account and continue exploring the shopping preview.</p><div className="mt-8 space-y-5">{[[SearchCheck,"Discover your next find","Explore products, categories and sourcing."],[BookmarkCheck,"One familiar account","Use your existing BidScope sign-in."],[LockKeyhole,"Your session stays secure","The same account security, a new shopping experience."]].map(([Icon,title,description])=>{const Symbol=Icon as typeof SearchCheck;return <div className="flex gap-4" key={String(title)}><span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#d2ddc5] bg-white text-[#517345]"><Symbol size={18}/></span><div><strong className="text-sm">{String(title)}</strong><p className="mt-1 text-xs leading-5 text-[#7a8b70]">{String(description)}</p></div></div>;})}</div><p className="mt-10 text-[11px] leading-5 text-[#7e8d73]">Shopping concept preview. Sample orders remain in this browser; live product checkout is disabled.</p></section>
+        <section className="mx-auto w-full max-w-[470px]"><div className="mb-6"><p className="text-[10px] font-bold tracking-[.17em] text-[#6c805b]">SHOP & SOURCE</p><h2 className="mt-2 text-3xl font-bold tracking-[-.8px]">Welcome to BidScope</h2><p className="mt-2 text-sm text-[#73856a]">Sign in to continue to the shopping preview.</p></div><AuthPanel initialMode={query.mode==="sign-up"?"sign-up":"sign-in"} returnTo="/shop" turnstileSiteKey={process.env.TURNSTILE_SITE_KEY||""}/><p className="mt-6 text-center text-[10px] text-[#7b8b72]">BidScope · Discover. Source. Make it possible.</p></section>
+      </div>
+    </main>;
+  }
   return (
     <main className="relative min-h-svh overflow-hidden bg-[#0b3c2f] text-[#17362d] lg:grid lg:grid-cols-[minmax(390px,46%)_1fr] lg:bg-[#f6f3e9]">
       <Image src="/images/bidscope-hero.webp" alt="" fill priority sizes="100vw" className="object-cover object-[63%_center] lg:hidden" />

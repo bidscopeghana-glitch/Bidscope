@@ -1,0 +1,14 @@
+@font-face{
+ font-family:"Amazon Ember";
+ src:url("/fonts/amazon-ember/AmazonEmber-Regular.ttf") format("truetype");
+ font-weight:400 500;
+ font-style:normal;
+ font-display:swap;
+}
+@font-face{
+ font-family:"Amazon Ember";
+ src:url("/fonts/amazon-ember/AmazonEmber-Bold.ttf") format("truetype");
+ font-weight:600 900;
+ font-style:normal;
+ font-display:swap;
+}

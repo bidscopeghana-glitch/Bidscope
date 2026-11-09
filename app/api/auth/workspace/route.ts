@@ -40,7 +40,7 @@ export async function GET(request: Request) {
           : savedMode || "supplier"
       : savedMode || "supplier";
     const requestedPath = customerReturnPath(url.searchParams.get("next"));
-    const destination = requestedPath.startsWith("/admin/command-centre") || requestedPath === "/services/requests"
+    const destination = requestedPath.startsWith("/admin/command-centre") || requestedPath === "/services/requests" || requestedPath === "/shop"
       ? requestedPath
       : workspace === "buyer"
         ? organization

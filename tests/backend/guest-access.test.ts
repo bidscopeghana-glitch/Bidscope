@@ -8,6 +8,8 @@ test("authentication returns only to known local BidScope workspaces", () => {
   assert.equal(customerReturnPath("/procurement/team"),"/procurement/team");
   assert.equal(customerReturnPath("/admin/command-centre/supplier-verifications"),"/admin/command-centre/supplier-verifications");
   assert.equal(customerReturnPath("/services/requests"),"/services/requests");
+  assert.equal(customerReturnPath("/shop"),"/shop");
+  assert.equal(customerReturnPath("/shop//evil.test"),"/customer");
   for (const invalid of ["https://evil.test","//evil.test","/customer-evil","/procurement\\evil","/admin/other",null,["/customer"]]) assert.equal(customerReturnPath(invalid),"/customer");
 });
 
