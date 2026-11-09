@@ -510,3 +510,48 @@ to the production Site URL when the preview redirect was absent from the allowli
 Rollback these settings by removing only that exact additional Supabase URL and
 that branch-scoped Vercel override. Do not remove the production callback or reset
 the project's main Site URL. A fresh deployment is required after env changes.
+
+## Hosted CJ product review - 9 November 2026 (staged, not enabled)
+
+The private hosted product page now has an explicit administrator action to refresh
+current CJ variants and prices. POST /api/commerce/product-review authenticates the
+existing BidScope super-admin, requires same-origin JSON, rejects unknown draft
+IDs before touching CJ, and checks the returned product ID. It exposes only the
+normalised draft fields; supplier HTML, API keys and tokens are never returned.
+The approved 30% markup is displayed per variant. Stock, destination coverage,
+freight, taxes and final payable amounts remain unverified by this action.
+Checkout stays disabled; this route cannot create an order or payment.
+
+The new migration 20261109230000_commerce_cj_review_gate.sql creates one private
+admission-gate row and two service-role-only functions. An atomic lease serialises
+hosted CJ reviews across server instances. Authentication and product reads are
+separated by 1.1 seconds; release adds a two-second cooldown. A crashed request
+holds the gate for at most 90 seconds. Requests fail closed if the schema, flag or
+key is missing. No existing tender, catalogue, order or permission rows are changed.
+The gate protects this review endpoint only. Do not run the local bulk importer or
+other CJ clients concurrently with hosted review; future hosted stock/freight jobs
+must use the same admission gate. This is not a general distributed worker queue.
+
+Activation order (not performed by this code change):
+1. Review/apply the migration in BidScope bclyhnbzbgugfmxrtlvu; verify anon and
+   authenticated cannot call either function or read the table. Docker was not
+   running locally, so SQL execution has not yet been verified.
+2. With owner approval, save the existing CJ key as CJ_API_KEY in the branch-only
+   Vercel Preview environment. Never use NEXT_PUBLIC_ or commit its value.
+3. Set BIDSCOPE_CJ_HOSTED_REVIEW=1 in the same branch-only Preview environment.
+4. Deploy the reviewed branch through Vercel's normal authenticated flow; complete
+   its identity verification if Vercel requests it. This does not authorise a
+   production promotion, change catalogue rights or activate purchases.
+5. In the signed-in private preview, refresh one known draft and check variants,
+   prices and timestamp. Concurrent refreshes must return busy/429. Verify ordinary
+   users and signed-out visitors cannot access the endpoint.
+
+Rollback: disable the flag first, let in-flight reads finish (90 seconds), restore
+runtime commit 0932e31 if required, then optionally run rollback-cj-review.sql.
+That script removes only the new admission gate and functions. Remove only the
+branch-scoped CJ environment overrides if no longer needed. Do not revoke the CJ
+account key or change existing billing keys. Historical data is preserved.
+
+Validation for this staged step: 416 backend tests passed; full ESLint passed;
+the production webpack build including TypeScript passed. The migration and live
+hosted CJ call have not been executed; they remain activation checks.
