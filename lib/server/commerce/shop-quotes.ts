@@ -1,4 +1,4 @@
-import {shopQuoteInput,checkoutCostPolicy,type ShopQuoteInput} from "../../commerce/shop-checkout.ts";
+import {shopQuoteInput,checkoutCostPolicy,shopReturnDisclosure,type ShopQuoteInput} from "../../commerce/shop-checkout.ts";
 import {retailUsdMinor} from "../../commerce/retail-pricing.ts";
 import {ghsMinor,type DailyFx} from "./daily-fx.ts";
 import type {CjShippingCheck} from "./cj-catalogue.ts";
@@ -30,5 +30,5 @@ export async function buildSandboxShopQuote(raw:unknown,deps:Dependencies){
  }
  const expiresAt=Math.min(started+300000,Date.parse(fx.validUntil));if(expiresAt<=now())throw Error("The quote expired during supplier checks.");
  const total=money(merchandise+shipping);if(total<1)throw Error("Quote total is invalid.");
- return {input,mode:"test" as const,sale_ready:false,currency:"GHS" as const,merchandise_minor:merchandise,shipping_minor:shipping,included_tax_minor:0,customer_fee_minor:checkoutCostPolicy.customerProcessingFeeMinor,total_minor:total,import_charges_policy:checkoutCostPolicy.importChargesPolicy,items,fulfilment_snapshot:{provider:"cj",lines:fulfilment,supplierCostUsdMinor:supplierCostUsd,fxAsOf:fx.asOf,fxValidUntil:fx.validUntil,merchantProcessingFee:"absorbed_actual_cost_pending"},delivery_address:input.address,created_at:new Date(started).toISOString(),expires_at:new Date(expiresAt).toISOString()};
+ return {input,mode:"test" as const,sale_ready:false,currency:"GHS" as const,merchandise_minor:merchandise,shipping_minor:shipping,included_tax_minor:0,customer_fee_minor:checkoutCostPolicy.customerProcessingFeeMinor,total_minor:total,import_charges_policy:checkoutCostPolicy.importChargesPolicy,items,fulfilment_snapshot:{provider:"cj",lines:fulfilment,supplierCostUsdMinor:supplierCostUsd,fxAsOf:fx.asOf,fxValidUntil:fx.validUntil,merchantProcessingFee:"absorbed_actual_cost_pending",returnDisclosure:{version:shopReturnDisclosure.version,text:shopReturnDisclosure.copy,acknowledgedAt:new Date(started).toISOString()}},delivery_address:input.address,created_at:new Date(started).toISOString(),expires_at:new Date(expiresAt).toISOString()};
 }

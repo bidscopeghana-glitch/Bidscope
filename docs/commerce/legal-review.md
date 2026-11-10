@@ -2,8 +2,8 @@
 
 ## Terms
 Draft seller identity from the supplied registration certificate: BIDSCOPE,
-sole proprietorship, registration BN361371026. Postal address and support contact
-remain unconfirmed for customer-facing publication. Do not publish the certificate
+sole proprietorship, registration BN361371026. Customer support: hello@bidscopeghana.com (confirmed by owner). The postal address
+remains unconfirmed for customer-facing publication. Do not publish the certificate
 or its personal identifiers/residential address.
 BidScope role: [reseller / agent / marketplace, as established by signed agreements].
 The seller remains responsible for its customer-facing obligations. Supplier

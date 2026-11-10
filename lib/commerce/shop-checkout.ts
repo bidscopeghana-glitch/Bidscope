@@ -5,7 +5,9 @@ export const shopQuoteInput=z.object({
  origin:z.enum(["CN","US","GB","DE","FR"]),
  address:z.object({name:z.string().trim().min(2).max(100),phone:z.string().trim().regex(/^\+?[0-9 ()-]{7,25}$/),countryCode:z.string().refine(value=>deliveryDestinations.some(([code])=>code===value)),province:z.string().trim().max(100),city:z.string().trim().min(1).max(100),postalCode:z.string().trim().max(30),address:z.string().trim().min(5).max(200)}).strict(),
  lines:z.array(z.object({productId:id,variantId:id,quantity:z.number().int().min(1).max(99)}).strict()).min(1).max(5),
- acknowledgeImportCharges:z.literal(true)
+ acknowledgeImportCharges:z.literal(true),
+ acknowledgeReturnTerms:z.literal(true)
 }).strict().superRefine((input,context)=>{const keys=input.lines.map(line=>line.productId+":"+line.variantId);if(new Set(keys).size!==keys.length)context.addIssue({code:z.ZodIssueCode.custom,message:"Combine duplicate options in your bag."});});
 export type ShopQuoteInput=z.infer<typeof shopQuoteInput>;
 export const checkoutCostPolicy={customerProcessingFeeMinor:0,importChargesPolicy:"customer_pays_excluded",copy:"BidScope covers payment processing fees. Import duties, taxes and carrier charges not included in this quote are payable by you to the relevant authority or carrier."} as const;
+export const shopReturnDisclosure={version:"2026-11-10-draft-1",copy:"Supplier return restrictions can depend on the product, destination and reason. Contact BidScope before sending goods back. Acknowledging restrictions does not waive cancellation, return, replacement or refund rights provided by applicable law. Live sales remain closed until the applicable arrangements are confirmed."} as const;

@@ -29,6 +29,13 @@ is part of this stage.
 
 ## Setup in the isolated preview
 
+Activation update: the owner approved and the publication migration was applied
+on 10 November 2026 in bclyhnbzbgugfmxrtlvu. SQL verification found 2 RLS-protected
+tables, 3 service-only functions and zero publication rows. Both configuration
+flags below were saved exclusively for the commerce Preview branch, not
+Production. No product approval or live checkout activation was performed.
+Evidence: `outputs/shop-publication-schema-verified.png`.
+
 1. Review and apply `20261110120000_shop_publications.sql` only to the identified
    BidScope project. It is additive; it does not copy or publish any imported row.
 2. Set `BIDSCOPE_SHOP_PUBLICATIONS_READY=1` in the commerce branch's Preview
@@ -47,11 +54,18 @@ is part of this stage.
 
 ## Still required before live sales or domain conversion
 
-- Confirm customer-support email and public business correspondence address.
+- Customer-support email confirmed: hello@bidscopeghana.com. Public business
+  correspondence address is still unconfirmed.
 - Finalise cancellation, return-postage and refund terms. CJ's published dispute
   restrictions include Ghana; obtain written applicable coverage or explicitly
   fund valid customer remedies through BidScope. Do not assume supplier refusal
   removes customer rights. See `legal-review.md`.
+- The owner requested warnings and acknowledgement for restricted returns.
+  Sandbox quotes now require a separate return-information acknowledgement and
+  preserve the disclosure version/text/server timestamp in the quote/order
+  fulfilment snapshot. It is not a waiver and does not resolve the funding or
+  supplier-coverage decision. A product-specific legally reviewed policy and
+  workable remedy remain required before live checkout.
 - Approve actual products/media and verify destination/product compliance.
 - Complete and validate a separate LIVE order/fulfilment workflow with controlled
   retries, reconciliation, supplier funding and returns. Existing official CJ
@@ -78,6 +92,8 @@ Reapplying the documented GRANTs restores RPC access. No DNS change is required.
 - `node scripts/test-shop-publications.mjs` (isolated existing PGlite test install;
   no live database or provider calls).
 - Standard backend suite, full lint, TypeScript and Webpack production build.
+- After adding the required returns acknowledgement and confirmed support email:
+  433 backend tests, full lint and production build (including TypeScript) passed.
 - Browser: signed-out collection/preparing state, unpublished item rejection,
   policy page; desktop and phone width checks. No approved product has yet been
   published in Supabase by this stage, so live approval-to-guest acceptance is
