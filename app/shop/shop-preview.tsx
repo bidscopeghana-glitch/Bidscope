@@ -10,7 +10,7 @@ import "./marketplace.css";
 import {ProductVisual as Art,ProductPicture} from "./product-visual";
 import {ProductTile} from "./product-tile";
 import {CommerceHeader} from "./commerce-header";
-import {HostedShop} from "./hosted-shop";
+import {Storefront as HostedShop} from "./storefront";
 import {isLocalCommercePreview} from "@/lib/client/commerce-preview";
 import {cjPreviewFeedSchema} from "@/lib/commerce/cj-preview";
 type Tab="shop"|"bag"|"orders"|"admin"|"help"|"policies";
