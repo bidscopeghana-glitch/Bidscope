@@ -795,3 +795,13 @@ the ledger/audit, and arbitrary provider-ID changes remain rejected. The migrati
 was applied in BidScope and its service-only permissions verified. No order was
 recreated. 428 backend tests, 29 isolated supplier/refund SQL checks, lint, TypeScript
 and production build passed after this correction.
+
+### Sandbox simulation endpoint correction - 10 November 2026
+
+Hosted acceptance reconciled the existing CJ order to CREATED, then confirmation
+reached UNPAID. Subsequent simulation with the numeric lookup ID was rejected.
+Read-only identity checks confirmed the same reference/isSandbox=1 and a confirmed
+CJ order code; no duplicate order was created. Sandbox mutations now use the
+preserved SD/DP alias while status/identity validation continues with the canonical
+ID. UNSHIPPED with subStatus=PENDING advances to 400 before 500, as required by
+CJ's ordered simulation flow. Focused lint and 428 backend tests passed.

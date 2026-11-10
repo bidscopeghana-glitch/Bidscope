@@ -12,7 +12,7 @@ import {supplierPayload,sandboxSupplierInput,checkedSandboxOrder,nextSandboxStat
 export const runtime="nodejs";
 export const maxDuration=120;
 const inputSchema=z.object({orderId:z.string().uuid(),supplierId:z.string().uuid().optional(),action:z.enum(["create","sync","pay","advance"])}).strict();
-type Supplier={id:string;order_id:string;merchant_reference:string;provider_order_id:string|null;state:string;payload:unknown};
+type Supplier={id:string;order_id:string;merchant_reference:string;provider_order_id:string|null;provider_order_alias:string|null;state:string;payload:unknown};
 type Order={id:string;payment_mode:string;status:string;total_minor:number;received_amount_minor:number|null;received_mode:string|null;received_currency:string|null;verified_at:string|null;delivery_address:unknown};
 export async function POST(request:Request){try{
  await requireSuperAdmin(request);requireShopLedger();
@@ -22,7 +22,7 @@ export async function POST(request:Request){try{
  const order=orders[0];if(!order||order.payment_mode!=="test"||order.received_mode!=="test"||order.received_currency!=="GHS"||order.received_amount_minor!==order.total_minor||!order.verified_at)throw new ApiError(409,"An exactly verified sandbox payment is required.");
  if(input.action!=="sync"&&!["paid","supplier_payment_pending","exception","partially_shipped","shipped","delivered"].includes(order.status))throw new ApiError(409,"Resolve the cancellation, return or refund before changing fulfilment.");
  if(input.action==="create")await supabaseRpc("bidscope_shop_prepare_supplier",{p_order:order.id});
- const {data:rows}=await supabaseRest<Supplier[]>("bidscope_shop_supplier_orders?"+new URLSearchParams({select:"id,order_id,merchant_reference,provider_order_id,state,payload",order_id:"eq."+order.id,order:"line_index.asc",...(input.supplierId?{id:"eq."+input.supplierId}:{})}));
+ const {data:rows}=await supabaseRest<Supplier[]>("bidscope_shop_supplier_orders?"+new URLSearchParams({select:"id,order_id,merchant_reference,provider_order_id,provider_order_alias,state,payload",order_id:"eq."+order.id,order:"line_index.asc",...(input.supplierId?{id:"eq."+input.supplierId}:{})}));
  if(input.action==="create"&&rows.some(row=>["exception","submitting"].includes(row.state)))throw new ApiError(409,"Reconcile the existing supplier write before creating another.");
  const supplier=input.action==="create"?rows.find(row=>row.state==="awaiting_creation"):rows[0];
  if(!supplier)return Response.json({message:"No supplier action is required.",sandbox:true});
@@ -48,16 +48,17 @@ export async function POST(request:Request){try{
   }
   let remote=checkedSandboxOrder(await provider.order(providerId||supplier.merchant_reference),supplier.merchant_reference,providerId||undefined);
   if(providerId&&providerId!==remote.orderId)await supabaseRpc("bidscope_shop_canonicalize_supplier",{p_supplier:supplier.id,p_alias:providerId,p_canonical:remote.orderId});
+  const actionId=supplier.provider_order_alias||providerId||remote.orderId;
   providerId=remote.orderId;
   if(input.action==="pay"){
-   if(["CREATED","IN_CART"].includes(remote.orderStatus)){await provider.confirmSandboxOrder(providerId);remote=checkedSandboxOrder(await provider.order(providerId),supplier.merchant_reference,providerId);}
-   if(remote.orderStatus==="UNPAID")await provider.sandboxAction(providerId,"pay");
+   if(["CREATED","IN_CART"].includes(remote.orderStatus)){await provider.confirmSandboxOrder(actionId);remote=checkedSandboxOrder(await provider.order(providerId),supplier.merchant_reference,providerId);}
+   if(remote.orderStatus==="UNPAID")await provider.sandboxAction(actionId,"pay");
    remote=checkedSandboxOrder(await provider.order(providerId),supplier.merchant_reference,providerId);
-   if(!remote.trackNumber&&["PENDING","PROCESSING","UNSHIPPED","SHIPPED","DELIVERED"].includes(remote.orderStatus))await provider.sandboxAction(providerId,"tracking","BIDSCOPE-TEST-"+supplier.id.replaceAll("-",""));
+   if(!remote.trackNumber&&["PENDING","PROCESSING","UNSHIPPED","SHIPPED","DELIVERED"].includes(remote.orderStatus))await provider.sandboxAction(actionId,"tracking","BIDSCOPE-TEST-"+supplier.id.replaceAll("-",""));
    remote=checkedSandboxOrder(await provider.order(providerId),supplier.merchant_reference,providerId);
   }
   if(input.action==="advance"){
-   const next=nextSandboxStatus(remote.orderStatus);if(next!==null)await provider.sandboxAction(providerId,"status",next);
+   const next=nextSandboxStatus(remote.orderStatus,remote.subStatus);if(next!==null)await provider.sandboxAction(actionId,"status",next);
    remote=checkedSandboxOrder(await provider.order(providerId),supplier.merchant_reference,providerId);
   }
   const {data:status}=await supabaseRpc<string>("bidscope_shop_sync_supplier",{p_supplier:supplier.id,p_provider:remote.orderId,p_status:remote.orderStatus,p_tracking:remote.trackNumber||null,p_carrier:remote.trackingProvider||payload.service});
