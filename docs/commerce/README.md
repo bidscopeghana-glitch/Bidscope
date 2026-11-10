@@ -805,3 +805,28 @@ CJ order code; no duplicate order was created. Sandbox mutations now use the
 preserved SD/DP alias while status/identity validation continues with the canonical
 ID. UNSHIPPED with subStatus=PENDING advances to 400 before 500, as required by
 CJ's ordered simulation flow. Focused lint and 428 backend tests passed.
+
+### Hosted supplier simulation and refund acceptance - 10 November 2026
+
+Ready runtime d937cc8: Vercel ERhvVbwU7LJqdQ8NNB5DxV3qJRai,
+https://bidscope-2416q1ssz-bidscope-ghana.vercel.app/.
+The retained SD alias was used for sandbox mutations, while canonical lookup and
+exact merchant reference/isSandbox checks were retained. The existing order was
+reconciled, not recreated. CJ confirmed simulated supplier payment, test tracking
+BIDSCOPE-TEST-8f2112135eb54d5eaf763433a0e73db0 and the ordered processing/shipped/
+DELIVERED transitions. Customer history displays delivered and SIMULATED SHIPMENT.
+No real balance deduction, logistics or supplier purchase was made.
+
+The full GHc200.94 Paystack TEST refund was created once with saved reference
+BSC-RF-SBX-3f957695116749ea8da90a071896c222. Provider verification returned pending;
+a separate read of the existing refund also returned pending. Customer history
+correctly shows refund pending / TEST ONLY, not refunded. Another submission is
+blocked. Provider-processed completion remains unverified and must be checked
+against the same saved reference, never by creating a replacement refund.
+
+Proof artifacts: outputs/shop-sandbox-delivered.png,
+outputs/shop-test-refund-pending.png, outputs/shop-sandbox-customer-history.png.
+The source tree passed 428 backend tests, focused lint and the production build
+including TypeScript before the deployed simulation correction. Public catalogue,
+live purchase/refund processing and production-domain conversion are still not
+activated. Completing a sandbox flow does not establish public-launch readiness.
